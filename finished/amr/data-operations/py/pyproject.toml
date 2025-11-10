@@ -3,5 +3,10 @@ name = "py"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "azure-identity>=1.20.0",
+    "python-dotenv>=1.2.1",
+    "redis>=7.0.1",
+    "redis-entraid>=1.0.0",
+]
