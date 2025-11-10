@@ -1,0 +1,1 @@
+Contains full project code for Azure Managed Redis content.
