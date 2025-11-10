@@ -1,11 +1,6 @@
 name: Zip Azure Storage Dotnet Files
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'main'
-    paths:
-      - 'allfiles/labs/dotnet/azure-storage/**'
 
 defaults:
   run:
