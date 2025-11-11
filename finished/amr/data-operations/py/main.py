@@ -1,27 +1,27 @@
 import os
 import redis
-from dotnenv import load_dotenv
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 try:
-    # Create credential provider using the official Microsoft syntax
-    #credential_provider = create_from_default_azure_credential("https://redis.azure.com/.default")
-
-
+ 
     conn = redis.Redis(
         host=os.getenv("REDIS_HOST"),
         port=6380,
         ssl=True,
         decode_responses=True,
         password=os.getenv("REDIS_KEY"),
-        #credential_provider=credential_provider,
-        socket_timeout=10,
-        socket_connect_timeout=10
+        socket_timeout=30.0,  # Float value for timeout
+        socket_connect_timeout=30.0,  # Float value for connection timeout
+        socket_keepalive=True,  # Enable TCP keepalive
+        max_connections=10,  # Connection pool size
+        health_check_interval=30,  # Health check every 30 seconds
+        retry_on_error=[redis.ConnectionError, redis.TimeoutError]  # Valid parameter
     )
 
-    # Test connection
-    result = conn.set('user:1001:name', 'Alice Smith')
-    print(f"SET operation successful: {result}")  # Returns True
-
+    # Test the connection
     result = conn.ping()
     if result:
         print("Ping returned: " + str(result))
