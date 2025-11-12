@@ -6,31 +6,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:
- 
+    # Azure Managed Redis with Non-Clustered policy uses standard Redis connection
+    redis_host = os.getenv("REDIS_HOST")
+    redis_key = os.getenv("REDIS_KEY")
+    
+    # Non-clustered policy uses standard Redis client (not RedisCluster)
     conn = redis.Redis(
-        host=os.getenv("REDIS_HOST"),
-        port=6380,
+        host=redis_host,
+        port=10000,  # Azure Managed Redis uses port 10000
         ssl=True,
         decode_responses=True,
-        password=os.getenv("REDIS_KEY"),
-        socket_timeout=30.0,  # Float value for timeout
-        socket_connect_timeout=30.0,  # Float value for connection timeout
-        socket_keepalive=True,  # Enable TCP keepalive
-        max_connections=10,  # Connection pool size
-        health_check_interval=30,  # Health check every 30 seconds
-        retry_on_error=[redis.ConnectionError, redis.TimeoutError]  # Valid parameter
+        password=redis_key,
+        socket_timeout=30,  # Add timeout for better reliability
+        socket_connect_timeout=30,
     )
 
     # Test the connection
+    print(f"Connecting to Redis (Non-Clustered) at {redis_host} on port 10000...")
     result = conn.ping()
     if result:
         print("Ping returned: " + str(result))
         print("Connected to Redis successfully!")
         
-        # Optional: Test basic Redis operations
-        conn.set("test", "Hello from Python!")
-        value = conn.get("test")
-        print(f"Test operation - SET/GET: {value}")
+        # Test basic operations with non-clustered Redis
+        test_key = "test_message"
+        test_value = "Hello from Non-Clustered Redis!"
+        conn.set(test_key, test_value)
+        retrieved_value = conn.get(test_key)
+        print(f"Set and retrieved test data: {retrieved_value}")
         
     else:
         print("Failed to ping Redis server")

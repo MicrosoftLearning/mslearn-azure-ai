@@ -6,5 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "python-dotenv>=1.2.1",
-    "redis>=5.3.0,<6.0.0",
+    "redis>=7.0.1",
 ]
