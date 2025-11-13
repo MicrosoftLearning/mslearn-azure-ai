@@ -1,6 +1,5 @@
-//usr/bin/env dotnet-script
-#r "nuget: StackExchange.Redis, 2.8.16"
-#r "nuget: dotenv.net, 3.2.1"
+#: package StackExchange.Redis@2.9.*
+#: package dotenv.net@3.*
 
 using StackExchange.Redis;
 using dotenv.net;
@@ -45,14 +44,6 @@ try
     Console.WriteLine($"Ping returned: {pingResult.TotalMilliseconds} ms");
     Console.WriteLine("Connected to Redis successfully!");
 
-    // Test basic operations with non-clustered Redis
-    string testKey = "test_message";
-    string testValue = "Hello from Non-Clustered Redis (.NET 10)!";
-    
-    await database.StringSetAsync(testKey, testValue);
-    string? retrievedValue = await database.StringGetAsync(testKey);
-    Console.WriteLine($"Set and retrieved test data: {retrievedValue}");
-
     Console.WriteLine("Redis connection will be disposed automatically.");
 }
 catch (RedisConnectionException ex)
@@ -60,12 +51,12 @@ catch (RedisConnectionException ex)
     Console.WriteLine($"Connection error: {ex.Message}");
     Console.WriteLine("Check if Redis host and port are correct, and ensure network connectivity");
 }
-catch (RedisAuthenticationException ex)
+catch (RedisException ex) when (ex.Message.Contains("AUTH") || ex.Message.Contains("authentication"))
 {
     Console.WriteLine($"Authentication error: {ex.Message}");
     Console.WriteLine("Make sure the Redis key is correct and the service is accessible");
 }
-catch (RedisTimeoutError ex)
+catch (RedisTimeoutException ex)
 {
     Console.WriteLine($"Timeout error: {ex.Message}");
     Console.WriteLine("Check network latency and Redis server performance");
