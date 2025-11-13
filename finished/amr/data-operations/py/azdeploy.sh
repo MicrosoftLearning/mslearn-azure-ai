@@ -3,8 +3,6 @@
 # Variables
 RESOURCE_GROUP="rg-exercises"
 CACHE_NAME="amr2-exercise"
-POLICY_NAME="dataContributorPolicy"
-IDENTITY_ID=$(az ad signed-in-user show --query id -o tsv)
 
 # Assign access policy to your identity
 # Note: "default" may have minimal permissions - consider using Azure portal instead
