@@ -1,0 +1,142 @@
+name: Auto-Zip Changed Folders
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - '_zip-process/zip-config.json'
+      - 'starter/**'
+  workflow_dispatch:
+
+jobs:
+  detect-and-zip:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history to detect changes
+    
+    - name: Setup Node.js for JSON processing
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Read zip configuration
+      id: read-config
+      run: |
+        if [ ! -f "_zip-process/zip-config.json" ]; then
+          echo "_zip-process/zip-config.json not found. Creating empty results."
+          echo "folders=[]" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Read and validate JSON
+        config=$(cat _zip-process/zip-config.json)
+        echo "Configuration read: $config"
+        
+        # Extract folders array and format for matrix
+        folders=$(echo "$config" | jq -c '.folders')
+        echo "folders=$folders" >> $GITHUB_OUTPUT
+    
+    - name: Detect changed folders
+      id: detect-changes
+      run: |
+        # Get list of changed files in this push
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # For manual runs, process all folders
+          echo "Manual run detected - processing all folders"
+          changed_files="all"
+        else
+          # Get changed files between previous commit and current
+          changed_files=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$changed_files"
+        fi
+        
+        # Read config and check which source folders have changes
+        config=$(cat _zip-process/zip-config.json 2>/dev/null || echo '{"folders":[]}')
+        folders_to_process=()
+        
+        echo "$config" | jq -r '.folders[] | @base64' | while IFS= read -r folder_data; do
+          folder_info=$(echo "$folder_data" | base64 -d)
+          source_path=$(echo "$folder_info" | jq -r '.source')
+          output_path=$(echo "$folder_info" | jq -r '.output')
+          zip_name=$(echo "$folder_info" | jq -r '.name')
+          
+          echo "Checking folder: $source_path"
+          
+          # Check if this source folder has changes or if it's a manual run
+          if [ "$changed_files" = "all" ] || echo "$changed_files" | grep -q "^$source_path/"; then
+            echo "Changes detected in $source_path - will create zip"
+            echo "$folder_info" >> folders_to_process.txt
+          else
+            echo "No changes in $source_path - skipping"
+          fi
+        done
+        
+        # Check if we have any folders to process
+        if [ -f folders_to_process.txt ]; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "Folders to process:"
+          cat folders_to_process.txt
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          echo "No folders need processing"
+        fi
+    
+    - name: Create output directories
+      if: steps.detect-changes.outputs.has_changes == 'true'
+      run: |
+        # Read folders to process and create output directories
+        if [ -f folders_to_process.txt ]; then
+          while IFS= read -r folder_info; do
+            output_path=$(echo "$folder_info" | jq -r '.output')
+            mkdir -p "$output_path"
+            echo "Created directory: $output_path"
+          done < folders_to_process.txt
+        fi
+    
+    - name: Create zip files
+      if: steps.detect-changes.outputs.has_changes == 'true'
+      run: |
+        if [ -f folders_to_process.txt ]; then
+          while IFS= read -r folder_info; do
+            source_path=$(echo "$folder_info" | jq -r '.source')
+            output_path=$(echo "$folder_info" | jq -r '.output')
+            zip_name=$(echo "$folder_info" | jq -r '.name')
+            
+            echo "Processing: $source_path -> $output_path/$zip_name"
+            
+            if [ -d "$source_path" ]; then
+              # Create zip file
+              cd "$source_path"
+              zip -r "../$output_path/$zip_name" . -x "*.git*" "*.DS_Store*" "*__pycache__*" "*.pyc"
+              cd - > /dev/null
+              
+              echo "✅ Created: $output_path/$zip_name"
+              ls -la "$output_path/$zip_name"
+            else
+              echo "❌ Source folder not found: $source_path"
+            fi
+          done < folders_to_process.txt
+        fi
+    
+    - name: Commit and push zip files
+      if: steps.detect-changes.outputs.has_changes == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Add all zip files
+        git add "**/*.zip"
+        
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No new zip files to commit"
+        else
+          git commit -m "Auto-generated zip files [skip ci]"
+          git push
+          echo "✅ Committed and pushed zip files"
+        fi
