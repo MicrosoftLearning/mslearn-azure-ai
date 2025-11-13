@@ -3,5 +3,8 @@ name = "py"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.2.1",
+    "redis>=7.0.1",
+]

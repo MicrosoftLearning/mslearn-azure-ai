@@ -1,0 +1,10 @@
+{
+  "description": "Configuration for automatic folder zipping workflow",
+  "folders": [
+    {
+      "source": "starter/amr/data-operations/python",
+      "output": "downloads/python",
+      "name": "amr-data-operations-python.zip"
+    }
+  ]
+}
