@@ -105,23 +105,32 @@ jobs:
       if: steps.detect-changes.outputs.has_changes == 'true'
       run: |
         if [ -f folders_to_process.txt ]; then
+          # Get absolute path to repository root
+          repo_root=$(pwd)
+          echo "Repository root: $repo_root"
+          
           while IFS= read -r folder_info; do
             source_path=$(echo "$folder_info" | jq -r '.source')
             output_path=$(echo "$folder_info" | jq -r '.output')
             zip_name=$(echo "$folder_info" | jq -r '.name')
             
-            echo "Processing: $source_path -> $output_path/$zip_name"
+            # Convert to absolute paths
+            abs_source_path="$repo_root/$source_path"
+            abs_output_path="$repo_root/$output_path"
+            abs_zip_file="$abs_output_path/$zip_name"
             
-            if [ -d "$source_path" ]; then
-              # Create zip file
-              cd "$source_path"
-              zip -r "../$output_path/$zip_name" . -x "*.git*" "*.DS_Store*" "*__pycache__*" "*.pyc"
-              cd - > /dev/null
+            echo "Processing: $abs_source_path -> $abs_zip_file"
+            
+            if [ -d "$abs_source_path" ]; then
+              # Create zip file using absolute paths
+              cd "$abs_source_path"
+              zip -r "$abs_zip_file" .
+              cd "$repo_root"
               
-              echo "✅ Created: $output_path/$zip_name"
-              ls -la "$output_path/$zip_name"
+              echo "✅ Created: $abs_zip_file"
+              ls -la "$abs_zip_file"
             else
-              echo "❌ Source folder not found: $source_path"
+              echo "❌ Source folder not found: $abs_source_path"
             fi
           done < folders_to_process.txt
         fi
