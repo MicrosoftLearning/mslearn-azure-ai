@@ -1,0 +1,123 @@
+# Azure Managed Redis Deployment Script (PowerShell)
+
+# Change the values of these variables as needed
+$rg = "rg-exercises"        # Resource Group name
+$location = "westus2"       # Azure region for the resources
+
+# ============================================================================
+# DON'T CHANGE ANYTHING BELOW THIS LINE.
+# ============================================================================
+
+# Generate consistent hash from username (always produces valid Azure resource name)
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($env:USERNAME)
+$sha1 = [System.Security.Cryptography.SHA1]::Create()
+$hashBytes = $sha1.ComputeHash($bytes)
+$user_hash = [System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower()
+$cache_name = "amr-exercise-$user_hash"
+
+# Function to create Azure Managed Redis resource
+function Create-RedisResource {
+    Write-Host "Creating Azure Managed Redis resource '$cache_name'..."
+    
+    # Create the Redis Enterprise cluster with public IP access and access keys enabled
+    az redisenterprise create `
+        --resource-group $rg `
+        --name $cache_name `
+        --location $location `
+        --sku "Balanced_B0" `
+        --public-network-access "Enabled" `
+        --access-keys-auth "Enabled" `
+        --client-protocol "Encrypted" `
+        --clustering-policy "NoCluster" `
+        --eviction-policy "AllKeysLRU" `
+        --port 10000 `
+        --no-wait
+    
+    Write-Host "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."
+    Write-Host "You can check the deployment status from the menu later in the exercise."
+}
+
+# Function to check deployment status
+function Check-DeploymentStatus {
+    Write-Host "Checking deployment status..."
+    az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState"
+}
+
+# Function to retrieve endpoint and access key
+function Get-EndpointAndKey {
+    Write-Host "Retrieving endpoint and access key..."
+    
+    # Get the endpoint (hostname and port)
+    $hostname = az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv
+    
+    # Get the primary access key
+    $primaryKey = az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv
+    
+    Clear-Host
+    Write-Host ""
+    Write-Host "Redis Connection Information"
+    Write-Host "==========================================================="
+    Write-Host "Endpoint: $hostname"
+    Write-Host "Primary Key: $primaryKey"
+    Write-Host ""
+    Write-Host "Add these values to your .env file:"
+    Write-Host "REDIS_HOST=$hostname"
+    Write-Host "REDIS_KEY=$primaryKey"
+}
+
+# Display menu
+function Show-Menu {
+    Clear-Host
+    Write-Host "=================================================="
+    Write-Host "    Azure Managed Redis Deployment Menu"
+    Write-Host "=================================================="
+    Write-Host "Resource Group: $rg"
+    Write-Host "Cache Name: $cache_name"
+    Write-Host "Location: $location"
+    Write-Host "=================================================="
+    Write-Host "1. Create Azure Managed Redis resource"
+    Write-Host "2. Check deployment status"
+    Write-Host "3. Retrieve endpoint and access key"
+    Write-Host "4. Exit"
+    Write-Host "=================================================="
+}
+
+# Main menu loop
+do {
+    Show-Menu
+    $choice = Read-Host "Please select an option (1-4)"
+    
+    switch ($choice) {
+        "1" {
+            Write-Host ""
+            Create-RedisResource
+            Write-Host ""
+            Read-Host "Press Enter to continue..."
+        }
+        "2" {
+            Write-Host ""
+            Check-DeploymentStatus
+            Write-Host ""
+            Read-Host "Press Enter to continue..."
+        }
+        "3" {
+            Write-Host ""
+            Get-EndpointAndKey
+            Write-Host ""
+            Read-Host "Press Enter to continue..."
+        }
+        "4" {
+            Write-Host "Exiting..."
+            Clear-Host
+            exit 0
+        }
+        default {
+            Write-Host ""
+            Write-Host "Invalid option. Please select 1-4."
+            Write-Host ""
+            Read-Host "Press Enter to continue..."
+        }
+    }
+    
+    Write-Host ""
+} while ($choice -ne "4")

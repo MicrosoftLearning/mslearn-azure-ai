@@ -10,7 +10,7 @@ try:
     redis_host = os.getenv("REDIS_HOST")
     redis_key = os.getenv("REDIS_KEY")
     
-    # Non-clustered policy uses standard Redis client (not RedisCluster)
+    # Non-clustered policy uses standard Redis client connection
     conn = redis.Redis(
         host=redis_host,
         port=10000,  # Azure Managed Redis uses port 10000
