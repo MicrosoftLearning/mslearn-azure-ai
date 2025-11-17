@@ -48,10 +48,51 @@ function Get-EndpointAndKey {
     Write-Host "Retrieving endpoint and access key..."
     
     # Get the endpoint (hostname and port)
-    $hostname = az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv
+    $hostname = az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>$null
     
     # Get the primary access key
-    $primaryKey = az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv
+    $primaryKey = az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>$null
+    
+    # Check if values are empty
+    if ([string]::IsNullOrWhiteSpace($hostname) -or [string]::IsNullOrWhiteSpace($primaryKey)) {
+        Write-Host ""
+        Write-Host "Unable to retrieve endpoint or access key."
+        Write-Host "Please check the deployment status to ensure the resource is fully provisioned."
+        Write-Host "Use menu option 2 to check deployment status."
+        return
+    }
+    
+    # Create or update .env file
+    $envFilePath = ".env"
+    if (Test-Path $envFilePath) {
+        # Read existing content
+        $envContent = Get-Content $envFilePath -Raw
+        
+        # Update or add REDIS_HOST
+        if ($envContent -match "REDIS_HOST=") {
+            $envContent = $envContent -replace "REDIS_HOST=.*", "REDIS_HOST=$hostname"
+        } else {
+            $envContent += "`nREDIS_HOST=$hostname"
+        }
+        
+        # Update or add REDIS_KEY
+        if ($envContent -match "REDIS_KEY=") {
+            $envContent = $envContent -replace "REDIS_KEY=.*", "REDIS_KEY=$primaryKey"
+        } else {
+            $envContent += "`nREDIS_KEY=$primaryKey"
+        }
+        
+        # Write back to file
+        $envContent | Set-Content $envFilePath -NoNewline
+        Write-Host "Updated existing .env file"
+    } else {
+        # Create new .env file
+        @"
+REDIS_HOST=$hostname
+REDIS_KEY=$primaryKey
+"@ | Set-Content $envFilePath -NoNewline
+        Write-Host "Created new .env file"
+    }
     
     Clear-Host
     Write-Host ""
@@ -60,9 +101,7 @@ function Get-EndpointAndKey {
     Write-Host "Endpoint: $hostname"
     Write-Host "Primary Key: $primaryKey"
     Write-Host ""
-    Write-Host "Add these values to your .env file:"
-    Write-Host "REDIS_HOST=$hostname"
-    Write-Host "REDIS_KEY=$primaryKey"
+    Write-Host "Values have been saved to .env file"
 }
 
 # Display menu

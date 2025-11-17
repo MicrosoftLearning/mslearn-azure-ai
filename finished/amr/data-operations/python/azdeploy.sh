@@ -46,10 +46,41 @@ retrieve_endpoint_and_key() {
     echo "Retrieving endpoint and access key..."
     
     # Get the endpoint (hostname and port)
-    hostname=$(az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv)
+    hostname=$(az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>/dev/null)
     
     # Get the primary access key
-    primaryKey=$(az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv)
+    primaryKey=$(az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>/dev/null)
+    
+    # Check if values are empty
+    if [ -z "$hostname" ] || [ -z "$primaryKey" ]; then
+        echo ""
+        echo "Unable to retrieve endpoint or access key."
+        echo "Please check the deployment status to ensure the resource is fully provisioned."
+        echo "Use menu option 2 to check deployment status."
+        return 1
+    fi
+    
+    # Create or update .env file
+    if [ -f ".env" ]; then
+        # Update existing .env file
+        if grep -q "^REDIS_HOST=" .env; then
+            sed -i "s|^REDIS_HOST=.*|REDIS_HOST=$hostname|" .env
+        else
+            echo "REDIS_HOST=$hostname" >> .env
+        fi
+        
+        if grep -q "^REDIS_KEY=" .env; then
+            sed -i "s|^REDIS_KEY=.*|REDIS_KEY=$primaryKey|" .env
+        else
+            echo "REDIS_KEY=$primaryKey" >> .env
+        fi
+        echo "Updated existing .env file"
+    else
+        # Create new .env file
+        echo "REDIS_HOST=$hostname" > .env
+        echo "REDIS_KEY=$primaryKey" >> .env
+        echo "Created new .env file"
+    fi
     
     clear
     echo ""
@@ -58,7 +89,7 @@ retrieve_endpoint_and_key() {
     echo "Endpoint: $hostname"
     echo "Primary Key: $primaryKey"
     echo ""
-    echo "Add these values to your .env file:"
+    echo "Values have been saved to .env file"
 }
 
 # Display menu

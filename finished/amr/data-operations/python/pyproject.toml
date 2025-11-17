@@ -1,8 +1,6 @@
 [project]
-name = "py"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+name = "Data operations"
+description = "Performs various data operations on Azure Managed Redis"
 requires-python = ">=3.12"
 dependencies = [
     "python-dotenv>=1.2.1",
