@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
-name = "py"
+name = "data-operations"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
