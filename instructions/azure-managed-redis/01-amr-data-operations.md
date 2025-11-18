@@ -1,11 +1,11 @@
 ---
 lab:
     topic: Azure Managed Redis
-    title: 'Perform data operations on Azure Redis'
+    title: 'Perform data operations in Azure Managed Redis'
     description: 'Learn how to do stuff with Azure Redis.'
 ---
 
-# Build and run a container image with Azure Container Registry Tasks
+# Perform data operations in Azure Managed Redis
 
 In this exercise, you build a container image from your application code and push it to Azure Container Registry using Azure CLI. You learn how to prepare your app for containerization, create an ACR instance, and store your container image in Azure.
 
@@ -16,7 +16,7 @@ Tasks performed in this exercise:
 * Verify the results
 * Run the image in the Azure Container Registry
 
-This exercise takes approximately **20** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 ## Create an Azure Container Registry resource
 
