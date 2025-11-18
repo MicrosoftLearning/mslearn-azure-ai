@@ -77,7 +77,7 @@ In this section you download the starter files for the console app and use a scr
 
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
 
-    This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis that completes the resource creation in the background.
+    This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
 
 1. After the following messages appear in the console, select **Enter** to return to the menu and then select **4** to exit the script. You run the script again later to check on the deployment status and also to create the *.env* file for the project.
 
