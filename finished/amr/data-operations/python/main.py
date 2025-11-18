@@ -12,7 +12,7 @@ def clear_screen():
 
 clear_screen()
 
-def connect_to_redis():
+def connect_to_redis() -> redis.Redis:
     """Establish connection to Azure Managed Redis"""
     clear_screen()
 
