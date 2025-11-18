@@ -20,11 +20,15 @@ This exercise takes approximately **30** minutes to complete.
 
 ## Download the project starter files
 
-1. Open a browser and enter the following URL to download the starter file.
+1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
     https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/amr-data-operations-python.zip
     ```
+
+1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
+
+1. Launch Visual Studio Code and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
 ## Create an Azure Managed Redis resource
 
