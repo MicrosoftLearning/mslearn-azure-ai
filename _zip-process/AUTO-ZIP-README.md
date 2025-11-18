@@ -17,9 +17,9 @@ The `_zip-process/zip-config.json` file contains:
   "description": "Configuration for automatic folder zipping workflow",
   "folders": [
     {
-      "source": "path/to/source/folder",
-      "output": "path/to/output/folder", 
-      "name": "output-filename.zip"
+      "source": "starter/amr/data-operations/python",
+      "output": "downloads/python",
+      "name": "amr-data-operations-python.zip"
     }
   ]
 }
@@ -44,68 +44,6 @@ The workflow only creates zip files for folders that have actually changed:
 - Only processes folders with detected changes
 - Saves processing time and avoids unnecessary commits
 
-## Management Scripts
-
-### PowerShell (Windows)
-```powershell
-# Navigate to zip process folder
-cd _zip-process
-
-# List current configuration
-.\manage-zip-config.ps1 list
-
-# Add new folder
-.\manage-zip-config.ps1 add
-
-# Remove folder
-.\manage-zip-config.ps1 remove
-
-# Validate JSON syntax
-.\manage-zip-config.ps1 validate
-```
-
-### Bash (Linux/macOS/WSL)
-```bash
-# Navigate to zip process folder
-cd _zip-process
-
-# Make script executable (first time only)
-chmod +x manage-zip-config.sh
-
-# List current configuration
-./manage-zip-config.sh list
-
-# Add new folder
-./manage-zip-config.sh add
-
-# Remove folder
-./manage-zip-config.sh remove
-
-# Validate JSON syntax
-./manage-zip-config.sh validate
-```
-
-## Example Usage
-
-1. **Add a new folder to monitor:**
-   ```powershell
-   cd _zip-process
-   .\manage-zip-config.ps1 add
-   ```
-   Then enter:
-   - Source: `src/my-project`
-   - Output: `downloads/projects`
-   - Name: `my-project.zip`
-
-2. **Make changes to the monitored folder:**
-   - Edit files in `src/my-project`
-   - Commit and push changes
-
-3. **Automatic processing:**
-   - Workflow detects changes in `src/my-project`
-   - Creates `downloads/projects/my-project.zip`
-   - Commits the zip file back to repository
-
 ## Workflow Features
 
 - **Exclusions**: Automatically excludes common unwanted files:
@@ -119,31 +57,6 @@ chmod +x manage-zip-config.sh
 - **Commit Message**: Uses `[skip ci]` to prevent infinite workflow loops
 
 - **Error Handling**: Validates source folders exist before processing
-
-## Example Configuration
-
-```json
-{
-  "description": "Configuration for automatic folder zipping workflow",
-  "folders": [
-    {
-      "source": "src/amr/python",
-      "output": "downloads/python",
-      "name": "amr-python-code.zip"
-    },
-    {
-      "source": "finished/amr/data-operations/dotnet",
-      "output": "downloads/dotnet", 
-      "name": "amr-dotnet-code.zip"
-    },
-    {
-      "source": "instructions/compute-containers",
-      "output": "downloads/instructions",
-      "name": "container-instructions.zip"
-    }
-  ]
-}
-```
 
 ## Monitoring Multiple Folders
 
@@ -172,24 +85,5 @@ To manually run the workflow:
    - Check for permission issues
 
 3. **Invalid configuration:**
-   - Run validation: `cd _zip-process && .\manage-zip-config.ps1 validate`
    - Check JSON syntax with online validators
 
-## File Structure After Setup
-
-```
-your-repo/
-├── .github/
-│   └── workflows/
-│       └── auto-zip.yml
-├── _zip-process/        # Auto-zip configuration folder
-│   ├── zip-config.json
-│   ├── manage-zip-config.ps1
-│   ├── manage-zip-config.sh
-│   └── AUTO-ZIP-README.md
-├── downloads/           # Output directory (created automatically)
-│   ├── python/
-│   ├── dotnet/
-│   └── instructions/
-└── your-source-folders/
-```
