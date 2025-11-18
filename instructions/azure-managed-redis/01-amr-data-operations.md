@@ -26,7 +26,7 @@ To complete the exercise, you need:
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](/cli/azure/install-azure-cli?view=azure-cli-latest).
-- The Azure CLI `redisenterprise` extension. You can install it by running the `az extension add --name redisenterprise` command.
+- The Azure CLI **redisenterprise** extension. You can install it by running the **az extension add --name redisenterprise** command.
 
 ## Download project starter files and deploy Azure Managed Redis
 
