@@ -1,8 +1,8 @@
 # Azure Managed Redis Deployment Script (PowerShell)
 
 # Change the values of these variables as needed
-$rg = "rg-exercises"        # Resource Group name
-$location = "westus2"       # Azure region for the resources
+$rg = "<your-resource-group-name>"      # Resource Group name
+$location = "<your-azure-region>"       # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -19,6 +19,9 @@ $cache_name = "amr-exercise-$user_hash"
 function Create-RedisResource {
     Write-Host "Creating Azure Managed Redis resource '$cache_name'..."
     
+    # Create the resource group if it doesn't exist
+    az group create --name $rg --location $location *>$null
+
     # Create the Redis Enterprise cluster with public IP access and access keys enabled
     az redisenterprise create `
         --resource-group $rg `
