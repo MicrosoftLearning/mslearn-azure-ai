@@ -12,7 +12,7 @@ def clear_screen():
     """Clear console screen (cross-platform)"""
     os.system('cls' if os.name == 'nt' else 'clear')
 
-clear_screen()
+# BEGIN CONNECTION CODE SECTION
 
 def connect_to_redis() -> redis.Redis:
     """Establish connection to Azure Managed Redis"""
@@ -33,20 +33,23 @@ def connect_to_redis() -> redis.Redis:
         
         # Test connection
         r.ping()
-        print(f"✓ Connected to Redis at {redis_host}")
         return r
         
     except redis.ConnectionError as e:
-        print(f"✗ Connection error: {e}")
+        print(f"[x] Connection error: {e}")
         print("Check if Redis host and port are correct, and ensure network connectivity")
         sys.exit(1)
     except redis.AuthenticationError as e:
-        print(f"✗ Authentication error: {e}")
+        print(f"[x] Authentication error: {e}")
         print("Make sure the access key is correct")
         sys.exit(1)
     except Exception as e:
-        print(f"✗ Unexpected error: {e}")
+        print(f"[x] Unexpected error: {e}")
         sys.exit(1)
+
+# END CONNECTION CODE SECTION
+
+# BEGIN PUBLISH MESSAGE CODE SECTION
 
 def publish_order_created(r: redis.Redis) -> None:
     """Publish an order created event"""
@@ -69,12 +72,14 @@ def publish_order_created(r: redis.Redis) -> None:
     # Publish message and get subscriber count
     subscribers = r.publish(channel, message)
     
-    print(f"\n📤 Published to channel: '{channel}'")
-    print(f"📊 Active subscribers: {subscribers}")
-    print(f"\n📝 Message content:")
+    print(f"\n[>] Published to channel: '{channel}'")
+    print(f"[#] Active subscribers: {subscribers}")
+    print(f"\n[i] Message content:")
     print(json.dumps(order_data, indent=2))
     
-    input("\n✓ Press Enter to continue...")
+    input("\n[+] Press Enter to continue...")
+
+# END PUBLISH MESSAGE CODE SECTION
 
 def publish_order_shipped(r: redis.Redis) -> None:
     """Publish an order shipped event"""
@@ -96,12 +101,12 @@ def publish_order_shipped(r: redis.Redis) -> None:
     
     subscribers = r.publish(channel, message)
     
-    print(f"\n📤 Published to channel: '{channel}'")
-    print(f"📊 Active subscribers: {subscribers}")
-    print(f"\n📝 Message content:")
+    print(f"\n[>] Published to channel: '{channel}'")
+    print(f"[#] Active subscribers: {subscribers}")
+    print(f"\n[i] Message content:")
     print(json.dumps(order_data, indent=2))
     
-    input("\n✓ Press Enter to continue...")
+    input("\n[+] Press Enter to continue...")
 
 def publish_inventory_alert(r: redis.Redis) -> None:
     """Publish an inventory low alert"""
@@ -124,12 +129,12 @@ def publish_inventory_alert(r: redis.Redis) -> None:
     
     subscribers = r.publish(channel, message)
     
-    print(f"\n📤 Published to channel: '{channel}'")
-    print(f"📊 Active subscribers: {subscribers}")
-    print(f"\n📝 Message content:")
+    print(f"\n[>] Published to channel: '{channel}'")
+    print(f"[#] Active subscribers: {subscribers}")
+    print(f"\n[i] Message content:")
     print(json.dumps(alert_data, indent=2))
     
-    input("\n✓ Press Enter to continue...")
+    input("\n[+] Press Enter to continue...")
 
 def publish_notification(r: redis.Redis) -> None:
     """Publish a customer notification"""
@@ -152,12 +157,14 @@ def publish_notification(r: redis.Redis) -> None:
     
     subscribers = r.publish(channel, message)
     
-    print(f"\n📤 Published to channel: '{channel}'")
-    print(f"📊 Active subscribers: {subscribers}")
-    print(f"\n📝 Message content:")
+    print(f"\n[>] Published to channel: '{channel}'")
+    print(f"[#] Active subscribers: {subscribers}")
+    print(f"\n[i] Message content:")
     print(json.dumps(notification_data, indent=2))
     
-    input("\n✓ Press Enter to continue...")
+    input("\n[+] Press Enter to continue...")
+
+# BEGIN BROADCAST CODE SECTION
 
 def broadcast_to_all(r: redis.Redis) -> None:
     """Broadcast a message to all channels"""
@@ -176,56 +183,22 @@ def broadcast_to_all(r: redis.Redis) -> None:
     channels = ["orders:created", "orders:shipped", "inventory:alerts", "notifications"]
     message = json.dumps(announcement)
     
-    print(f"\n📤 Broadcasting to {len(channels)} channels...")
+    print(f"\n[>] Broadcasting to {len(channels)} channels...")
     print(f"Channels: {', '.join(channels)}\n")
     
     total_subscribers = 0
     for channel in channels:
         count = r.publish(channel, message)
         total_subscribers += count
-        print(f"  • {channel}: {count} subscriber(s)")
+        print(f"  - {channel}: {count} subscriber(s)")
     
-    print(f"\n📊 Total subscribers reached: {total_subscribers}")
-    print(f"\n📝 Message content:")
+    print(f"\n[#] Total subscribers reached: {total_subscribers}")
+    print(f"\n[i] Message content:")
     print(json.dumps(announcement, indent=2))
     
-    input("\n✓ Press Enter to continue...")
+    input("\n[+] Press Enter to continue...")
 
-def publish_custom_message(r: redis.Redis) -> None:
-    """Publish a custom message to a user-specified channel"""
-    clear_screen()
-    print("=" * 60)
-    print("Publishing: Custom Message")
-    print("=" * 60)
-    
-    channel = input("\nEnter channel name: ").strip()
-    if not channel:
-        print("✗ Channel name cannot be empty")
-        input("\nPress Enter to continue...")
-        return
-    
-    message_text = input("Enter message: ").strip()
-    if not message_text:
-        print("✗ Message cannot be empty")
-        input("\nPress Enter to continue...")
-        return
-    
-    custom_data = {
-        "event": "custom_message",
-        "message": message_text,
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    message = json.dumps(custom_data)
-    subscribers = r.publish(channel, message)
-    
-    print(f"\n📤 Published to channel: '{channel}'")
-    print(f"📊 Active subscribers: {subscribers}")
-    
-    if subscribers == 0:
-        print("\n⚠️  Warning: No subscribers are listening to this channel")
-    
-    input("\n✓ Press Enter to continue...")
+# END BROADCAST CODE SECTION
 
 def show_menu():
     """Display the publisher menu"""
@@ -233,28 +206,30 @@ def show_menu():
     print("=" * 60)
     print("         Redis Pub/Sub - MESSAGE PUBLISHER")
     print("=" * 60)
-    print("\n📢 Publish Messages:\n")
+    print("\n[>] Publish Messages:\n")
     print("  1. Publish Order Created event")
     print("  2. Publish Order Shipped event")
     print("  3. Publish Inventory Alert")
     print("  4. Publish Customer Notification")
     print("  5. Broadcast to All Channels")
-    print("  6. Publish Custom Message")
-    print("  7. Exit")
+    print("  6. Exit")
     print("=" * 60)
 
 def main() -> None:
     """Main application loop"""
-    print("\n🔄 Initializing Redis Publisher...\n")
+    clear_screen()
+    print("\n[*] Initializing Redis Publisher...\n")
     r = connect_to_redis()
     
-    print("\n💡 TIP: Start the subscriber.py in another terminal to see messages!")
+    clear_screen()
+    print("[+] Connected to Redis")
+    print("\n[i] TIP: Start the subscriber.py in another terminal to see messages!")
     input("\nPress Enter to continue...")
     
     try:
         while True:
             show_menu()
-            choice = input("\nSelect an option (1-7): ").strip()
+            choice = input("\nSelect an option (1-6): ").strip()
             
             if choice == "1":
                 publish_order_created(r)
@@ -267,24 +242,22 @@ def main() -> None:
             elif choice == "5":
                 broadcast_to_all(r)
             elif choice == "6":
-                publish_custom_message(r)
-            elif choice == "7":
                 clear_screen()
-                print("\n👋 Exiting publisher...")
+                print("\n[*] Exiting publisher...")
                 break
             else:
-                print("\n✗ Invalid option. Please select 1-7.")
+                print("\n[x] Invalid option. Please select 1-6.")
                 input("\nPress Enter to continue...")
         
     except KeyboardInterrupt:
         clear_screen()
-        print("\n\n👋 Publisher interrupted by user")
+        print("\n\n[*] Publisher interrupted by user")
     finally:
         try:
             r.close()
-            print("✓ Redis connection closed\n")
+            print("[+] Redis connection closed\n")
         except Exception as e:
-            print(f"✗ Error closing connection: {e}\n")
+            print(f"[x] Error closing connection: {e}\n")
 
 if __name__ == "__main__":
     main()
