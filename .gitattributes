@@ -1,0 +1,8 @@
+# Set default line ending to LF
+* text=auto eol=lf
+
+# Ensure shell scripts always use LF
+*.sh text eol=lf
+
+# Ensure PowerShell scripts use CRLF
+*.ps1 text eol=crlf
