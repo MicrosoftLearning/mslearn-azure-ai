@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def connect_to_redis() -> redis.Redis:
-    """Establish connection to Azure Managed Redis"""
+    """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
     try:
         redis_host = os.getenv("REDIS_HOST")
         redis_key = os.getenv("REDIS_KEY")
@@ -45,7 +45,7 @@ def connect_to_redis() -> redis.Redis:
 # BEGIN MESSAGE FORMATTING CODE SECTION
 
 def format_message_gui(message_data: dict) -> str:
-    """Format message data for GUI display"""
+    """Format message data for GUI display, parsing JSON payload and extracting relevant fields"""
     timestamp = datetime.now().strftime("%H:%M:%S")
     channel = message_data.get('channel', 'unknown')
     
@@ -85,7 +85,7 @@ class PubSubManager:
     """Manages Redis pub/sub operations and message listening"""
     
     def __init__(self):
-        """Initialize the pub/sub manager"""
+        """Initialize the pub/sub manager with Redis connection and message queue"""
         self.r = connect_to_redis()
         self.pubsub = self.r.pubsub(ignore_subscribe_messages=True)  # Create pubsub object, filter subscription confirmations
         self.message_queue = Queue()
@@ -96,7 +96,7 @@ class PubSubManager:
     # BEGIN MESSAGE LISTENER CODE SECTION
     
     def listen_messages(self):
-        """Background thread to listen for messages"""
+        """Background thread to listen for messages using pubsub.listen() blocking iterator"""
         self.listener_active = True
         
         try:
@@ -134,7 +134,7 @@ class PubSubManager:
     # END MESSAGE LISTENER CODE SECTION
     
     def restart_listener(self, clear_subs=False):
-        """Restart the listener thread after subscription changes"""
+        """Restart the listener thread after subscription changes, optionally clearing subscriptions"""
         
         # Save current subscriptions before closing
         channels = list(self.pubsub.channels.keys()) if self.pubsub.channels else []  # Get current channel subscriptions
@@ -179,7 +179,7 @@ class PubSubManager:
     # BEGIN SUBSCRIBE CHANNEL/PATTERN CODE SECTION
     
     def subscribe_to_channel(self, channel: str) -> str:
-        """Subscribe to a specific channel"""
+        """Subscribe to a specific channel using pubsub.subscribe() for direct messaging"""
         try:
             self.pubsub.subscribe(channel)  # Subscribe to channel
             self.restart_listener()
@@ -188,7 +188,7 @@ class PubSubManager:
             return f"[x] Error subscribing: {e}"
     
     def subscribe_to_pattern(self, pattern: str) -> str:
-        """Subscribe using a pattern"""
+        """Subscribe using a pattern with pubsub.psubscribe() for wildcard channel matching (e.g., 'orders:*')"""
         try:
             self.pubsub.psubscribe(pattern)  # Subscribe to pattern (e.g., 'orders:*')
             self.restart_listener()
@@ -199,7 +199,7 @@ class PubSubManager:
     # END SUBSCRIBE CHANNEL/PATTERN CODE SECTION
 
     def unsubscribe_from_channel(self, channel: str) -> str:
-        """Unsubscribe from a channel"""
+        """Unsubscribe from a channel using pubsub.unsubscribe()"""
         try:
             self.pubsub.unsubscribe(channel)  # Unsubscribe from channel
             self.restart_listener()
@@ -208,7 +208,7 @@ class PubSubManager:
             return f"[x] Error unsubscribing: {e}"
     
     def unsubscribe_all(self) -> str:
-        """Unsubscribe from all channels and patterns"""
+        """Unsubscribe from all channels and patterns using pubsub.unsubscribe() and pubsub.punsubscribe()"""
         try:
             channels = list(self.pubsub.channels.keys()) if self.pubsub.channels else []  # Get subscribed channels
             patterns = list(self.pubsub.patterns.keys()) if self.pubsub.patterns else []  # Get subscribed patterns
@@ -232,7 +232,7 @@ class PubSubManager:
             return f"[x] Error unsubscribing: {e}"
     
     def get_subscriptions(self) -> dict:
-        """Get current active subscriptions"""
+        """Get current active subscriptions from pubsub.channels and pubsub.patterns"""
         channels = self.pubsub.channels  # Get dict of subscribed channels
         patterns = self.pubsub.patterns  # Get dict of subscribed patterns
         
@@ -243,14 +243,14 @@ class PubSubManager:
         }
     
     def get_message(self, timeout=0.1):
-        """Get next message from queue (non-blocking)"""
+        """Get next message from queue (non-blocking) for safe GUI polling"""
         try:
             return self.message_queue.get(timeout=timeout)
         except:
             return None
     
     def close(self):
-        """Close connections and stop listener"""
+        """Close Redis connections and stop the listener thread"""
         self.listening = False
         try:
             self.pubsub.close()  # Close pubsub connection
