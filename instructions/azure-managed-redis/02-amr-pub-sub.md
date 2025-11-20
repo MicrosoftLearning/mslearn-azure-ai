@@ -430,7 +430,7 @@ You need to ensure the Python environment is running in both terminals. Refer to
 
 1. Position both of the applications so they run side-by-side. 
 
-    ![Screenshot of the apps running side-by-side](./media/\apps-side-by-side.png)
+    ![Screenshot of the apps running side-by-side](./media/apps-side-by-side.png)
 
 ### Send and receive messages
 
