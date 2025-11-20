@@ -5,6 +5,11 @@
       "source": "starter/amr/data-operations/python",
       "output": "downloads/python",
       "name": "amr-data-operations-python.zip"
+    },
+    {
+      "source": "starter/amr/pub-sub/python",
+      "output": "downloads/python",
+      "name": "amr-pub-sub-python.zip"
     }
   ]
 }

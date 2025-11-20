@@ -1,0 +1,9 @@
+[project]
+name = "pub_sub"
+version="0.1.0"
+description = "Demonstrates publish/subscribe messaging patterns in Azure Managed Redis"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.2.1",
+    "redis>=7.0.1",
+]

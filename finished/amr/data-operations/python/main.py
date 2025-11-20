@@ -148,6 +148,7 @@ def show_menu():
     print("=" * 50)
 
 def main() -> None:
+    clear_screen()
     r = connect_to_redis() # Connect to Redis
 
     # Sample key and value for hash data, can be modified as needed

@@ -10,8 +10,6 @@ def clear_screen():
     """Clear console screen (cross-platform)"""
     os.system('cls' if os.name == 'nt' else 'clear')
 
-clear_screen()
-
 def connect_to_redis() -> redis.Redis:
     """Establish connection to Azure Managed Redis"""
     clear_screen()
@@ -70,6 +68,7 @@ def show_menu():
     print("=" * 50)
 
 def main() -> None:
+    clear_screen()
     r = connect_to_redis() # Connect to Redis
 
     # Sample key and value for hash data, can be modified as needed
