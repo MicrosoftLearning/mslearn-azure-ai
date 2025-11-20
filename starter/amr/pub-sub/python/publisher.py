@@ -14,70 +14,13 @@ def clear_screen():
 
 # BEGIN CONNECTION CODE SECTION
 
-def connect_to_redis() -> redis.Redis:
-    """Establish connection to Azure Managed Redis"""
-    
-    try:
-        redis_host = os.getenv("REDIS_HOST")
-        redis_key = os.getenv("REDIS_KEY")
-        
-        r = redis.Redis(
-            host=redis_host,
-            port=10000,
-            ssl=True,
-            decode_responses=True,
-            password=redis_key,
-            socket_timeout=30,
-            socket_connect_timeout=30,
-        )
-        
-        # Test connection
-        r.ping()
-        return r
-        
-    except redis.ConnectionError as e:
-        print(f"[x] Connection error: {e}")
-        print("Check if Redis host and port are correct, and ensure network connectivity")
-        sys.exit(1)
-    except redis.AuthenticationError as e:
-        print(f"[x] Authentication error: {e}")
-        print("Make sure the access key is correct")
-        sys.exit(1)
-    except Exception as e:
-        print(f"[x] Unexpected error: {e}")
-        sys.exit(1)
+
 
 # END CONNECTION CODE SECTION
 
 # BEGIN PUBLISH MESSAGE CODE SECTION
 
-def publish_order_created(r: redis.Redis) -> None:
-    """Publish an order created event"""
-    clear_screen()
-    print("=" * 60)
-    print("Publishing: Order Created Event")
-    print("=" * 60)
-    
-    order_data = {
-        "event": "order_created",
-        "order_id": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-        "customer": "Jane Doe",
-        "total": 129.99,
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    message = json.dumps(order_data)
-    channel = "orders:created"
-    
-    # Publish message and get subscriber count
-    subscribers = r.publish(channel, message)
-    
-    print(f"\n[>] Published to channel: '{channel}'")
-    print(f"[#] Active subscribers: {subscribers}")
-    print(f"\n[i] Message content:")
-    print(json.dumps(order_data, indent=2))
-    
-    input("\n[+] Press Enter to continue...")
+
 
 # END PUBLISH MESSAGE CODE SECTION
 
@@ -166,37 +109,7 @@ def publish_notification(r: redis.Redis) -> None:
 
 # BEGIN BROADCAST CODE SECTION
 
-def broadcast_to_all(r: redis.Redis) -> None:
-    """Broadcast a message to all channels"""
-    clear_screen()
-    print("=" * 60)
-    print("Broadcasting: System Announcement")
-    print("=" * 60)
-    
-    announcement = {
-        "event": "system_announcement",
-        "message": "System maintenance scheduled for 2 AM",
-        "priority": "high",
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    channels = ["orders:created", "orders:shipped", "inventory:alerts", "notifications"]
-    message = json.dumps(announcement)
-    
-    print(f"\n[>] Broadcasting to {len(channels)} channels...")
-    print(f"Channels: {', '.join(channels)}\n")
-    
-    total_subscribers = 0
-    for channel in channels:
-        count = r.publish(channel, message)
-        total_subscribers += count
-        print(f"  - {channel}: {count} subscriber(s)")
-    
-    print(f"\n[#] Total subscribers reached: {total_subscribers}")
-    print(f"\n[i] Message content:")
-    print(json.dumps(announcement, indent=2))
-    
-    input("\n[+] Press Enter to continue...")
+
 
 # END BROADCAST CODE SECTION
 
