@@ -25,7 +25,7 @@ def clear_screen():
 # END PUBLISH MESSAGE CODE SECTION
 
 def publish_order_shipped(r: redis.Redis) -> None:
-    """Publish an order shipped event"""
+    """Publish an order shipped event using r.publish() to notify all subscribers"""
     clear_screen()
     print("=" * 60)
     print("Publishing: Order Shipped Event")
@@ -42,7 +42,7 @@ def publish_order_shipped(r: redis.Redis) -> None:
     message = json.dumps(order_data)
     channel = "orders:shipped"
     
-    subscribers = r.publish(channel, message)
+    subscribers = r.publish(channel, message)  # Send message to channel, returns subscriber count
     
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
@@ -52,7 +52,7 @@ def publish_order_shipped(r: redis.Redis) -> None:
     input("\n[+] Press Enter to continue...")
 
 def publish_inventory_alert(r: redis.Redis) -> None:
-    """Publish an inventory low alert"""
+    """Publish an inventory low alert using r.publish() with JSON-formatted event data"""
     clear_screen()
     print("=" * 60)
     print("Publishing: Inventory Alert")
@@ -70,7 +70,7 @@ def publish_inventory_alert(r: redis.Redis) -> None:
     message = json.dumps(alert_data)
     channel = "inventory:alerts"
     
-    subscribers = r.publish(channel, message)
+    subscribers = r.publish(channel, message)  # Publish to inventory channel
     
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
@@ -80,7 +80,7 @@ def publish_inventory_alert(r: redis.Redis) -> None:
     input("\n[+] Press Enter to continue...")
 
 def publish_notification(r: redis.Redis) -> None:
-    """Publish a customer notification"""
+    """Publish a customer notification showing one-to-many messaging capability"""
     clear_screen()
     print("=" * 60)
     print("Publishing: Customer Notification")
@@ -98,7 +98,7 @@ def publish_notification(r: redis.Redis) -> None:
     message = json.dumps(notification_data)
     channel = "notifications"
     
-    subscribers = r.publish(channel, message)
+    subscribers = r.publish(channel, message)  # Broadcast notification to all subscribers
     
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")

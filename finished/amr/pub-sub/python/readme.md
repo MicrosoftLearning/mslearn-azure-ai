@@ -8,6 +8,64 @@ This application uses a **dual-terminal approach** to showcase real-time messagi
 - **Terminal 1**: Runs the **subscriber** to listen for messages
 - **Terminal 2**: Runs the **publisher** to send messages
 
+### How It Works: The Pub/Sub Exchange
+
+```
+TERMINAL 1 (SUBSCRIBER)          AZURE REDIS              TERMINAL 2 (PUBLISHER)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. SUBSCRIBE to Channel(s)
+   ┌──────────────────┐
+   │  Subscriber App  │
+   │  subscribe()     │
+   │  listen()        │
+   └────────┬─────────┘
+            │
+            │ Subscribes to:
+            │ • "orders:created"
+            │ • "orders:*"
+            │
+            ├─────────────────────────────────┐
+                                              │
+                                    ┌─────────▼──────────┐
+                                    │  REDIS CHANNELS   │
+                                    │                   │
+                                    │ orders:created    │
+                                    │ orders:shipped    │
+                                    │ inventory:alerts  │
+                                    │                   │
+                                    └─────────┬──────────┘
+                                              │
+                                              │ (Waiting for messages)
+                                              │
+                                ┌─────────────┴────────────┐
+                                │                          │
+                                          2. PUBLISH messages
+                                          ┌──────────────────┐
+                                          │  Publisher App   │
+                                          │  publish()       │
+                                          └────────┬─────────┘
+                                                   │
+                                         Publishes to:
+                                         • "orders:created"
+                                         • "orders:shipped"
+                                         • etc.
+                                                   │
+3. RECEIVE messages                       ┌────────▼──────────┐
+   ┌──────────────────┐                   │  MESSAGE FLOW:   │
+   │  Display on GUI  │◄──────────────────│  Matching msgs   │
+   │  "Order #12345"  │   (Real-time!)    │  delivered to    │
+   │  "Order #12346"  │                   │  subscribers     │
+   └──────────────────┘                   └──────────────────┘
+
+Message Flow:
+├─ Publisher sends JSON message to "orders:created" channel
+├─ Redis broadcasts to all subscribers listening to "orders:created"
+├─ Redis also broadcasts to pattern subscribers (e.g., "orders:*")
+├─ Subscriber receives and displays in real-time GUI/console
+└─ Multiple subscribers can receive the SAME message simultaneously!
+```
+
 ## What You'll Learn
 
 - Subscribe to specific Redis channels
