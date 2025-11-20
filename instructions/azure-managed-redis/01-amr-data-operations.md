@@ -75,6 +75,8 @@ In this section you download the starter files for the console app and use a scr
     ./azdeploy.ps1
     ```
 
+    >**Note:** You may need to modify the commands for your environment. The *Scripts* folder may be *bin* depending on your operating system.
+
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
 
     This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
@@ -152,7 +154,7 @@ In this section, you add code to establish a connection to Azure Managed Redis u
 
 ### Add code to store and retrieve data
 
-In this section, you add code to work with Redis hash data structures using the `hset` and `hgetall` commands. The `hset` method stores multiple field-value pairs under a single key, while `hgetall` retrieves all fields and values for a given key. 
+In this section, you add code to work with Redis hash data structures using the **hset** and **hgetall** commands. The **hset** method stores multiple field-value pairs under a single key, while **hgetall** retrieves all fields and values for a given key. 
 
 1. Locate the **# BEGIN STORE AND RETRIEVE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -185,7 +187,7 @@ In this section, you add code to work with Redis hash data structures using the 
 
 ### Add code to set and retrieve expiration
 
-In this section, you add code to manage key expiration using the `expire` and `ttl` commands. The `expire` method sets a Time-To-Live (TTL) on a key, causing it to automatically expire after the specified number of seconds, while `ttl` retrieves the remaining time before a key expires.
+In this section, you add code to manage key expiration using the **expire** and **ttl** commands. The **expire** method sets a Time-To-Live (TTL) on a key, causing it to automatically expire after the specified number of seconds, while **ttl** retrieves the remaining time before a key expires.
 
 1. Locate the **# BEGIN EXPIRATION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -220,7 +222,7 @@ In this section, you add code to manage key expiration using the `expire` and `t
 
 ### Add code to delete data
 
-In this section, you add code to remove keys from Redis using the `delete` command. The `delete` method permanently removes a key and its associated value from the cache, freeing up memory and ensuring the data is no longer accessible.
+In this section, you add code to remove keys from Redis using the **delete** command. The **delete** method permanently removes a key and its associated value from the cache, freeing up memory and ensuring the data is no longer accessible.
 
 1. Locate the **# BEGIN EXPIRATION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -265,7 +267,7 @@ In this section you run the deployment script again to verify if the Azure Manag
 
 In this section, you run the completed console application to perform various Redis data operations. The app provides a menu-driven interface that lets you store hash data, retrieve values, manage key expiration, and delete keys.
 
-1. Run the following command in the terminal to start the console app. Ensure the Python environment is still active.
+1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment if needed.
 
     ```
     python main.py
@@ -315,10 +317,10 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project folder and contains valid `REDIS_HOST` and `REDIS_KEY` values.
+- Check that the *.env* file exists in the project folder and contains valid **REDIS_HOST** and **REDIS_KEY** values.
 - Ensure the *.env* file is in the same directory as *main.py*.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the app.
-- Verify that all packages from *requirements.txt* were installed successfully by running `pip list`.
+- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
 

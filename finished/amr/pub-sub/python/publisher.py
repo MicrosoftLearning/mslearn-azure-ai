@@ -15,7 +15,7 @@ def clear_screen():
 # BEGIN CONNECTION CODE SECTION
 
 def connect_to_redis() -> redis.Redis:
-    """Establish connection to Azure Managed Redis"""
+    """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
     
     try:
         redis_host = os.getenv("REDIS_HOST")
@@ -32,7 +32,7 @@ def connect_to_redis() -> redis.Redis:
         )
         
         # Test connection
-        r.ping()
+        r.ping()  # Verify Redis connectivity
         return r
         
     except redis.ConnectionError as e:
@@ -52,7 +52,7 @@ def connect_to_redis() -> redis.Redis:
 # BEGIN PUBLISH MESSAGE CODE SECTION
 
 def publish_order_created(r: redis.Redis) -> None:
-    """Publish an order created event"""
+    """Publish an order created event using r.publish() to the 'orders:created' channel"""
     clear_screen()
     print("=" * 60)
     print("Publishing: Order Created Event")
@@ -70,7 +70,7 @@ def publish_order_created(r: redis.Redis) -> None:
     channel = "orders:created"
     
     # Publish message and get subscriber count
-    subscribers = r.publish(channel, message)
+    subscribers = r.publish(channel, message)  # Send message to channel, returns number of subscribers that received it
     
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
@@ -82,7 +82,7 @@ def publish_order_created(r: redis.Redis) -> None:
 # END PUBLISH MESSAGE CODE SECTION
 
 def publish_order_shipped(r: redis.Redis) -> None:
-    """Publish an order shipped event"""
+    """Publish an order shipped event using r.publish() to notify all subscribers"""
     clear_screen()
     print("=" * 60)
     print("Publishing: Order Shipped Event")
@@ -99,7 +99,7 @@ def publish_order_shipped(r: redis.Redis) -> None:
     message = json.dumps(order_data)
     channel = "orders:shipped"
     
-    subscribers = r.publish(channel, message)
+    subscribers = r.publish(channel, message)  # Send message to channel, returns subscriber count
     
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
@@ -109,7 +109,7 @@ def publish_order_shipped(r: redis.Redis) -> None:
     input("\n[+] Press Enter to continue...")
 
 def publish_inventory_alert(r: redis.Redis) -> None:
-    """Publish an inventory low alert"""
+    """Publish an inventory low alert using r.publish() with JSON-formatted event data"""
     clear_screen()
     print("=" * 60)
     print("Publishing: Inventory Alert")
@@ -127,7 +127,7 @@ def publish_inventory_alert(r: redis.Redis) -> None:
     message = json.dumps(alert_data)
     channel = "inventory:alerts"
     
-    subscribers = r.publish(channel, message)
+    subscribers = r.publish(channel, message)  # Publish to inventory channel
     
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
@@ -137,7 +137,7 @@ def publish_inventory_alert(r: redis.Redis) -> None:
     input("\n[+] Press Enter to continue...")
 
 def publish_notification(r: redis.Redis) -> None:
-    """Publish a customer notification"""
+    """Publish a customer notification showing one-to-many messaging capability"""
     clear_screen()
     print("=" * 60)
     print("Publishing: Customer Notification")
@@ -155,7 +155,7 @@ def publish_notification(r: redis.Redis) -> None:
     message = json.dumps(notification_data)
     channel = "notifications"
     
-    subscribers = r.publish(channel, message)
+    subscribers = r.publish(channel, message)  # Broadcast notification to all subscribers
     
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
@@ -167,7 +167,7 @@ def publish_notification(r: redis.Redis) -> None:
 # BEGIN BROADCAST CODE SECTION
 
 def broadcast_to_all(r: redis.Redis) -> None:
-    """Broadcast a message to all channels"""
+    """Broadcast a message to all channels using r.publish() in a loop for multi-channel delivery"""
     clear_screen()
     print("=" * 60)
     print("Broadcasting: System Announcement")
@@ -188,7 +188,7 @@ def broadcast_to_all(r: redis.Redis) -> None:
     
     total_subscribers = 0
     for channel in channels:
-        count = r.publish(channel, message)
+        count = r.publish(channel, message)  # Send same message to multiple channels
         total_subscribers += count
         print(f"  - {channel}: {count} subscriber(s)")
     
