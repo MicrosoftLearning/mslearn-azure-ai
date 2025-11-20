@@ -1,31 +1,22 @@
 import os
-import sys
 import redis
 import json
 import threading
 import time
 from datetime import datetime
+from queue import Queue
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Global flag to control listener thread
-listening = False
-listener_thread = None
-
-def clear_screen():
-    """Clear console screen (cross-platform)"""
-    os.system('cls' if os.name == 'nt' else 'clear')
-
 def connect_to_redis() -> redis.Redis:
-    """Establish connection to Azure Managed Redis"""
-    
+    """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
     try:
         redis_host = os.getenv("REDIS_HOST")
         redis_key = os.getenv("REDIS_KEY")
         
-        r = redis.Redis(
+        r = redis.Redis(  # Create Redis connection object
             host=redis_host,
             port=10000,
             ssl=True,
@@ -36,322 +27,154 @@ def connect_to_redis() -> redis.Redis:
         )
         
         # Test connection
-        r.ping()
+        r.ping()  # Verify Redis connectivity
         return r
         
     except redis.ConnectionError as e:
         print(f"[x] Connection error: {e}")
         print("Check if Redis host and port are correct, and ensure network connectivity")
-        sys.exit(1)
+        raise
     except redis.AuthenticationError as e:
         print(f"[x] Authentication error: {e}")
         print("Make sure the access key is correct")
-        sys.exit(1)
+        raise
     except Exception as e:
         print(f"[x] Unexpected error: {e}")
-        sys.exit(1)
+        raise
 
-def format_message(message_data: dict) -> str:
-    """Format message data for display"""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    channel = message_data.get('channel', 'unknown')
-    
-    try:
-        data = json.loads(message_data['data'])
-        event_type = data.get('event', 'unknown')
-        
-        formatted = f"\n[{timestamp}] [<] Message received on '{channel}'"
-        formatted += f"\n{'─' * 60}"
-        formatted += f"\n  Event: {event_type}"
-        
-        # Display relevant fields based on event type
-        if 'order_id' in data:
-            formatted += f"\n  Order ID: {data['order_id']}"
-        if 'customer' in data:
-            formatted += f"\n  Customer: {data['customer']}"
-        if 'total' in data:
-            formatted += f"\n  Total: ${data['total']}"
-        if 'tracking_number' in data:
-            formatted += f"\n  Tracking: {data['tracking_number']}"
-        if 'product_name' in data:
-            formatted += f"\n  Product: {data['product_name']}"
-        if 'current_stock' in data:
-            formatted += f"\n  Stock Level: {data['current_stock']}"
-        if 'message' in data:
-            formatted += f"\n  Message: {data['message']}"
-        
-        formatted += f"\n{'─' * 60}\n"
-        return formatted
-        
-    except json.JSONDecodeError:
-        return f"\n[{timestamp}] [<] {channel}: {message_data['data']}\n"
+# BEGIN MESSAGE FORMATTING CODE SECTION
 
-# BEGIN MESSAGE LISTENER CODE SECTION
 
-def message_listener(pubsub: redis.client.PubSub):
-    """Background thread to listen for messages"""
-    global listening
-    
-    try:
-        for message in pubsub.listen():
-            if not listening:
-                break
-                
-            if message['type'] == 'message':
-                print(format_message(message))
-                
-            elif message['type'] == 'pmessage':
-                # Pattern-based subscription
-                timestamp = datetime.now().strftime("%H:%M:%S")
-                pattern = message['pattern']
-                channel = message['channel']
-                try:
-                    data = json.loads(message['data'])
-                    event_type = data.get('event', 'unknown')
-                    print(f"\n[{timestamp}] [<] Pattern '{pattern}' matched channel '{channel}'")
-                    print(f"{'-' * 60}")
-                    print(f"  Event: {event_type}")
-                    print(f"  Full message: {json.dumps(data, indent=2)}")
-                    print(f"{'-' * 60}\n")
-                except json.JSONDecodeError:
-                    print(f"\n[{timestamp}] [<] Pattern '{pattern}': {message['data']}\n")
-                    
-    except Exception as e:
-        if listening:
-            print(f"\n[x] Listener error: {e}")
 
-# END MESSAGE LISTENER CODE SECTION
+# END MESSAGE FORMATTING CODE SECTION
 
-# BEGIN SUBSCRIBE CODE SECTION
+class PubSubManager:
+    """Manages Redis pub/sub operations and message listening"""
+    
+    def __init__(self):
+        """Initialize the pub/sub manager with Redis connection and message queue"""
+        self.r = connect_to_redis()
+        self.pubsub = self.r.pubsub(ignore_subscribe_messages=True)  # Create pubsub object, filter subscription confirmations
+        self.message_queue = Queue()
+        self.listening = False
+        self.listener_active = False
+        self.listener_thread = None
+    
+    # BEGIN MESSAGE LISTENER CODE SECTION
+    
 
-def subscribe_to_channel(r: redis.Redis, pubsub: redis.client.PubSub) -> None:
-    """Subscribe to a specific channel"""
-    global listening, listener_thread
     
-    clear_screen()
-    print("=" * 60)
-    print("Subscribe to Channel")
-    print("=" * 60)
+    # END MESSAGE LISTENER CODE SECTION
     
-    print("\n[i] Available channels:")
-    print("  - orders:created")
-    print("  - orders:shipped")
-    print("  - inventory:alerts")
-    print("  - notifications")
-    
-    channel = input("\nEnter channel name (or custom): ").strip()
-    
-    if not channel:
-        print("\n[x] Channel name cannot be empty")
-        input("\nPress Enter to continue...")
-        return
-    
-    try:
-        pubsub.subscribe(channel)
-        print(f"\n[+] Subscribed to channel: '{channel}'")
+    def restart_listener(self, clear_subs=False):
+        """Restart the listener thread after subscription changes, optionally clearing subscriptions"""
         
-        if not listening:
-            listening = True
-            listener_thread = threading.Thread(target=message_listener, args=(pubsub,), daemon=True)
-            listener_thread.start()
-            time.sleep(0.1)  # Brief pause to let listener thread start
+        # Save current subscriptions before closing
+        channels = list(self.pubsub.channels.keys()) if self.pubsub.channels else []  # Get current channel subscriptions
+        patterns = list(self.pubsub.patterns.keys()) if self.pubsub.patterns else []  # Get current pattern subscriptions
         
-        input("\nPress Enter to return to menu...")
+        # If clear_subs is True, don't restore subscriptions
+        if clear_subs:
+            channels = []
+            patterns = []
         
-    except Exception as e:
-        print(f"\n[x] Error subscribing: {e}")
-        input("\nPress Enter to continue...")
-
-# END SUBSCRIBE CODE SECTION
-
-def subscribe_with_pattern(r: redis.Redis, pubsub: redis.client.PubSub) -> None:
-    """Subscribe using a pattern"""
-    global listening, listener_thread
-    
-    clear_screen()
-    print("=" * 60)
-    print("Subscribe with Pattern")
-    print("=" * 60)
-    
-    print("\n[i] Pattern examples:")
-    print("  - orders:*       (matches orders:created, orders:shipped, etc.)")
-    print("  - inventory:*    (matches all inventory channels)")
-    print("  - *              (matches all channels)")
-    
-    pattern = input("\nEnter pattern: ").strip()
-    
-    if not pattern:
-        print("\n[x] Pattern cannot be empty")
-        input("\nPress Enter to continue...")
-        return
-    
-    try:
-        pubsub.psubscribe(pattern)
-        print(f"\n[+] Subscribed to pattern: '{pattern}'")
+        # Stop the old listener if it's running
+        if self.listener_thread and self.listener_thread.is_alive():
+            self.listening = False
+            # Wait for listener to fully stop
+            max_wait = 10
+            while self.listener_active and max_wait > 0:
+                time.sleep(0.1)
+                max_wait -= 1
         
-        if not listening:
-            listening = True
-            listener_thread = threading.Thread(target=message_listener, args=(pubsub,), daemon=True)
-            listener_thread.start()
-            time.sleep(0.1)  # Brief pause to let listener thread start
-        
-        input("\nPress Enter to return to menu...")
-        
-    except Exception as e:
-        print(f"\n[x] Error subscribing: {e}")
-        input("\nPress Enter to continue...")
-
-def unsubscribe_from_channel(pubsub: redis.client.PubSub) -> None:
-    """Unsubscribe from a channel"""
-    clear_screen()
-    print("=" * 60)
-    print("Unsubscribe from Channel")
-    print("=" * 60)
-    
-    channel = input("\nEnter channel name to unsubscribe: ").strip()
-    
-    if not channel:
-        print("\n[x] Channel name cannot be empty")
-        input("\nPress Enter to continue...")
-        return
-    
-    try:
-        pubsub.unsubscribe(channel)
-        print(f"\n[+] Unsubscribed from channel: '{channel}'")
-        input("\nPress Enter to continue...")
-        
-    except Exception as e:
-        print(f"\n[x] Error unsubscribing: {e}")
-        input("\nPress Enter to continue...")
-
-def unsubscribe_all(pubsub: redis.client.PubSub) -> None:
-    """Unsubscribe from all channels and patterns"""
-    clear_screen()
-    print("=" * 60)
-    print("Unsubscribe All")
-    print("=" * 60)
-    
-    try:
-        # Get current subscriptions - these are dict-like objects
-        channels = [ch for ch in pubsub.channels.keys()] if pubsub.channels else []
-        patterns = [p for p in pubsub.patterns.keys()] if pubsub.patterns else []
-        
-        # Unsubscribe from all
-        if channels:
-            pubsub.unsubscribe(*channels)
-        if patterns:
-            pubsub.punsubscribe(*patterns)
-        
-        print("\n[+] Unsubscribed from all channels and patterns")
-        input("\nPress Enter to continue...")
-        
-    except Exception as e:
-        print(f"\n[x] Error unsubscribing: {e}")
-        input("\nPress Enter to continue...")
-
-def view_active_subscriptions(pubsub: redis.client.PubSub) -> None:
-    """View current active subscriptions"""
-    clear_screen()
-    print("=" * 60)
-    print("Active Subscriptions")
-    print("=" * 60)
-    
-    channels = pubsub.channels
-    patterns = pubsub.patterns
-    
-    if channels:
-        print("\n[i] Subscribed channels:")
-        for channel in channels:
-            print(f"  - {channel.decode() if isinstance(channel, bytes) else channel}")
-    else:
-        print("\n  No channel subscriptions")
-    
-    if patterns:
-        print("\n[i] Subscribed patterns:")
-        for pattern in patterns:
-            print(f"  - {pattern.decode() if isinstance(pattern, bytes) else pattern}")
-    else:
-        print("\n  No pattern subscriptions")
-    
-    print(f"\n[@] Listener status: {'Active' if listening else 'Stopped'}")
-    
-    input("\nPress Enter to continue...")
-
-def show_menu():
-    """Display the subscriber menu"""
-    clear_screen()
-    print("=" * 60)
-    print("         Redis Pub/Sub - MESSAGE SUBSCRIBER")
-    print("=" * 60)
-    print("\n[@] Subscription Options:\n")
-    print("  1. Subscribe to Channel")
-    print("  2. Subscribe with Pattern")
-    print("  3. Unsubscribe from Channel")
-    print("  4. Unsubscribe All")
-    print("  5. View Active Subscriptions")
-    print("  6. Exit")
-    print("=" * 60)
-    print("\nYou can continue to use the menu as messages are received.")
-    
-    if listening:
-        print("\n[+] Listener: ACTIVE")
-    else:
-        print("\n[-] Listener: STOPPED")
-
-# BEGIN PUBSUB CREATION CODE SECTION
-
-def main() -> None:
-    """Main application loop"""
-    global listening
-    
-    clear_screen()
-    print("\n[*] Initializing Redis Subscriber...\n")
-    r = connect_to_redis()
-    pubsub = r.pubsub()
-    
-    clear_screen()
-    print("[+] Connected to Redis")
-    print("\n[i] TIP: Subscribe to channels, then run publisher.py in another terminal!")
-    input("\nPress Enter to continue...")
-    
-    try:
-        while True:
-            show_menu()
-            choice = input("\nSelect an option (1-6): ").strip()
-            
-            if choice == "1":
-                subscribe_to_channel(r, pubsub)
-            elif choice == "2":
-                subscribe_with_pattern(r, pubsub)
-            elif choice == "3":
-                unsubscribe_from_channel(pubsub)
-            elif choice == "4":
-                unsubscribe_all(pubsub)
-            elif choice == "5":
-                view_active_subscriptions(pubsub)
-            elif choice == "6":
-                clear_screen()
-                print("\n[*] Exiting subscriber...")
-                listening = False
-                break
-            else:
-                print("\n[x] Invalid option. Please select 1-6.")
-                input("\nPress Enter to continue...")
-        
-    except KeyboardInterrupt:
-        clear_screen()
-        print("\n\n[*] Subscriber interrupted by user")
-        listening = False
-    finally:
+        # Close old pubsub
         try:
-            listening = False
-            pubsub.close()
-            r.close()
-            print("[+] Redis connection closed\n")
-        except Exception as e:
-            print(f"[x] Error closing connection: {e}\n")
+            self.pubsub.close()  # Close pubsub connection
+        except:
+            pass
+        
+        time.sleep(0.1)
+        
+        # Create new pubsub object
+        self.pubsub = self.r.pubsub(ignore_subscribe_messages=True)
+        
+        # Restore subscriptions
+        if channels:
+            self.pubsub.subscribe(*channels)  # Subscribe to channels
+        if patterns:
+            self.pubsub.psubscribe(*patterns)  # Subscribe to patterns (wildcard matching)
+        
+        # Start fresh listener
+        self.listening = True
+        self.listener_thread = threading.Thread(target=self.listen_messages, daemon=True)
+        self.listener_thread.start()
+    
+    # BEGIN SUBSCRIBE CHANNEL/PATTERN CODE SECTION
+    
+    
+    
+    # END SUBSCRIBE CHANNEL/PATTERN CODE SECTION
 
-# END PUBSUB CREATION CODE SECTION
+    def unsubscribe_from_channel(self, channel: str) -> str:
+        """Unsubscribe from a channel using pubsub.unsubscribe()"""
+        try:
+            self.pubsub.unsubscribe(channel)  # Unsubscribe from channel
+            self.restart_listener()
+            return f"[+] Unsubscribed from channel: '{channel}'"
+        except Exception as e:
+            return f"[x] Error unsubscribing: {e}"
+    
+    def unsubscribe_all(self) -> str:
+        """Unsubscribe from all channels and patterns using pubsub.unsubscribe() and pubsub.punsubscribe()"""
+        try:
+            channels = list(self.pubsub.channels.keys()) if self.pubsub.channels else []  # Get subscribed channels
+            patterns = list(self.pubsub.patterns.keys()) if self.pubsub.patterns else []  # Get subscribed patterns
+            
+            unsubscribed_channels = 0
+            unsubscribed_patterns = 0
+            
+            if channels:
+                for channel in channels:
+                    self.pubsub.unsubscribe(channel)  # Unsubscribe from each channel
+                    unsubscribed_channels += 1
+            
+            if patterns:
+                for pattern in patterns:
+                    self.pubsub.punsubscribe(pattern)  # Unsubscribe from each pattern
+                    unsubscribed_patterns += 1
+            
+            self.restart_listener(clear_subs=True)
+            return f"[+] Unsubscribed from {unsubscribed_channels} channel(s) and {unsubscribed_patterns} pattern(s)"
+        except Exception as e:
+            return f"[x] Error unsubscribing: {e}"
+    
+    def get_subscriptions(self) -> dict:
+        """Get current active subscriptions from pubsub.channels and pubsub.patterns"""
+        channels = self.pubsub.channels  # Get dict of subscribed channels
+        patterns = self.pubsub.patterns  # Get dict of subscribed patterns
+        
+        return {
+            'channels': list(channels.keys()) if channels else [],
+            'patterns': list(patterns.keys()) if patterns else [],
+            'listening': self.listening
+        }
+    
+    def get_message(self, timeout=0.1):
+        """Get next message from queue (non-blocking) for safe GUI polling"""
+        try:
+            return self.message_queue.get(timeout=timeout)
+        except:
+            return None
+    
+    def close(self):
+        """Close Redis connections and stop the listener thread"""
+        self.listening = False
+        try:
+            self.pubsub.close()  # Close pubsub connection
+            self.r.close()  # Close Redis connection
+        except:
+            pass
 
 if __name__ == "__main__":
-    main()
+    from subscriber_gui import run_gui
+    run_gui()
