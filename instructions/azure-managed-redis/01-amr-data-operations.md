@@ -261,7 +261,7 @@ In this section you run the deployment script again to verify if the Azure Manag
 
 1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Succeeded**, proceed to the next step. If not, then wait a few minutes and try the option again.
 
-1. After the deployment is complete, enter **3** to run the **3. Retrieve endpoint and access key** option. This will query the Azure Managed Redis resource and retrieve the endpoint and access key. It then creates the *.env* file with those values.
+1. After the deployment is complete, enter **3** to run the **3. Enable access key auth and retrieve endpoint and access key** option. This will query the Azure Managed Redis resource and retrieve the endpoint and access key. It then creates the *.env* file with those values.
 
 1. Review the *.env* file to verify the values are present, then enter **4** to exit the deployment script.
 
