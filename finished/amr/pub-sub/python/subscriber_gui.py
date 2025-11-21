@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import font as tkfont
 from tkinter import scrolledtext, simpledialog, messagebox
 from subscriber import PubSubManager
 
@@ -7,6 +8,14 @@ class SubscriberGUI:
         self.root = root
         self.root.title("Redis Pub/Sub - Message Subscriber")
         self.root.geometry("900x600")
+        
+        # Define fonts using TkDefaultFont
+        self.default_font = tkfont.nametofont("TkDefaultFont")
+        self.default_bold = tkfont.Font(family=self.default_font.actual("family"), 
+                                        size=14, weight="bold")
+        self.button_font = tkfont.Font(family=self.default_font.actual("family"), 
+                                       size=10)
+        self.fixed_font = tkfont.nametofont("TkFixedFont")
         
         # Initialize pub/sub manager
         self.manager = PubSubManager()
@@ -26,11 +35,11 @@ class SubscriberGUI:
         
         # Title
         title_label = tk.Label(left_frame, text="Subscription Options", 
-                               font=("Arial", 14, "bold"), bg="#f0f0f0")
+                               font=self.default_bold, bg="#f0f0f0")
         title_label.pack(pady=15)
         
         # Menu buttons
-        btn_style = {"font": ("Arial", 10), "width": 25, "pady": 8, "bg": "#4a4a4a", "fg": "white"}
+        btn_style = {"font": self.button_font, "width": 25, "pady": 8, "bg": "#4a4a4a", "fg": "white"}
         
         tk.Button(left_frame, text="1. Subscribe to Channel", 
                  command=self.subscribe_channel, **btn_style).pack(pady=5)
@@ -45,7 +54,7 @@ class SubscriberGUI:
         
         # Status label
         self.status_label = tk.Label(left_frame, text="Listener: ACTIVE", 
-                                     font=("Arial", 10), bg="#f0f0f0", fg="green")
+                                     font=self.default_font, bg="#f0f0f0", fg="green")
         self.status_label.pack(pady=20)
         
         # Exit button at bottom
@@ -58,7 +67,7 @@ class SubscriberGUI:
         
         # Message area label
         msg_label = tk.Label(right_frame, text="Received Messages", 
-                            font=("Arial", 14, "bold"))
+                            font=self.default_bold)
         msg_label.pack(pady=5)
         
         # Scrolled text widget for messages
@@ -67,7 +76,7 @@ class SubscriberGUI:
             wrap=tk.WORD, 
             width=60, 
             height=30,
-            font=("Consolas", 9),
+            font=self.fixed_font,
             bg="#1e1e1e",
             fg="#d4d4d4"
         )
@@ -99,11 +108,11 @@ class SubscriberGUI:
         dialog.title("Subscribe to Channel")
         dialog.geometry("400x250")
         
-        tk.Label(dialog, text="Available channels:", font=("Arial", 10, "bold")).pack(pady=10)
+        tk.Label(dialog, text="Available channels:", font=(self.default_font, "bold")).pack(pady=10)
         channels_text = "  - orders:created\n  - orders:shipped\n  - inventory:alerts\n  - notifications"
         tk.Label(dialog, text=channels_text, justify=tk.LEFT).pack()
         
-        tk.Label(dialog, text="Enter channel name:", font=("Arial", 10)).pack(pady=10)
+        tk.Label(dialog, text="Enter channel name:", font=self.default_font).pack(pady=10)
         entry = tk.Entry(dialog, width=30)
         entry.pack()
         entry.focus()
@@ -126,11 +135,11 @@ class SubscriberGUI:
         dialog.title("Subscribe with Pattern")
         dialog.geometry("400x250")
         
-        tk.Label(dialog, text="Pattern examples:", font=("Arial", 10, "bold")).pack(pady=10)
+        tk.Label(dialog, text="Pattern examples:", font=(self.default_font, "bold")).pack(pady=10)
         patterns_text = "  - orders:*       (matches orders:created, orders:shipped, etc.)\n  - inventory:*    (matches all inventory channels)\n  - *              (matches all channels)"
         tk.Label(dialog, text=patterns_text, justify=tk.LEFT).pack()
         
-        tk.Label(dialog, text="Enter pattern:", font=("Arial", 10)).pack(pady=10)
+        tk.Label(dialog, text="Enter pattern:", font=self.default_font).pack(pady=10)
         entry = tk.Entry(dialog, width=30)
         entry.pack()
         entry.focus()
