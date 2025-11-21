@@ -348,6 +348,8 @@ In this section, you add code for the background listener thread that continuous
             self.listener_active = False
     ```
 
+1. Save your changes.
+
 ### Add code to subscribe to channels
 
 In this section, you add code to handle channel and pattern subscriptions. The **subscribe_to_channel()** method registers interest in a specific channel using **pubsub.subscribe()**, while **subscribe_to_pattern()** uses **pubsub.psubscribe()** for wildcard pattern matching (e.g., "orders:*"). These functions demonstrate the two main subscription strategies in Redis pub/sub: direct channel subscriptions for specific events and pattern-based subscriptions for flexibility. After subscribing, the listener is restarted to begin receiving messages on the new channels.
@@ -440,7 +442,7 @@ You need to first subscribe to a channel before you can receive messages.
 
     You should see a *Subscribed to channel: 'orders:created'* message  in the **Received Messages** area. Next you publish a message.
 
-1. In the publisher app, enter **1** to to publish an order created event. You should see an event was published successfully to the channel. 
+1. In the publisher app, enter **1** to publish an order created event. You should see an event was published successfully to the channel. 
 
     ```
     [>] Published to channel: 'orders:created'
@@ -468,7 +470,7 @@ You need to first subscribe to a channel before you can receive messages.
     ──────────────────────────────────────────────────
     ```
 
-1. In the publisher app, enter **2** to publish an **Order Shipped** event. The event will be sent, but it will not appear in the subscriber event because you only subscribed to the **orders:created** channel.
+1. In the publisher app, enter **2** to publish an **Order Shipped** event. The event will be sent, but it will not appear in the subscriber app because you only subscribed to the **orders:created** channel.
 
 ### Experiment with other subscription/publishing options
 
@@ -504,13 +506,13 @@ If you encounter issues while completing this exercise, try the following troubl
 - Check that the resource has **Public network access** enabled and **Access keys authentication** set to **Enabled**.
 
 **Check code completeness and indentation**
-**Ensure all code blocks were added to the correct sections and between the appropriate BEGIN/END comment markers.
+- Ensure all code blocks were added to the correct sections and between the appropriate BEGIN/END comment markers.
 - Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
 - Check that the *.env* file exists in the project folder and contains valid **REDIS_HOST** and **REDIS_KEY** values.
-- Ensure the *.env* file is in the root of the project project.
+- Ensure the *.env* file is in the root of the project.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the app.

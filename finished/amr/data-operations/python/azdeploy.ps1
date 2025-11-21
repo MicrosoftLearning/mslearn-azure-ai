@@ -19,14 +19,13 @@ $cache_name = "amr-exercise-$user_hash"
 function Create-RedisResource {
     Write-Host "Creating Azure Managed Redis resource '$cache_name'..."
     
-    # Create the Redis Enterprise cluster with public IP access and access keys enabled
+    # Create the Redis Enterprise cluster with public network access enabled
     az redisenterprise create `
         --resource-group $rg `
         --name $cache_name `
         --location $location `
         --sku "Balanced_B0" `
         --public-network-access "Enabled" `
-        --access-keys-auth "Enabled" `
         --client-protocol "Encrypted" `
         --clustering-policy "NoCluster" `
         --eviction-policy "AllKeysLRU" `
@@ -45,6 +44,15 @@ function Check-DeploymentStatus {
 
 # Function to retrieve endpoint and access key
 function Get-EndpointAndKey {
+    Write-Host "Enabling access key authentication to trigger key generation..."
+    
+    # Enable access key authentication on the cluster to trigger key generation
+    az redisenterprise database update `
+        --resource-group $rg `
+        --cluster-name $cache_name `
+        --access-keys-auth "Enabled" `
+        2>$null | Out-Null
+    
     Write-Host "Retrieving endpoint and access key..."
     
     # Get the endpoint (hostname and port)
@@ -107,18 +115,18 @@ REDIS_KEY=$primaryKey
 # Display menu
 function Show-Menu {
     Clear-Host
-    Write-Host "=================================================="
+    Write-Host "====================================================================="
     Write-Host "    Azure Managed Redis Deployment Menu"
-    Write-Host "=================================================="
+    Write-Host "====================================================================="
     Write-Host "Resource Group: $rg"
     Write-Host "Cache Name: $cache_name"
     Write-Host "Location: $location"
-    Write-Host "=================================================="
+    Write-Host "====================================================================="
     Write-Host "1. Create Azure Managed Redis resource"
     Write-Host "2. Check deployment status"
-    Write-Host "3. Retrieve endpoint and access key"
+    Write-Host "3. Enable access key auth and retrieve endpoint and access key"
     Write-Host "4. Exit"
-    Write-Host "=================================================="
+    Write-Host "====================================================================="
 }
 
 # Main menu loop

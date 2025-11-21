@@ -17,14 +17,13 @@ cache_name="amr-exercise-${user_hash}"
 create_redis_resource() {
     echo "Creating Azure Managed Redis resource '$cache_name'..."
     
-    # Create the Redis Enterprise cluster with public IP access and access keys enabled
+    # Create the Redis Enterprise cluster with public network access enabled
     az redisenterprise create \
         --resource-group $rg \
         --name $cache_name \
         --location $location \
         --sku "Balanced_B0" \
         --public-network-access "Enabled" \
-        --access-keys-auth "Enabled" \
         --client-protocol "Encrypted" \
         --clustering-policy "NoCluster" \
         --eviction-policy "AllKeysLRU" \
@@ -43,8 +42,18 @@ check_deployment_status() {
 
 # Function to retrieve endpoint and access key
 retrieve_endpoint_and_key() {
-    echo "Retrieving endpoint and access key..."
     
+    echo "Enabling access key authentication to trigger key generation..."
+
+    # Enable access key authentication on the cluster to trigger key generation
+    az redisenterprise database update \
+        --resource-group $rg \
+        --cluster-name $cache_name \
+        --access-keys-auth "Enabled" \
+        > /dev/null
+    
+    echo "Retrieving endpoint and access key..."
+
     # Get the endpoint (hostname and port)
     hostname=$(az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>/dev/null)
     
@@ -95,18 +104,18 @@ retrieve_endpoint_and_key() {
 # Display menu
 show_menu() {
     clear
-    echo "=================================================="
+    echo "====================================================================="
     echo "    Azure Managed Redis Deployment Menu"
-    echo "=================================================="
+    echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Cache Name: $cache_name"
     echo "Location: $location"
-    echo "=================================================="
+    echo "====================================================================="
     echo "1. Create Azure Managed Redis resource"
     echo "2. Check deployment status"
-    echo "3. Retrieve endpoint and access key"
+    echo "3. Enable access key auth and retrieve endpoint and access key"
     echo "4. Exit"
-    echo "=================================================="
+    echo "====================================================================="
 }
 
 # Main menu loop
