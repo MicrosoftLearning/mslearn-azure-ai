@@ -42,7 +42,7 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -98,17 +98,19 @@ In this section, you create the Python environment and install the dependencies.
     python -m venv .venv
     ```
 
-1. Run the following command in the VS Code terminal to activate the Python environment.
+1. Run the following command in the VS Code terminal to activate the Python environment. 
 
     **Bash**
     ```bash
-    source .venv/bin/activate
+    source .venv/Scripts/activate
     ```
     
     **PowerShell**
     ```powershell
     .venv\Scripts\Activate.ps1
     ```
+
+    >**Note:** You may need to modify the commands for your environment. The *Scripts* folder may be *bin* depending on your operating system.
 
 1. Run the following command in the VS Code terminal to install the dependencies.
 
@@ -160,7 +162,7 @@ In this section, you add code to work with Redis hash data structures using the 
 
     ```python
     def store_hash_data(r, key, value) -> None:
-        """Store a hash data in Redis"""
+        """Store hash data in Redis"""
         clear_screen()
         print(f"Storing hash data for key: {key}")
         result = r.hset(key, mapping=value) # Store hash data
@@ -207,7 +209,7 @@ In this section, you add code to manage key expiration using the **expire** and 
         input("\nPress Enter to continue...")
     
     def retrieve_expiration(r, key) -> None:
-        """Retrieve TTL of a key"""
+        """Retrieve the TTL of a key"""
         clear_screen()
         print(f"Retrieving the current TTL of {key}...")
         ttl = r.ttl(key) # Get current TTL
@@ -224,7 +226,7 @@ In this section, you add code to manage key expiration using the **expire** and 
 
 In this section, you add code to remove keys from Redis using the **delete** command. The **delete** method permanently removes a key and its associated value from the cache, freeing up memory and ensuring the data is no longer accessible.
 
-1. Locate the **# BEGIN EXPIRATION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN DELETE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
     def delete_key(r, key) -> None:
@@ -257,7 +259,7 @@ In this section you run the deployment script again to verify if the Azure Manag
     ./azdeploy.ps1
     ```
 
-1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status **Successful** returned proceed to the next step. If not, then wait a few minutes and try the option again.
+1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Succeeded**, proceed to the next step. If not, then wait a few minutes and try the option again.
 
 1. After the deployment is complete, enter **3** to run the **3. Retrieve endpoint and access key** option. This will query the Azure Managed Redis resource and retrieve the endpoint and access key. It then creates the *.env* file with those values.
 
