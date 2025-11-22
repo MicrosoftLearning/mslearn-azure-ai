@@ -41,15 +41,15 @@ class SubscriberGUI:
         # Menu buttons
         btn_style = {"font": self.button_font, "width": 25, "pady": 8, "bg": "#4a4a4a", "fg": "white"}
         
-        tk.Button(left_frame, text="1. Subscribe to Channel", 
+        tk.Button(left_frame, text="Subscribe to Channel", 
                  command=self.subscribe_channel, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="2. Subscribe with Pattern", 
+        tk.Button(left_frame, text="Subscribe with Pattern", 
                  command=self.subscribe_pattern, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="3. Unsubscribe from Channel", 
+        tk.Button(left_frame, text="Unsubscribe from Channel", 
                  command=self.unsubscribe_channel, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="4. Unsubscribe All", 
+        tk.Button(left_frame, text="Unsubscribe All", 
                  command=self.unsubscribe_all, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="5. View Active Subscriptions", 
+        tk.Button(left_frame, text="View Active Subscriptions", 
                  command=self.view_subs, **btn_style).pack(pady=5)
         
         # Status label
@@ -58,7 +58,7 @@ class SubscriberGUI:
         self.status_label.pack(pady=20)
         
         # Exit button at bottom
-        tk.Button(left_frame, text="6. Exit", command=self.exit_app, 
+        tk.Button(left_frame, text="Exit", command=self.exit_app, 
                  **btn_style).pack(side=tk.BOTTOM, pady=10)
         
         # Right frame - Messages
