@@ -7,18 +7,18 @@ class VectorQueryGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Redis Vector Storage & Search")
-        self.root.geometry("1000x700")
+        self.root.geometry("770x800")
         
         # Define fonts using TkDefaultFont
         self.default_font = tkfont.nametofont("TkDefaultFont")
-        self.default_bold = tkfont.Font(family=self.default_font.actual("family"), 
-                                        size=18, weight="bold")
-        self.button_font = tkfont.Font(family=self.default_font.actual("family"), 
-                                       size=12)
-        self.italic_font = tkfont.Font(family=self.default_font.actual("family"), 
-                                       size=11, slant="italic")
+        self.default_bold = tkfont.Font(family=self.default_font.actual("family"), size=18, weight="bold")
+        self.button_font = tkfont.Font(family=self.default_font.actual("family"), size=12)
+        self.italic_font = tkfont.Font(family=self.default_font.actual("family"), size=12, slant="italic")
         self.fixed_font = tkfont.nametofont("TkFixedFont")
         self.fixed_font.configure(size=12)
+        self.small_fixed = tkfont.nametofont("TkFixedFont")
+        self.small_fixed.configure(size=11)
+        self.label_bold = tkfont.Font(family=self.default_font.actual("family"), size=12, weight="bold")
         
         # Initialize vector manager
         try:
@@ -31,10 +31,23 @@ class VectorQueryGUI:
         # Create UI
         self.create_widgets()
     
+    def center_window(self, dialog, width, height):
+        """Center a child window relative to the main window"""
+        self.root.update_idletasks()
+        main_x = self.root.winfo_x()
+        main_y = self.root.winfo_y()
+        main_width = self.root.winfo_width()
+        main_height = self.root.winfo_height()
+        
+        x = main_x + (main_width - width) // 2
+        y = main_y + (main_height - height) // 2
+        
+        dialog.geometry(f"{width}x{height}+{x}+{y}")
+    
     def create_widgets(self):
         """Create the GUI layout"""
         # Left frame - Menu
-        left_frame = tk.Frame(self.root, width=280, bg="#f0f0f0")
+        left_frame = tk.Frame(self.root, width=320, bg="#f0f0f0")
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=5, pady=5)
         left_frame.pack_propagate(False)
         
@@ -44,31 +57,31 @@ class VectorQueryGUI:
         title_label.pack(pady=15)
         
         # Menu buttons
-        btn_style = {"font": self.button_font, "width": 30, "pady": 8, "bg": "#4a4a4a", "fg": "white"}
+        btn_style = {"font": self.button_font, "width": 30, "pady": 10, "bg": "#4a4a4a", "fg": "white"}
         
-        tk.Button(left_frame, text="1. Load Sample Vectors", 
-                 command=self.load_samples, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="2. Store New Vector", 
-                 command=self.store_new_vector, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="3. Retrieve Vector", 
-                 command=self.retrieve_vector, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="4. Search Similar Vectors", 
-                 command=self.search_vectors, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="5. List All Vectors", 
-                 command=self.list_vectors, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="6. Delete Vector", 
-                 command=self.delete_vector, **btn_style).pack(pady=5)
-        tk.Button(left_frame, text="7. Clear All Vectors", 
-                 command=self.clear_all_vectors, **btn_style).pack(pady=5)
+        tk.Button(left_frame, text="Load Sample Vectors", 
+                 command=self.load_samples, **btn_style).pack(pady=8)
+        tk.Button(left_frame, text="Store New Vector", 
+                 command=self.store_new_vector, **btn_style).pack(pady=8)
+        tk.Button(left_frame, text="Retrieve Vector", 
+                 command=self.retrieve_vector, **btn_style).pack(pady=8)
+        tk.Button(left_frame, text="Search Similar Vectors", 
+                 command=self.search_vectors, **btn_style).pack(pady=8)
+        tk.Button(left_frame, text="List All Vectors", 
+                 command=self.list_vectors, **btn_style).pack(pady=8)
+        tk.Button(left_frame, text="Delete Vector", 
+                 command=self.delete_vector, **btn_style).pack(pady=8)
+        tk.Button(left_frame, text="Clear All Vectors", 
+                 command=self.clear_all_vectors, **btn_style).pack(pady=8)
         
         # Status label
         self.status_label = tk.Label(left_frame, text=f"Status: {self.connection_status}", 
                                      font=self.default_font, bg="#f0f0f0", fg="green")
-        self.status_label.pack(pady=20)
+        self.status_label.pack(side=tk.BOTTOM, pady=20)
         
         # Exit button at bottom
-        tk.Button(left_frame, text="8. Exit", command=self.exit_app, 
-                 **btn_style).pack(side=tk.BOTTOM, pady=10)
+        tk.Button(left_frame, text="Exit", command=self.exit_app, 
+                 **btn_style).pack(side=tk.BOTTOM, pady=8)
         
         # Right frame - Output
         right_frame = tk.Frame(self.root)
@@ -84,16 +97,18 @@ class VectorQueryGUI:
             right_frame, 
             wrap=tk.WORD, 
             width=70, 
-            height=40,
+            height=32,
             font=self.fixed_font,
             bg="#1e1e1e",
             fg="#d4d4d4"
         )
-        self.output_box.pack(fill=tk.BOTH, expand=True)
+        self.output_box.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Clear output button
-        tk.Button(right_frame, text="Clear Output", 
-                 command=self.clear_output, bg="#4a4a4a", fg="white").pack(pady=5)
+        clear_btn = tk.Button(right_frame, text="Clear Output", 
+                 command=self.clear_output, bg="#4a4a4a", fg="white",
+                 font=self.button_font, width=25, height=2)
+        clear_btn.pack(pady=5, anchor=tk.CENTER)
         
         # Initial message
         self.display_message("[+] Connected to Redis Vector Storage\n[i] Select an operation from the menu\n")
@@ -131,27 +146,27 @@ class VectorQueryGUI:
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Store New Vector")
-        dialog.geometry("500x500")
+        dialog.transient(self.root)
+        self.center_window(dialog, 475, 390)
         
         # Vector key input
-        tk.Label(dialog, text="Vector Key:", font=self.default_font).pack(pady=5)
-        key_entry = tk.Entry(dialog, width=40)
-        key_entry.pack(pady=5)
-        key_entry.insert(0, "vector:product_")
+        tk.Label(dialog, text="Vector Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        key_entry = tk.Entry(dialog, width=40, font=self.fixed_font)
+        key_entry.pack(pady=5, padx=15, anchor=tk.W)
+        key_entry.insert(0, "vector:product_<id>")
         
         # Vector input
-        tk.Label(dialog, text="Vector (comma-separated):", font=self.default_font).pack(pady=5)
-        tk.Label(dialog, text="Example: 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8", 
-                font=self.italic_font).pack()
+        tk.Label(dialog, text="Vector (comma-separated):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
         
-        vector_text = tk.Text(dialog, width=40, height=6, font=self.fixed_font)
-        vector_text.pack(pady=5)
+        vector_text = tk.Text(dialog, width=40, height=2, font=self.fixed_font)
+        vector_text.pack(pady=5, padx=15, anchor=tk.W)
+        vector_text.insert(1.0, "Example:0.1,0.2,0.3,0.4,0.5,...")
         
         # Metadata section
-        tk.Label(dialog, text="Metadata (key=value pairs, one per line):", font=self.default_font).pack(pady=5)
-        metadata_text = tk.Text(dialog, width=40, height=6, font=self.fixed_font)
-        metadata_text.pack(pady=5)
-        metadata_text.insert(1.0, "name=Product Name\ncategory=Electronics")
+        tk.Label(dialog, text="Metadata (key=value pairs, one per line):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        metadata_text = tk.Text(dialog, width=40, height=3, font=self.fixed_font)
+        metadata_text.pack(pady=5, padx=15, anchor=tk.W)
+        metadata_text.insert(1.0, "product_id=<id>\nname=<Product Name>\ncategory=<Category>")
         
         def store():
             try:
@@ -188,8 +203,7 @@ class VectorQueryGUI:
             except ValueError as e:
                 messagebox.showerror("Error", f"Invalid vector format: {e}")
         
-        tk.Button(dialog, text="Store Vector", command=store, bg="#4a4a4a", 
-                 fg="white", font=self.button_font).pack(pady=10)
+        tk.Button(dialog, text="Store Vector", command=store, bg="#4a4a4a", fg="white", font=self.button_font, width=20, height=1).pack(pady=10, padx=15, anchor=tk.W)
     
     def retrieve_vector(self):
         """Retrieve a vector by key"""
@@ -199,11 +213,13 @@ class VectorQueryGUI:
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Retrieve Vector")
-        dialog.geometry("400x200")
+        dialog.transient(self.root)
+        self.center_window(dialog, 400, 150)
         
-        tk.Label(dialog, text="Vector Key:", font=self.default_font).pack(pady=10)
-        entry = tk.Entry(dialog, width=40)
-        entry.pack(pady=5)
+        tk.Label(dialog, text="Vector Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        entry = tk.Entry(dialog, width=40, font=self.fixed_font)
+        entry.pack(pady=5, padx=15, anchor=tk.W)
+        entry.insert(0, "vector:product_<id>")
         
         def retrieve():
             key = entry.get().strip()
@@ -228,8 +244,9 @@ class VectorQueryGUI:
             
             dialog.destroy()
         
-        tk.Button(dialog, text="Retrieve", command=retrieve, bg="#4a4a4a", 
-                 fg="white", font=self.button_font).pack(pady=10)
+        retrieve_btn = tk.Button(dialog, text="Retrieve", command=retrieve, bg="#4a4a4a", 
+                 fg="white", font=self.button_font, width=20, height=1)
+        retrieve_btn.pack(pady=10, padx=15, anchor=tk.W)
     
     def search_vectors(self):
         """Search for similar vectors"""
@@ -239,21 +256,21 @@ class VectorQueryGUI:
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Search Similar Vectors")
-        dialog.geometry("500x350")
+        dialog.transient(self.root)
+        self.center_window(dialog, 600, 330)
         
-        tk.Label(dialog, text="Query Vector (comma-separated):", font=self.default_font).pack(pady=5)
-        tk.Label(dialog, text="Example: 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8", 
-                font=self.italic_font).pack()
+        tk.Label(dialog, text="Query Vector (comma-separated):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
         
-        vector_text = tk.Text(dialog, width=40, height=6, font=self.fixed_font)
-        vector_text.pack(pady=5)
+        vector_text = tk.Text(dialog, width=50, height=2, font=self.fixed_font)
+        vector_text.pack(pady=5, padx=15, anchor=tk.W)
+        vector_text.insert(1.0, "Example: 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8")
         
-        tk.Label(dialog, text="Number of results (1-10):", font=self.default_font).pack(pady=5)
-        tk.Label(dialog, text="Default: 3", font=self.italic_font).pack()
+        tk.Label(dialog, text="Number of results (1-10):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
         
-        count_entry = tk.Entry(dialog, width=10)
-        count_entry.pack(pady=5)
-        count_entry.insert(0, "3")
+        count_entry = tk.Spinbox(dialog, from_=1, to=10, width=3, font=self.fixed_font)
+        count_entry.delete(0, tk.END)
+        count_entry.insert(0, 3)
+        count_entry.pack(pady=5, padx=15, anchor=tk.W)
         
         def search():
             try:
@@ -263,7 +280,7 @@ class VectorQueryGUI:
                     return
                 
                 query_vector = [float(x.strip()) for x in vector_str.split(",")]
-                top_k = int(count_entry.get().strip() or "3")
+                top_k = int(count_entry.get())
                 top_k = max(1, min(10, top_k))
                 
                 success, results = self.manager.search_similar_vectors(query_vector, top_k)
@@ -287,8 +304,9 @@ class VectorQueryGUI:
             except ValueError as e:
                 messagebox.showerror("Error", f"Invalid input: {e}")
         
-        tk.Button(dialog, text="Search", command=search, bg="#4a4a4a", 
-                 fg="white", font=self.button_font).pack(pady=10)
+        search_btn = tk.Button(dialog, text="Search", command=search, bg="#4a4a4a", 
+                 fg="white", font=self.button_font, width=20, height=1)
+        search_btn.pack(pady=10, padx=15, anchor=tk.W)
     
     def list_vectors(self):
         """List all vectors"""
@@ -321,11 +339,13 @@ class VectorQueryGUI:
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Delete Vector")
-        dialog.geometry("400x200")
+        dialog.transient(self.root)
+        self.center_window(dialog, 400, 150)
         
-        tk.Label(dialog, text="Vector Key:", font=self.default_font).pack(pady=10)
-        entry = tk.Entry(dialog, width=40)
-        entry.pack(pady=5)
+        tk.Label(dialog, text="Vector Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        entry = tk.Entry(dialog, width=40, font=self.fixed_font)
+        entry.pack(pady=5, padx=15, anchor=tk.W)
+        entry.insert(0, "vector:product_<id>")
         
         def delete():
             key = entry.get().strip()
@@ -333,19 +353,18 @@ class VectorQueryGUI:
                 messagebox.showwarning("Warning", "Enter a vector key")
                 return
             
-            if messagebox.askyesno("Confirm", f"Delete vector '{key}'?"):
-                success, message = self.manager.delete_vector(key)
-                
-                self.clear_output()
-                if success:
-                    self.display_message(f"[✓] {message}\n")
-                else:
-                    self.display_message(f"[✗] {message}\n")
-                
-                dialog.destroy()
+            success, message = self.manager.delete_vector(key)
+            
+            self.clear_output()
+            if success:
+                self.display_message(f"[✓] {message}\n")
+            else:
+                self.display_message(f"[✗] {message}\n")
+            
+            dialog.destroy()
         
-        tk.Button(dialog, text="Delete", command=delete, bg="#d32f2f", 
-                 fg="white", font=self.button_font).pack(pady=10)
+        delete_btn = tk.Button(dialog, text="Delete", command=delete, bg="#4a4a4a", fg="white", font=self.button_font, width=20, height=1)
+        delete_btn.pack(pady=10, padx=15, anchor=tk.W)
     
     def clear_all_vectors(self):
         """Clear all vectors with confirmation"""
@@ -353,19 +372,17 @@ class VectorQueryGUI:
             messagebox.showerror("Error", "Not connected to Redis")
             return
         
-        if messagebox.askyesno("Confirm", "Delete ALL vectors from Redis? This cannot be undone!"):
-            success, message = self.manager.clear_all_vectors()
-            
-            self.clear_output()
-            if success:
-                self.display_message(f"[✓] {message}\n")
-            else:
-                self.display_message(f"[✗] {message}\n")
+        success, message = self.manager.clear_all_vectors()
+        
+        self.clear_output()
+        if success:
+            self.display_message(f"[✓] {message}\n")
+        else:
+            self.display_message(f"[✗] {message}\n")
     
     def exit_app(self):
         """Exit the application"""
-        if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
-            self.root.destroy()
+        self.root.destroy()
 
 def run_gui():
     """Launch the GUI version"""
