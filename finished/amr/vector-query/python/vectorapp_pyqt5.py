@@ -297,7 +297,7 @@ class VectorQueryGUI(QMainWindow):
             if success:
                 self.display_message(f"[✓] Retrieved vector: {key}\n\n")
                 self.display_message(f"Dimensions: {len(result['vector'])}\n")
-                self.display_message(f"Vector (first 5): {result['vector'][:5]}...\n")
+                self.display_message(f"Vector: {result['vector']}\n")
                 
                 if result['metadata']:
                     self.display_message("\nMetadata:\n")

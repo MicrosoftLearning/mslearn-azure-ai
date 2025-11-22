@@ -89,8 +89,12 @@ class VectorManager:
     def calculate_similarity(vector1: list, vector2: list) -> float:
         """Calculate cosine similarity between two vectors"""
         try:
-            v1 = np.array(vector1)
-            v2 = np.array(vector2)
+            v1 = np.array(vector1, dtype=np.float64)
+            v2 = np.array(vector2, dtype=np.float64)
+            
+            # Check for dimension mismatch
+            if v1.shape != v2.shape:
+                return 0.0
             
             dot_product = np.dot(v1, v2)
             magnitude1 = np.linalg.norm(v1)
