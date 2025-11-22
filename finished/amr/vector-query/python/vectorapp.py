@@ -12,12 +12,13 @@ class VectorQueryGUI:
         # Define fonts using TkDefaultFont
         self.default_font = tkfont.nametofont("TkDefaultFont")
         self.default_bold = tkfont.Font(family=self.default_font.actual("family"), 
-                                        size=14, weight="bold")
+                                        size=18, weight="bold")
         self.button_font = tkfont.Font(family=self.default_font.actual("family"), 
-                                       size=10)
+                                       size=12)
         self.italic_font = tkfont.Font(family=self.default_font.actual("family"), 
-                                       size=9, slant="italic")
+                                       size=11, slant="italic")
         self.fixed_font = tkfont.nametofont("TkFixedFont")
+        self.fixed_font.configure(size=12)
         
         # Initialize vector manager
         try:
