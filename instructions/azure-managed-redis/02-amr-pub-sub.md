@@ -438,7 +438,7 @@ You need to ensure the Python environment is running in both terminals. Refer to
 
 You need to first subscribe to a channel before you can receive messages.
 
-1. In the subscriber app, select **1. Subscribe to Channel**. Enter **orders:created** in the channel name input box and select **Subscribe**.
+1. In the subscriber app, select **Subscribe to Channel**. Enter **orders:created** in the channel name input box and select **Subscribe**.
 
     You should see a *Subscribed to channel: 'orders:created'* message  in the **Received Messages** area. Next you publish a message.
 
