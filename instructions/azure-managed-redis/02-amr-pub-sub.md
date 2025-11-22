@@ -261,7 +261,7 @@ In this section you add code to the *subscriber.py* script to complete the conso
 
 ### Add message formatting code
 
-In this section, you add code to format incoming pub/sub messages for display in the subscriber application. The **format_message_gui()** function parses JSON payloads from published messages and extracts relevant fields based on the event type. This function handles both standard channel messages and pattern-matched messages, providing a consistent and readable display format for students to understand what data is being transmitted through the pub/sub system.
+In this section, you add code to format incoming pub/sub messages for display in the subscriber application. The **format_message_gui()** function parses JSON payloads from published messages and extracts relevant fields based on the event type. This function handles both standard channel messages and pattern-matched messages, providing a consistent and readable display format to understand what data is being transmitted through the pub/sub system.
 
 1. Locate the **# BEGIN MESSAGE FORMATTING CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
