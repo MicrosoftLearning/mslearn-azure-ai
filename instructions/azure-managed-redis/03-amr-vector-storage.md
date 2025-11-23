@@ -164,33 +164,31 @@ In this section, you add code to retrieve vectors and metadata from Redis. The *
 1. Locate the **# BEGIN RETRIEVE VECTOR CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def publish_order_created(r: redis.Redis) -> None:
-        """Publish an order created event using r.publish() to the 'orders:created' channel"""
-        clear_screen()
-        print("=" * 60)
-        print("Publishing: Order Created Event")
-        print("=" * 60)
+    def retrieve_vector(self, vector_key: str) -> tuple[bool, dict | str]:
+        """Retrieve a vector and its metadata from Redis"""
+        try:
+            # Retrieve all hash fields for the given key using hgetall()
+            retrieved_data = self.r.hgetall(vector_key)
 
-        order_data = {
-            "event": "order_created",
-            "order_id": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "customer": "Jane Doe",
-            "total": 129.99,
-            "timestamp": datetime.now().isoformat()
-        }
+            if retrieved_data:
+                # Parse the stored vector from JSON
+                result = {
+                    "key": vector_key,
+                    "vector": json.loads(retrieved_data["vector"]),
+                    "metadata": {}
+                }
 
-        message = json.dumps(order_data)
-        channel = "orders:created"
+                # Extract metadata fields
+                for key, value in retrieved_data.items():
+                    if key != "vector":
+                        result["metadata"][key] = value
 
-        # Publish message and get subscriber count
-        subscribers = r.publish(channel, message)  # Send message to channel, returns number of subscribers that received it
+                return True, result
+            else:
+                return False, f"Key '{vector_key}' does not exist"
 
-        print(f"\n[>] Published to channel: '{channel}'")
-        print(f"[#] Active subscribers: {subscribers}")
-        print(f"\n[i] Message content:")
-        print(json.dumps(order_data, indent=2))
-
-        input("\n[+] Press Enter to continue...")
+        except Exception as e:
+            return False, f"Error retrieving vector: {e}"
     ```
 
 1. Save your changes.
