@@ -10,6 +10,11 @@
       "source": "starter/amr/pub-sub/python",
       "output": "downloads/python",
       "name": "amr-pub-sub-python.zip"
+    },
+    {
+      "source": "starter/amr/vector-query/python",
+      "output": "downloads/python",
+      "name": "amr-vector-query-python.zip"
     }
   ]
 }
