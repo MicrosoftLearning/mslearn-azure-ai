@@ -1,13 +1,13 @@
 ---
 lab:
     topic: Azure Managed Redis
-    title: 'Vector storage'
-    description: 'Learn how to build ... in Azure Managed Redis using the redis-py Python library.'
+    title: 'Implement vector storage and similarity search in Azure Managed Redis'
+    description: 'Learn how to store vectors, perform similarity searches, and build vector search applications in Azure Managed Redis using redis-py.'
 ---
 
-#
+# Implement vector storage and similarity search in Azure Managed Redis
 
-In this exercise, you create an Azure Managed Redis resource and complete the code for a console-based publisher and a subscriber app. The publisher app sends event messages to Redis channels, while the subscriber app listens for those messages using a graphical interface built with **tkinter**. You implement core pub/sub patterns including direct channel subscriptions, wildcard pattern matching, message formatting, and background message listening.
+In this exercise, you create an Azure Managed Redis resource and complete the code for a vector storage application. The application loads sample vector data, stores new vectors with metadata, retrieves vectors by key, and performs similarity searches to find related products. You implement core vector operations including storing vectors with metadata, retrieving stored vectors, calculating vector similarity using cosine similarity, and searching for similar vectors.
 
 Tasks performed in this exercise:
 
@@ -35,7 +35,7 @@ In this section you download the starter files for the console app and use a scr
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
-    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/amr-pub-sub-python.zip
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/amr-vector-query-python.zip
     ```
 
 1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
@@ -126,6 +126,7 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 ### Add the store vector code
 
+In this section, you add code to store vectors with metadata using Redis. The **store_vector()** function uses the redis-py **hset()** method to store vector embeddings as JSON strings and additional metadata fields in a single hash structure, demonstrating efficient key-value storage in Redis.
 
 1. Locate the **# BEGIN STORE VECTOR CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -158,9 +159,9 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 ### Add the retrieve vector code
 
+In this section, you add code to retrieve vectors and metadata from Redis. The **retrieve_vector()** function uses the redis-py **hgetall()** method to fetch all fields and values from a stored hash, then parses the JSON vector data to reconstruct the original vector and display associated metadata.
 
-
-1. Locate the **# BEGIN PUBLISH MESSAGE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN RETRIEVE VECTOR CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
     def publish_order_created(r: redis.Redis) -> None:
@@ -196,7 +197,7 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 ### Add the similarity calculation code
 
-
+In this section, you add code to calculate cosine similarity between vectors using NumPy. The **calculate_similarity()** static method converts Python lists to NumPy arrays and uses **np.dot()** for dot product and **np.linalg.norm()** for vector magnitudes, implementing the cosine similarity formula to produce a score between -1 and 1.
 
 1. Locate the **# BEGIN SIMILARITY CALCULATION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -236,7 +237,7 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 ### Add the vector search code
 
-
+In this section, you add code to search for similar vectors in Redis. The **search_similar_vectors()** function uses redis-py's **keys()** method with pattern matching ("vector:*") to retrieve all stored vectors, then calculates similarity scores for each one and returns the top-k results sorted by relevance.
 
 1. Locate the **# BEGIN VECTOR SEARCH CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -297,7 +298,7 @@ In this section you run the deployment script again to verify if the Azure Manag
     ./azdeploy.ps1
     ```
 
-1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status **Successful** returned proceed to the next step. If not, then wait a few minutes and try the option again.
+1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Successful**, proceed to the next step. If not, then wait a few minutes and try the option again.
 
 1. After the deployment is complete, enter **3** to run the **3. Enable access key auth and retrieve endpoint and access key** option. This will query the Azure Managed Redis resource and retrieve the endpoint and access key. It then creates the *.env* file with those values.
 
@@ -305,7 +306,7 @@ In this section you run the deployment script again to verify if the Azure Manag
 
 ## Run the app
 
-In this section, you run the completed application and practice loading, storing, searching, vector data.The app uses **tkinter** to create a GUI so you can more easily view and manage data.
+In this section, you run the completed application and practice loading, storing, and searching vector data. The app uses **tkinter** to create a GUI so you can more easily view and manage data.
 
 1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
@@ -317,47 +318,76 @@ In this section, you run the completed application and practice loading, storing
 
     ![Screenshot of the vector app running.](./media/vector-app.png)
 
-### Load the
+> **Note:** All of the steps in this section are performed in the app.
 
-You need to first subscribe to a channel before you can receive messages.
+### Load sample data and perform a similarity search
 
-1. In the subscriber app, select **Subscribe to Channel**. Enter **orders:created** in the channel name input box and select **Subscribe**.
+In this section, you practice loading sample vector data into Redis and then performing a similarity search. You practice retrieving a known vector and using it as a query to find semantically related products in your database.
 
-    You should see a *Subscribed to channel: 'orders:created'* message  in the **Received Messages** area. Next you publish a message.
+1. Select **Load Sample Vectors**. The status of the load operation will appear in **Operation Results**.
 
-1. In the publisher app, enter **1** to publish an order created event. You should see an event was published successfully to the channel.
+1. Select **List All Vectors** to display the sample data. Next, you retrieve a vector using the vector key and use it to perform a similarity search.
 
-    ```
-    [>] Published to channel: 'orders:created'
-    [#] Active subscribers: 1
-
-    [i] Message content:
-    {
-      "event": "order_created",
-      "order_id": "ORD-20251120123114",
-      "customer": "Jane Doe",
-      "total": 129.99,
-      "timestamp": "2025-11-20T12:31:14.906797"
-    }
-    ```
-
-    The message should appear in the **Received Messages** section of the subscriber app.
+1. Select **Retrieve Vector** and replace the example in the input box with `vector:product_001`, then select **Retrieve**. The following output is displayed in **Operation Results**.
 
     ```
-    [12:31:14] Message on 'orders:created'
-    ──────────────────────────────────────────────────
-    Event: order_created
-    Order ID: ORD-20251120123114
-    Customer: Jane Doe
-    Total: $129.99
-    ──────────────────────────────────────────────────
+    [✓] Retrieved vector: vector:product_001
+
+    Dimensions: 8
+    Vector: [0.1, 0.2, 0.15, 0.8, 0.3, 0.6, 0.4, 0.5]
+
+    Metadata:
+      product_id: 001
+      name: Smart Watch
+      category: Electronics
     ```
 
-1. In the publisher app, enter **2** to publish an **Order Shipped** event. The event will be sent, but it will not appear in the subscriber app because you only subscribed to the **orders:created** channel.
+1. Select **Search Similar Vectors** and enter the following vector - from the previous step - in the **Query Vector** input field, then select **Search**.
 
-### Experiment with other subscription/publishing options
+    ```
+    0.1, 0.2, 0.15, 0.8, 0.3, 0.6, 0.4, 0.5
+    ```
 
-Take some time to experiment
+    The search returns vectors ranked by cosine similarity score. This demonstrates how cosine similarity effectively finds semantically related vectors, even across different product categories - useful for recommendation systems, product discovery, and content-based filtering.
+
+### Store a new vector and perform a similarity search
+
+In this section, you practice adding a new vector to Redis and then searching for vectors similar to the Premium Backpack. You practice expanding your vector database with new products and using similarity search to find related items.
+
+1. Select **Store New Vector** and enter the following information in the form, then select **Store Vector**. Review the operation results.
+
+    Vector Key:
+
+    ```
+    vector:product_011
+    ```
+
+    Vector:
+
+    ```
+    0.53, 0.63, 0.58, 0.37, 0.68, 0.47, 0.73, 0.57
+    ```
+
+    Metadata:
+
+    ```
+    product_id=011
+    name=Gym Bag
+    category=Sports
+    ```
+
+    > **Note:** You can change any data record using that record's vector key in the **Store New Vector** form.
+
+1. Select **Retrieve Vector** and enter `vector:product_009` in the input field, then select **Retrieve** and review the output.
+
+1. Select **Search Similar Vectors** and enter the following vector - from the previous step - in the **Query Vector** input field, then select **Search**.
+
+    ```
+    0.55, 0.65, 0.6, 0.35, 0.7, 0.45, 0.75, 0.55
+    ```
+
+    Review the output and notice the Gym Bag is the product most similar to the Premium Backpack.
+
 
 ## Clean up resources
 

@@ -1,0 +1,10 @@
+[project]
+name = "vector_query"
+version="0.1.0"
+description = "Demonstrates vector storage and similarity search in Azure Managed Redis"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.2.1",
+    "redis>=7.0.1",
+    "numpy>=1.24.0",
+]
