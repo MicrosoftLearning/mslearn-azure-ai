@@ -5,7 +5,7 @@ lab:
     description: 'Learn how to build ... in Azure Managed Redis using the redis-py Python library.'
 ---
 
-# Publish and subscribe to events in Azure Managed Redis
+#
 
 In this exercise, you create an Azure Managed Redis resource and complete the code for a console-based publisher and a subscriber app. The publisher app sends event messages to Redis channels, while the subscriber app listens for those messages using a graphical interface built with **tkinter**. You implement core pub/sub patterns including direct channel subscriptions, wildcard pattern matching, message formatting, and background message listening.
 
@@ -317,7 +317,7 @@ In this section, you run the completed application and practice loading, storing
 
     ![Screenshot of the vector app running.](./media/vector-app.png)
 
-### Send and receive messages
+### Load the
 
 You need to first subscribe to a channel before you can receive messages.
 
@@ -357,15 +357,7 @@ You need to first subscribe to a channel before you can receive messages.
 
 ### Experiment with other subscription/publishing options
 
-Take some time to experiment subscribing and publishing messages to different channels. Following is a table with details on each of the subscriber options:
-
-| Subscriber Option | Description |
-|--|--|
-| Subscribe to Channel | Subscribes to a single channel. The channel options are listed in the dialog box. |
-| Subscribe with Pattern | Subscribe to multiple channels. For example, subscribing with the **orders:*** pattern subscribes to all **orders** channels. |
-| Unsubscribe from Channel | Unsubscribe from a single channel. Note: you can't unsubscribe using a pattern using this option. |
-| Unsubscribe All | Unsubscribe from all channels, including pattern subscriptions. |
-| View Active Subscriptions | Lists all of the subscribed channels, including pattern subscriptions. |
+Take some time to experiment
 
 ## Clean up resources
 
