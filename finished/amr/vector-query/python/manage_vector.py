@@ -14,8 +14,6 @@ class VectorManager:
         """Initialize vector manager and establish Redis connection"""
         self.r = self._connect_to_redis()
 
-    # BEGIN CONNECTION CODE SECTION
-
     def _connect_to_redis(self) -> redis.Redis:
         """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
         try:
@@ -45,9 +43,7 @@ class VectorManager:
         except Exception as e:
             raise Exception(f"Unexpected error: {e}")
 
-    # END CONNECTION CODE SECTION
-
-    # BEGIN VECTOR STORAGE CODE SECTION
+    # BEGIN STORE VECTOR CODE SECTION
 
     def store_vector(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
         """Store a vector with metadata in Redis using hash data structure"""
@@ -72,9 +68,9 @@ class VectorManager:
         except Exception as e:
             return False, f"Error storing vector: {e}"
 
-    # END VECTOR STORAGE CODE SECTION
+    # END STORE VECTOR CODE SECTION
 
-    # BEGIN VECTOR RETRIEVAL CODE SECTION
+    # BEGIN RETRIEVE VECTOR CODE SECTION
 
     def retrieve_vector(self, vector_key: str) -> tuple[bool, dict | str]:
         """Retrieve a vector and its metadata from Redis"""
@@ -102,7 +98,7 @@ class VectorManager:
         except Exception as e:
             return False, f"Error retrieving vector: {e}"
 
-    # END VECTOR RETRIEVAL CODE SECTION
+    # END RETRIEVE VECTOR CODE SECTION
 
     # BEGIN SIMILARITY CALCULATION CODE SECTION
 
@@ -175,8 +171,6 @@ class VectorManager:
 
     # END VECTOR SEARCH CODE SECTION
 
-    # BEGIN DELETE CODE SECTION
-
     def delete_vector(self, vector_key: str) -> tuple[bool, str]:
         """Delete a vector from Redis using del() method"""
         try:
@@ -188,8 +182,6 @@ class VectorManager:
                 return False, f"Vector '{vector_key}' does not exist"
         except Exception as e:
             return False, f"Error deleting vector: {e}"
-
-    # END DELETE CODE SECTION
 
     def list_all_vectors(self) -> tuple[bool, list | str]:
         """List all vectors stored in Redis with their dimensions and metadata"""

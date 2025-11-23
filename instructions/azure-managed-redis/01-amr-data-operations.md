@@ -7,7 +7,7 @@ lab:
 
 # Perform data operations in Azure Managed Redis
 
-In this exercise, you create an Azure Managed Redis resource and build a Python console application that performs common data operations using the **redis-py** library. You work with Redis hash data structures to store and retrieve key-value pairs, manage key expiration with Time-To-Live (TTL) settings, and delete keys from the cache. 
+In this exercise, you create an Azure Managed Redis resource and build a Python console application that performs common data operations using the **redis-py** library. You work with Redis hash data structures to store and retrieve key-value pairs, manage key expiration with Time-To-Live (TTL) settings, and delete keys from the cache.
 
 Tasks performed in this exercise:
 
@@ -63,13 +63,13 @@ In this section you download the starter files for the console app and use a scr
     az extension add --name redisenterprise
     ```
 
-1. Run the appropriate command in the terminal to launch the script. 
+1. Run the appropriate command in the terminal to launch the script.
 
     **Bash**
     ```bash
     bash azdeploy.sh
     ```
-    
+
     **PowerShell**
     ```powershell
     ./azdeploy.ps1
@@ -98,13 +98,13 @@ In this section, you create the Python environment and install the dependencies.
     python -m venv .venv
     ```
 
-1. Run the following command in the VS Code terminal to activate the Python environment. 
+1. Run the following command in the VS Code terminal to activate the Python environment.
 
     **Bash**
     ```bash
     source .venv/Scripts/activate
     ```
-    
+
     **PowerShell**
     ```powershell
     .venv\Scripts\Activate.ps1
@@ -137,7 +137,7 @@ In this section, you add code to establish a connection to Azure Managed Redis u
         # Azure Managed Redis with Non-Clustered policy uses standard Redis connection
         redis_host = os.getenv("REDIS_HOST")
         redis_key = os.getenv("REDIS_KEY")
-        
+
         # Non-clustered policy uses standard Redis client connection
         r = redis.Redis(
             host=redis_host,
@@ -148,7 +148,7 @@ In this section, you add code to establish a connection to Azure Managed Redis u
             socket_timeout=30,  # Add timeout for better reliability
             socket_connect_timeout=30,
         )
-    
+
         print(f"Connected to Redis at {redis_host}")
         input("\nPress Enter to continue...")
         return r
@@ -156,7 +156,7 @@ In this section, you add code to establish a connection to Azure Managed Redis u
 
 ### Add code to store and retrieve data
 
-In this section, you add code to work with Redis hash data structures using the **hset** and **hgetall** commands. The **hset** method stores multiple field-value pairs under a single key, while **hgetall** retrieves all fields and values for a given key. 
+In this section, you add code to work with Redis hash data structures using the **hset** and **hgetall** commands. The **hset** method stores multiple field-value pairs under a single key, while **hgetall** retrieves all fields and values for a given key.
 
 1. Locate the **# BEGIN STORE AND RETRIEVE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -171,7 +171,7 @@ In this section, you add code to work with Redis hash data structures using the 
         else:
             print(f"Data updated successfully under key '{key}' (all fields already existed)")
         input("\nPress Enter to continue...")
-    
+
     def retrieve_hash_data(r, key) -> None:
         """Retrieve hash data from Redis"""
         clear_screen()
@@ -183,7 +183,7 @@ In this section, you add code to work with Redis hash data structures using the 
                 print(f"  {field}: {value}")
         else:
             print(f"Key '{key}' does not exist.")
-    
+
         input("\nPress Enter to continue...")
     ```
 
@@ -205,9 +205,9 @@ In this section, you add code to manage key expiration using the **expire** and 
             print(f"Expiration time of {expiration} seconds set for key '{key}'")
         else:
             print(f"Key '{key}' does not exist. Expiration not set.")
-    
+
         input("\nPress Enter to continue...")
-    
+
     def retrieve_expiration(r, key) -> None:
         """Retrieve the TTL of a key"""
         clear_screen()
@@ -245,7 +245,7 @@ In this section, you add code to remove keys from Redis using the **delete** com
 
 ## Verify resource deployment
 
-In this section you run the deployment script again to verify if the Azure Managed Redis deployment is completed, and create the *.env* file with the endpoint and access key values. 
+In this section you run the deployment script again to verify if the Azure Managed Redis deployment is completed, and create the *.env* file with the endpoint and access key values.
 
 1. Run the appropriate command in the terminal to start the deployment script. If you closed the previous terminal, select **Terminal > New Terminal** in the menu to open a new one.
 
@@ -253,7 +253,7 @@ In this section you run the deployment script again to verify if the Azure Manag
     ```bash
     bash azdeploy.sh
     ```
-    
+
     **PowerShell**
     ```powershell
     ./azdeploy.ps1
@@ -269,7 +269,7 @@ In this section you run the deployment script again to verify if the Azure Manag
 
 In this section, you run the completed console application to perform various Redis data operations. The app provides a menu-driven interface that lets you store hash data, retrieve values, manage key expiration, and delete keys.
 
-1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment if needed.
+1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
     ```
     python main.py

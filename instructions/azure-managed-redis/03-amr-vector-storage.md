@@ -124,52 +124,41 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 >**Note:** The code blocks you add to the application should align with the comment for that section of the code.
 
-### Add the client connection
+### Add the store vector code
 
-In this section, you add code to establish a connection to Azure Managed Redis using the redis-py library. The code retrieves connection credentials from environment variables and creates a Redis client instance configured for secure SSL communication.
 
-1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN STORE VECTOR CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def connect_to_redis() -> redis.Redis:
-        """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
-
+    def store_vector(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
+        """Store a vector with metadata in Redis using hash data structure"""
         try:
-            redis_host = os.getenv("REDIS_HOST")
-            redis_key = os.getenv("REDIS_KEY")
+            # Convert vector to JSON string for storage
+            vector_json = json.dumps(vector)
+            data = {"vector": vector_json}  # Store vector as JSON
 
-            r = redis.Redis(
-                host=redis_host,
-                port=10000,
-                ssl=True,
-                decode_responses=True,
-                password=redis_key,
-                socket_timeout=30,
-                socket_connect_timeout=30,
-            )
+            # Add metadata fields to the hash
+            if metadata:
+                for key, value in metadata.items():
+                    data[key] = str(value)
 
-            # Test connection
-            r.ping()  # Verify Redis connectivity
-            return r
+            # Store the hash in Redis using hset() method
+            result = self.r.hset(vector_key, mapping=data)
 
-        except redis.ConnectionError as e:
-            print(f"[x] Connection error: {e}")
-            print("Check if Redis host and port are correct, and ensure network connectivity")
-            sys.exit(1)
-        except redis.AuthenticationError as e:
-            print(f"[x] Authentication error: {e}")
-            print("Make sure the access key is correct")
-            sys.exit(1)
+            if result > 0:
+                return True, f"Vector stored successfully under key '{vector_key}'"
+            else:
+                return True, f"Vector updated successfully under key '{vector_key}'"
+
         except Exception as e:
-            print(f"[x] Unexpected error: {e}")
-            sys.exit(1)
+            return False, f"Error storing vector: {e}"
     ```
 
 1. Save your changes.
 
-### Add the publish message code
+### Add the retrieve vector code
 
-In this section, you add code to publish event messages to specific Redis channels using the **publish()** method. The publisher sends JSON-formatted messages containing event data such as order information. Each call to **publish()** returns the number of active subscribers that received the message, allowing you to verify the message was delivered. This is the core of the pub/sub pattern where the publisher doesn't need to know about individual subscribers.
+
 
 1. Locate the **# BEGIN PUBLISH MESSAGE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -205,51 +194,92 @@ In this section, you add code to publish event messages to specific Redis channe
 
 1. Save your changes.
 
-### Add the broadcast message code
+### Add the similarity calculation code
 
-In this section, you add code to broadcast the same message to multiple channels simultaneously using a loop with **publish()**. Broadcasting is useful for system-wide announcements or events that need to reach subscribers across different channels. This demonstrates the one-to-many messaging capability of pub/sub, where a single message can efficiently reach all interested subscribers across multiple channels in real-time.
 
-1. Locate the **# BEGIN BROADCAST CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+1. Locate the **# BEGIN SIMILARITY CALCULATION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def broadcast_to_all(r: redis.Redis) -> None:
-        """Broadcast a message to all channels using r.publish() in a loop for multi-channel delivery"""
-        clear_screen()
-        print("=" * 60)
-        print("Broadcasting: System Announcement")
-        print("=" * 60)
+    @staticmethod
+    def calculate_similarity(vector1: list, vector2: list) -> float:
+        """Calculate cosine similarity between two vectors using numpy array operations"""
+        try:
+            # Convert lists to numpy arrays with float64 precision
+            v1 = np.array(vector1, dtype=np.float64)
+            v2 = np.array(vector2, dtype=np.float64)
 
-        announcement = {
-            "event": "system_announcement",
-            "message": "System maintenance scheduled for 2 AM",
-            "priority": "high",
-            "timestamp": datetime.now().isoformat()
-        }
+            # Check for dimension mismatch
+            if v1.shape != v2.shape:
+                return 0.0
 
-        channels = ["orders:created", "orders:shipped", "inventory:alerts", "notifications"]
-        message = json.dumps(announcement)
+            # Calculate dot product: a·b
+            dot_product = np.dot(v1, v2)
 
-        print(f"\n[>] Broadcasting to {len(channels)} channels...")
-        print(f"Channels: {', '.join(channels)}\n")
+            # Calculate magnitudes (norms): ||a|| and ||b||
+            magnitude1 = np.linalg.norm(v1)
+            magnitude2 = np.linalg.norm(v2)
 
-        total_subscribers = 0
-        for channel in channels:
-            count = r.publish(channel, message)  # Send same message to multiple channels
-            total_subscribers += count
-            print(f"  - {channel}: {count} subscriber(s)")
+            # Handle zero-magnitude vectors
+            if magnitude1 == 0 or magnitude2 == 0:
+                return 0.0
 
-        print(f"\n[#] Total subscribers reached: {total_subscribers}")
-        print(f"\n[i] Message content:")
-        print(json.dumps(announcement, indent=2))
+            # Cosine similarity formula: (a·b) / (||a|| * ||b||)
+            # Result ranges from -1 to 1 (1 = identical, -1 = opposite, 0 = perpendicular)
+            similarity = dot_product / (magnitude1 * magnitude2)
+            return float(similarity)
+        except Exception:
+            return 0.0
+    ```
 
-        input("\n[+] Press Enter to continue...")
+1. Save your changes.
+
+### Add the vector search code
+
+
+
+1. Locate the **# BEGIN VECTOR SEARCH CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def search_similar_vectors(self, query_vector: list, top_k: int = 3) -> tuple[bool, list | str]:
+        """Search for vectors similar to the query vector using cosine similarity"""
+        try:
+            # Retrieve all vector keys from Redis using pattern matching
+            vector_keys = self.r.keys("vector:*")
+
+            if not vector_keys:
+                return False, "No vectors found in Redis"
+
+            similarities = []
+
+            # Calculate similarity score for each stored vector
+            for key in vector_keys:
+                vector_data = self.r.hgetall(key)  # Retrieve vector and metadata
+                if "vector" in vector_data:
+                    stored_vector = json.loads(vector_data["vector"])  # Parse vector from JSON
+                    similarity = self.calculate_similarity(query_vector, stored_vector)  # Calculate similarity score
+
+                    # Extract metadata
+                    metadata = {k: v for k, v in vector_data.items() if k != "vector"}
+                    similarities.append({
+                        "key": key,
+                        "similarity": similarity,
+                        "metadata": metadata
+                    })
+
+            # Sort by similarity score in descending order and return top_k results
+            similarities.sort(key=lambda x: x["similarity"], reverse=True)
+            return True, similarities[:top_k]
+
+        except Exception as e:
+            return False, f"Error searching vectors: {e}"
     ```
 
 1. Save your changes.
 
 ### Review the code
 
-Take a few minutes to review all of the code in the application.
+Take a few minutes to review all of the code in the *manage_vector.py* file.
 
 ## Verify resource deployment
 
@@ -273,25 +303,19 @@ In this section you run the deployment script again to verify if the Azure Manag
 
 1. Review the *.env* file to verify the values are present, then enter **4** to exit the deployment script.
 
-## Run the apps
+## Run the app
 
 In this section, you run the completed application and practice loading, storing, searching, vector data.The app uses **tkinter** to create a GUI so you can more easily view and manage data.
 
-1. Run the following command in **Terminal 2** to start the publisher app. After the app connects to Redis, press **Enter** to display the menu.
+1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
     ```
-    python manage_vector.py
+    python vectorapp.py
     ```
 
-1. Run the following command in **Terminal 1** to start the subscriber app. The app will launch a new window with a GUI created with **tkinter**.
+    The app should look similar to the following image:
 
-    ```
-    python subscriber.py
-    ```
-
-1. Position both of the applications so they run side-by-side.
-
-    ![Screenshot of the apps running side-by-side](./media/apps-side-by-side.png)
+    ![Screenshot of the vector app running.](./media/vector-app.png)
 
 ### Send and receive messages
 
