@@ -156,13 +156,13 @@ class VectorQueryGUI:
                 if prod_success and isinstance(prod_data, dict):
                     name = prod_data.get("name", "N/A")
                     category = prod_data.get("category", "N/A")
-                    self.display_message(f"      Name: {name}\n")
-                    self.display_message(f"      Category: {category}\n")
+                    self.display_message(f"   Name: {name}\n")
+                    self.display_message(f"   Category: {category}\n")
                     # Format embedding for easy copy/paste
                     embedding_vector = prod_data.get("vector", [])
                     if embedding_vector:
                         formatted_vector = ", ".join([f"{v:.2f}" for v in embedding_vector])
-                        self.display_message(f"      Embedding: [{formatted_vector}]\n")
+                        self.display_message(f"   Embedding: [{formatted_vector}]\n")
                 self.display_message("\n")
         else:
             self.display_message(f"[✗] {result}\n")

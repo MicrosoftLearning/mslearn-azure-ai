@@ -2,19 +2,19 @@
 lab:
     topic: Azure Managed Redis
     title: 'Implement vector storage and similarity search in Azure Managed Redis'
-    description: 'Learn how to store vectors, perform similarity searches, and build vector search applications in Azure Managed Redis using redis-py.'
+    description: 'Learn how to store product vectors with embeddings, create semantic search indexes, and perform similarity searches in Azure Managed Redis using redis-py and RediSearch.'
 ---
 
 # Implement vector storage and similarity search in Azure Managed Redis
 
-In this exercise, you create an Azure Managed Redis resource and complete the code for a vector storage application. The application loads sample vector data, stores new vectors with metadata, retrieves vectors by key, and performs similarity searches to find related products. You implement core vector operations including storing vectors with metadata, retrieving stored vectors, calculating vector similarity using cosine similarity, and searching for similar vectors.
+In this exercise, you create an Azure Managed Redis resource and complete the code for a vector storage application. The application loads sample product data with embeddings, stores new products with vector embeddings and metadata, performs semantic similarity searches using vector embeddings, and displays related products based on cosine similarity. You implement core vector operations including storing vectors as binary data with metadata, creating a RediSearch index with HNSW algorithm configuration, and executing KNN queries to find semantically similar products.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
 - Create an Azure Managed Redis resource
 - Add code to complete business logic
-- Run the apps to load, store, and search vector data
+- Run the app to load sample data, store products with embeddings, and perform similarity searches
 
 This exercise takes approximately **40** minutes to complete.
 
@@ -126,6 +126,7 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 ### Add the initialization and connection code
 
+In this section, you add code to establish a connection to Azure Managed Redis using redis-py. The **_connect_to_redis()** function uses the redis-py **Redis** class to create a secure SSL connection with authentication. The **__init__()** method initializes the vector index for semantic search operations.
 
 1. Locate the **# BEGIN INITIALIZATION AND CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -171,6 +172,7 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 ### Add the create vector index code
 
+In this section, you add code to create a RediSearch index for vector similarity search using the redis-py search module. The **_create_vector_index()** function defines the schema with text fields and a VectorField configured for HNSW (Hierarchical Navigable Small World) indexing with cosine similarity, enabling efficient semantic search operations.
 
 1. Locate the **# BEGIN CREATE VECTOR INDEX CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -215,12 +217,11 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 1. Save your changes.
 
+### Add the store product code
 
-### Add the store vector code
+In this section, you add code to store products with vector embeddings and metadata using Redis. The **store_product()** function uses numpy to convert embedding arrays to binary float32 bytes, then uses the redis-py **hset()** method to store the binary embedding and metadata fields in a Redis hash structure. This approach provides efficient storage and retrieval of vector data.
 
-In this section, you add code to store vectors with metadata using Redis. The **store_vector()** function uses the redis-py **hset()** method to store vector embeddings as JSON strings and additional metadata fields in a single hash structure, demonstrating efficient key-value storage in Redis.
-
-1. Locate the **# BEGIN STORE VECTOR CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN STORE PRODUCT CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
     def store_product(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
@@ -252,7 +253,7 @@ In this section, you add code to store vectors with metadata using Redis. The **
 
 ### Add the search similar products vector code
 
-
+In this section, you add code to perform vector similarity search using RediSearch with the redis-py client. The **search_similar_products()** function uses numpy to convert the query vector to binary float32 bytes, then executes a KNN (k-nearest neighbors) query against the RediSearch index to find the most similar products based on cosine similarity of their embeddings.
 
 1. Locate the **# BEGIN SEARCH SIMILAR PRODUCTS CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -385,7 +386,6 @@ In this section, you practice loading sample vector data into Redis and then per
 1. Select **Find Similar Products** and enter `product:009` in the **Product Key:** input field, then select **Search**.
 
     Review the output and notice the Gym Bag is now the product most similar to the Premium Backpack.
-
 
 ## Clean up resources
 
