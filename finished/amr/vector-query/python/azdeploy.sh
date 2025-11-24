@@ -12,6 +12,7 @@ location="westus2" # Azure region for the resources
 # Generate consistent hash from username (always produces valid Azure resource name)
 user_hash=$(echo -n "$USER" | sha1sum | cut -c1-8)
 cache_name="amr-exercise-${user_hash}"
+cache_name="amr-exercise-jjkl1234" # Temporary hardcoded name for testing purposes
 
 # Function to create Azure Managed Redis resource
 create_redis_resource() {
@@ -24,6 +25,9 @@ create_redis_resource() {
         --location $location \
         --sku Enterprise_E10 \
         --public-network-access "Enabled" \
+        --clustering-policy "EnterpriseCluster" \
+        --eviction-policy "NoEviction" \
+        --modules "name=RediSearch" \
         --no-wait
 
     echo "The Azure Managed Redis Enterprise cluster is being created and takes 5-10 minutes to complete."
@@ -39,25 +43,12 @@ check_deployment_status() {
 # Function to retrieve endpoint and access key
 retrieve_endpoint_and_key() {
 
-    echo "Creating database with RediSearch module..."
-
-    # Create a database with RediSearch module enabled
-    az redisenterprise database create \
-        --resource-group $rg \
-        --cluster-name $cache_name \
-        --name default \
-        --client-protocol RESP \
-        --port 10000 \
-        --modules RediSearch \
-        > /dev/null
-
     echo "Enabling access key authentication to trigger key generation..."
 
     # Enable access key authentication on the database to trigger key generation
     az redisenterprise database update \
         --resource-group $rg \
         --cluster-name $cache_name \
-        --name default \
         --access-keys-auth "Enabled" \
         > /dev/null
 
@@ -67,7 +58,7 @@ retrieve_endpoint_and_key() {
     hostname=$(az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>/dev/null)
 
     # Get the primary access key
-    primaryKey=$(az redisenterprise database list-keys --cluster-name $cache_name --name default -g $rg --query "primaryKey" -o tsv 2>/dev/null)
+    primaryKey=$(az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>/dev/null)
 
     # Check if values are empty
     if [ -z "$hostname" ] || [ -z "$primaryKey" ]; then
@@ -120,7 +111,7 @@ show_menu() {
     echo "Cache Name: $cache_name"
     echo "Location: $location"
     echo "====================================================================="
-    echo "1. Create Azure Managed Redis resource (with RediSearch module)"
+    echo "1. Create Azure Managed Redis resource"
     echo "2. Check deployment status"
     echo "3. Configure for search and retrieve endpoint and access key"
     echo "4. Exit"

@@ -185,11 +185,11 @@ class VectorQueryGUI:
         key_entry.insert(0, "product:<id>")
 
         # Embedding input
-        tk.Label(dialog, text="Embedding (comma-separated):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        tk.Label(dialog, text="Embedding:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
 
         vector_text = tk.Text(dialog, width=50, height=2, font=self.fixed_font)
         vector_text.pack(pady=5, padx=15, anchor=tk.W)
-        vector_text.insert(1.0, "0.1, 0.2, 0.15, 0.8,...")
+        vector_text.insert(1.0, "[0.1, 0.2, 0.15, 0.8,...]")
 
         # Metadata section
         tk.Label(dialog, text="Metadata:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
@@ -240,7 +240,7 @@ class VectorQueryGUI:
             messagebox.showerror("Error", "Not connected to Redis")
             return
     def search_vectors(self):
-        """Search for similar vectors"""
+        """Search for similar vectors using a product key"""
         if not self.manager:
             messagebox.showerror("Error", "Not connected to Redis")
             return
@@ -248,13 +248,13 @@ class VectorQueryGUI:
         dialog = tk.Toplevel(self.root)
         dialog.title("Find Similar Products")
         dialog.transient(self.root)
-        self.center_window(dialog, 585, 330)
+        self.center_window(dialog, 500, 250)
 
-        tk.Label(dialog, text="Query Embedding:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        tk.Label(dialog, text="Product Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
 
-        vector_text = tk.Text(dialog, width=55, height=2, font=self.fixed_font)
-        vector_text.pack(pady=5, padx=15, anchor=tk.W)
-        vector_text.insert(1.0, "0.1, 0.2, 0.15, 0.8, 0.3, 0.6, 0.4,...")
+        key_entry = tk.Entry(dialog, width=40, font=self.fixed_font)
+        key_entry.pack(pady=5, padx=15, anchor=tk.W)
+        key_entry.insert(0, "product:<id>")
 
         tk.Label(dialog, text="Number of results (1-10):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
 
@@ -265,12 +265,26 @@ class VectorQueryGUI:
 
         def search():
             try:
-                vector_str = vector_text.get(1.0, tk.END).strip()
-                if not vector_str:
-                    messagebox.showwarning("Warning", "Enter a query embedding")
+                product_key = key_entry.get().strip()
+                if not product_key:
+                    messagebox.showwarning("Warning", "Enter a product key")
                     return
 
-                query_vector = self.parse_embedding(vector_str)
+                # Retrieve the product to get its embedding
+                prod_success, prod_data = self.manager.retrieve_product(product_key)
+                if not prod_success or not isinstance(prod_data, dict):
+                    self.clear_output()
+                    self.display_message(f"[✗] Product not found: {product_key}\n")
+                    dialog.destroy()
+                    return
+
+                query_vector = prod_data.get("vector", [])
+                if not query_vector:
+                    self.clear_output()
+                    self.display_message(f"[✗] Product has no embedding\n")
+                    dialog.destroy()
+                    return
+
                 top_k = int(count_entry.get())
                 top_k = max(1, min(10, top_k))
 
@@ -278,6 +292,8 @@ class VectorQueryGUI:
 
                 self.clear_output()
                 if success:
+                    query_name = prod_data.get("name", "Unknown")
+                    self.display_message(f"[✓] Finding products similar to: {query_name}\n")
                     self.display_message(f"[✓] Found {len(results)} similar products\n\n")
 
                     for idx, result in enumerate(results, 1):

@@ -33,6 +33,7 @@ class VectorManager:
                 ssl=True,  # Use SSL encryption
                 decode_responses=False,  # Keep binary for embeddings - only decode text when needed
                 password=redis_key,  # Authentication key
+                db=0,  # Connect to database 0 (the default database with RediSearch module)
                 socket_timeout=30,  # Connection timeout
                 socket_connect_timeout=30,  # Socket timeout
             )
