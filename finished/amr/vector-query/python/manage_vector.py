@@ -31,7 +31,7 @@ class VectorManager:
                 host=redis_host,
                 port=10000,  # Azure Managed Redis uses port 10000
                 ssl=True,  # Use SSL encryption
-                decode_responses=True,  # Decode responses to strings
+                decode_responses=False,  # Keep binary for embeddings - only decode text when needed
                 password=redis_key,  # Authentication key
                 socket_timeout=30,  # Connection timeout
                 socket_connect_timeout=30,  # Socket timeout

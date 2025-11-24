@@ -16,7 +16,7 @@ cache_name="amr-exercise-${user_hash}"
 # Function to create Azure Managed Redis resource
 create_redis_resource() {
     echo "Creating Azure Managed Redis resource '$cache_name'..."
-    
+
     # Create the Redis Enterprise cluster with public network access enabled
     az redisenterprise create \
         --resource-group $rg \
@@ -28,8 +28,9 @@ create_redis_resource() {
         --clustering-policy "NoCluster" \
         --eviction-policy "AllKeysLRU" \
         --port 10000 \
+        --modules search \
         --no-wait
-    
+
     echo "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."
     echo "You can check the deployment status from the menu later in the exercise."
 }
@@ -42,7 +43,7 @@ check_deployment_status() {
 
 # Function to retrieve endpoint and access key
 retrieve_endpoint_and_key() {
-    
+
     echo "Enabling access key authentication to trigger key generation..."
 
     # Enable access key authentication on the cluster to trigger key generation
@@ -51,15 +52,15 @@ retrieve_endpoint_and_key() {
         --cluster-name $cache_name \
         --access-keys-auth "Enabled" \
         > /dev/null
-    
+
     echo "Retrieving endpoint and access key..."
 
     # Get the endpoint (hostname and port)
     hostname=$(az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>/dev/null)
-    
+
     # Get the primary access key
     primaryKey=$(az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>/dev/null)
-    
+
     # Check if values are empty
     if [ -z "$hostname" ] || [ -z "$primaryKey" ]; then
         echo ""
@@ -68,7 +69,7 @@ retrieve_endpoint_and_key() {
         echo "Use menu option 2 to check deployment status."
         return 1
     fi
-    
+
     # Create or update .env file
     if [ -f ".env" ]; then
         # Update existing .env file
@@ -77,7 +78,7 @@ retrieve_endpoint_and_key() {
         else
             echo "REDIS_HOST=$hostname" >> .env
         fi
-        
+
         if grep -q "^REDIS_KEY=" .env; then
             sed -i "s|^REDIS_KEY=.*|REDIS_KEY=$primaryKey|" .env
         else
@@ -90,7 +91,7 @@ retrieve_endpoint_and_key() {
         echo "REDIS_KEY=$primaryKey" >> .env
         echo "Created new .env file"
     fi
-    
+
     clear
     echo ""
     echo "Redis Connection Information"
@@ -111,7 +112,7 @@ show_menu() {
     echo "Cache Name: $cache_name"
     echo "Location: $location"
     echo "====================================================================="
-    echo "1. Create Azure Managed Redis resource"
+    echo "1. Create Azure Managed Redis resource (with RediSearch module)"
     echo "2. Check deployment status"
     echo "3. Enable access key auth and retrieve endpoint and access key"
     echo "4. Exit"
@@ -122,7 +123,7 @@ show_menu() {
 while true; do
     show_menu
     read -p "Please select an option (1-4): " choice
-    
+
     case $choice in
         1)
             echo ""
@@ -154,7 +155,7 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
     esac
-    
+
     echo ""
 done
 
