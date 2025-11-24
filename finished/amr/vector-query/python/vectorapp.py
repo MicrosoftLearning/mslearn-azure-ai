@@ -52,26 +52,24 @@ class VectorQueryGUI:
         left_frame.pack_propagate(False)
 
         # Title
-        title_label = tk.Label(left_frame, text="Vector Operations",
+        title_label = tk.Label(left_frame, text="Product Operations",
                                font=self.default_bold, bg="#f0f0f0")
         title_label.pack(pady=15)
 
         # Menu buttons
         btn_style = {"font": self.button_font, "width": 30, "pady": 10, "bg": "#4a4a4a", "fg": "white"}
 
-        tk.Button(left_frame, text="Load Sample Vectors",
+        tk.Button(left_frame, text="Load Sample Products",
                  command=self.load_samples, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Store New Vector",
+        tk.Button(left_frame, text="Store New Product",
                  command=self.store_new_vector, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Retrieve Vector",
+        tk.Button(left_frame, text="Retrieve Product",
                  command=self.retrieve_vector, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Search Similar Vectors",
+        tk.Button(left_frame, text="Find Similar Products",
                  command=self.search_vectors, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="List All Vectors",
-                 command=self.list_vectors, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Delete Vector",
+        tk.Button(left_frame, text="Delete Product",
                  command=self.delete_vector, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Clear All Vectors",
+        tk.Button(left_frame, text="Clear All Products",
                  command=self.clear_all_vectors, **btn_style).pack(pady=8)
 
         # Status label
@@ -131,7 +129,7 @@ class VectorQueryGUI:
 
         self.clear_output()
         self.display_message("[*] Loading sample vectors...\n")
-        success, message = self.manager.load_sample_vectors()
+        success, message = self.manager.load_sample_products()
 
         if success:
             self.display_message(f"[✓] {message}\n")
@@ -145,7 +143,7 @@ class VectorQueryGUI:
             return
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("Store New Vector")
+        dialog.title("Store New Product")
         dialog.transient(self.root)
         self.center_window(dialog, 480, 390)
 
@@ -187,7 +185,7 @@ class VectorQueryGUI:
                         k, v = line.split("=", 1)
                         metadata[k.strip()] = v.strip()
 
-                success, message = self.manager.store_vector(key, vector, metadata if metadata else None)
+                success, message = self.manager.store_product(key, vector, metadata if metadata else None)
 
                 self.clear_output()
                 if success:
@@ -203,7 +201,7 @@ class VectorQueryGUI:
             except ValueError as e:
                 messagebox.showerror("Error", f"Invalid vector format: {e}")
 
-        tk.Button(dialog, text="Store Vector", command=store, bg="#4a4a4a", fg="white", font=self.button_font, width=20, height=1).pack(pady=10, padx=15, anchor=tk.W)
+        tk.Button(dialog, text="Store Product", command=store, bg="#4a4a4a", fg="white", font=self.button_font, width=20, height=1).pack(pady=10, padx=15, anchor=tk.W)
 
     def retrieve_vector(self):
         """Retrieve a vector by key"""
@@ -212,7 +210,7 @@ class VectorQueryGUI:
             return
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("Retrieve Vector")
+        dialog.title("Retrieve Product")
         dialog.transient(self.root)
         self.center_window(dialog, 400, 150)
 
@@ -227,18 +225,16 @@ class VectorQueryGUI:
                 messagebox.showwarning("Warning", "Enter a vector key")
                 return
 
-            success, result = self.manager.retrieve_vector(key)
+            success, result = self.manager.retrieve_product(key)
 
             self.clear_output()
             if success:
-                self.display_message(f"[✓] Retrieved vector: {key}\n\n")
-                self.display_message(f"Dimensions: {len(result['vector'])}\n")
-                self.display_message(f"Vector: {result['vector']}\n")
-
-                if result['metadata']:
-                    self.display_message("\nMetadata:\n")
-                    for k, v in result['metadata'].items():
-                        self.display_message(f"  {k}: {v}\n")
+                self.display_message(f"[✓] Retrieved product: {key}\n\n")
+                self.display_message(f"Product ID: {result['product_id']}\n")
+                self.display_message(f"Name: {result['name']}\n")
+                self.display_message(f"Category: {result['category']}\n")
+                self.display_message(f"Vector Dimensions: {len(result['vector'])}\n")
+                self.display_message(f"Embedding: {result['vector']}\n")
             else:
                 self.display_message(f"[✗] {result}\n")
 
@@ -255,7 +251,7 @@ class VectorQueryGUI:
             return
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("Search Similar Vectors")
+        dialog.title("Find Similar Products")
         dialog.transient(self.root)
         self.center_window(dialog, 585, 330)
 
@@ -283,19 +279,17 @@ class VectorQueryGUI:
                 top_k = int(count_entry.get())
                 top_k = max(1, min(10, top_k))
 
-                success, results = self.manager.search_similar_vectors(query_vector, top_k)
+                success, results = self.manager.search_similar_products(query_vector, top_k)
 
                 self.clear_output()
                 if success:
-                    self.display_message(f"[✓] Found {len(results)} similar vectors\n\n")
+                    self.display_message(f"[✓] Found {len(results)} similar products\n\n")
 
                     for idx, result in enumerate(results, 1):
-                        self.display_message(f"{idx}. Key: {result['key']}\n")
-                        self.display_message(f"   Similarity: {result['similarity']:.4f}\n")
-                        if result['metadata']:
-                            self.display_message("   Metadata:\n")
-                            for k, v in result['metadata'].items():
-                                self.display_message(f"     {k}: {v}\n")
+                        self.display_message(f"{idx}. {result['name']} ({result['key']})\n")
+                        self.display_message(f"   Product ID: {result['product_id']}\n")
+                        self.display_message(f"   Category: {result['category']}\n")
+                        self.display_message(f"   Similarity Score: {result['similarity']:.4f}\n")
                         self.display_message("\n")
                 else:
                     self.display_message(f"[✗] {results}\n")
@@ -308,29 +302,6 @@ class VectorQueryGUI:
                  fg="white", font=self.button_font, width=20, height=1)
         search_btn.pack(pady=10, padx=15, anchor=tk.W)
 
-    def list_vectors(self):
-        """List all vectors"""
-        if not self.manager:
-            messagebox.showerror("Error", "Not connected to Redis")
-            return
-
-        success, results = self.manager.list_all_vectors()
-
-        self.clear_output()
-        if success:
-            self.display_message(f"[✓] Total vectors: {len(results)}\n\n")
-
-            for vector_info in results:
-                self.display_message(f"• {vector_info['key']}\n")
-                self.display_message(f"  Dimensions: {vector_info['dimensions']}\n")
-                if vector_info['metadata']:
-                    self.display_message("  Metadata:\n")
-                    for k, v in vector_info['metadata'].items():
-                        self.display_message(f"    {k}: {v}\n")
-                self.display_message("\n")
-        else:
-            self.display_message(f"[✗] {results}\n")
-
     def delete_vector(self):
         """Delete a vector by key"""
         if not self.manager:
@@ -338,7 +309,7 @@ class VectorQueryGUI:
             return
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("Delete Vector")
+        dialog.title("Delete Product")
         dialog.transient(self.root)
         self.center_window(dialog, 400, 150)
 
@@ -353,7 +324,7 @@ class VectorQueryGUI:
                 messagebox.showwarning("Warning", "Enter a vector key")
                 return
 
-            success, message = self.manager.delete_vector(key)
+            success, message = self.manager.delete_product(key)
 
             self.clear_output()
             if success:
@@ -372,7 +343,7 @@ class VectorQueryGUI:
             messagebox.showerror("Error", "Not connected to Redis")
             return
 
-        success, message = self.manager.clear_all_vectors()
+        success, message = self.manager.clear_all_products()
 
         self.clear_output()
         if success:

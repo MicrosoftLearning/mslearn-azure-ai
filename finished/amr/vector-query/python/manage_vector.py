@@ -3,16 +3,21 @@ import json
 import redis
 import numpy as np
 from dotenv import load_dotenv
+from redis.commands.search.field import TextField, VectorField
+from redis.commands.search.indexDefinition import IndexDefinition, IndexType
+from redis.commands.search.query import Query
 
 # Load environment variables from .env file
 load_dotenv()
 
 class VectorManager:
-    """Handles all vector storage and retrieval operations with Redis"""
+    """Handles all product storage, retrieval, and semantic search operations with Redis embeddings"""
 
     def __init__(self):
-        """Initialize vector manager and establish Redis connection"""
+        """Initialize the product manager and establish Redis connection"""
         self.r = self._connect_to_redis()
+        self._create_vector_index()  # Create RediSearch index for product embeddings
+        self.VECTOR_DIM = 8  # Product embedding dimensionality (matches sample_data.json)
 
     def _connect_to_redis(self) -> redis.Redis:
         """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
@@ -43,14 +48,51 @@ class VectorManager:
         except Exception as e:
             raise Exception(f"Unexpected error: {e}")
 
-    # BEGIN STORE VECTOR CODE SECTION
-
-    def store_vector(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
-        """Store a vector with metadata in Redis using hash data structure"""
+    def _create_vector_index(self):
+        """Create a RediSearch index for product semantic search using HNSW algorithm"""
         try:
-            # Convert vector to JSON string for storage
-            vector_json = json.dumps(vector)
-            data = {"vector": vector_json}  # Store vector as JSON
+            # Define schema with embedding field for HNSW-based product similarity search
+            # DIM=8 matches our sample data dimensions (in production, this would match your embedding model's output)
+            schema = (
+                TextField("name"),
+                TextField("category"),
+                TextField("product_id"),
+                VectorField(
+                    "embedding",
+                    "HNSW",  # Hierarchical Navigable Small World - fast approximate search
+                    {
+                        "TYPE": "FLOAT32",           # Standard for embeddings
+                        "DIM": 8,                    # Must match embedding dimensions in sample_data.json
+                        "DISTANCE_METRIC": "COSINE"  # Cosine similarity for semantic search
+                    }
+                )
+            )
+
+            # Create index on hash keys starting with "vector:"
+            self.r.ft("idx:products").create_index(
+                fields=schema,
+                definition=IndexDefinition(
+                    prefix=["vector:"],
+                    index_type=IndexType.HASH
+                )
+            )
+        except redis.ResponseError as e:
+            if "already exists" in str(e):
+                pass  # Index already exists, which is fine
+            else:
+                raise Exception(f"Error creating vector index: {e}")
+        except Exception as e:
+            raise Exception(f"Error creating vector index: {e}")
+
+    # BEGIN STORE PRODUCT CODE SECTION
+
+    def store_product(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
+        """Store a product with embedding in Redis using hash data structure with binary embedding storage"""
+        try:
+            # Convert embedding to binary bytes using numpy for efficient storage
+            # This follows redis-py best practices for storing embeddings
+            embedding = np.array(vector, dtype=np.float32)
+            data = {"embedding": embedding.tobytes()}  # Store embedding as binary bytes
 
             # Add metadata fields to the hash
             if metadata:
@@ -61,189 +103,143 @@ class VectorManager:
             result = self.r.hset(vector_key, mapping=data)
 
             if result > 0:
-                return True, f"Vector stored successfully under key '{vector_key}'"
+                return True, f"Product stored successfully under key '{vector_key}'"
             else:
-                return True, f"Vector updated successfully under key '{vector_key}'"
+                return True, f"Product updated successfully under key '{vector_key}'"
 
         except Exception as e:
-            return False, f"Error storing vector: {e}"
+            return False, f"Error storing product: {e}"
 
-    # END STORE VECTOR CODE SECTION
+    # END STORE PRODUCT CODE SECTION
 
-    # BEGIN RETRIEVE VECTOR CODE SECTION
+    # BEGIN RETRIEVE PRODUCT CODE SECTION
 
-    def retrieve_vector(self, vector_key: str) -> tuple[bool, dict | str]:
-        """Retrieve a vector and its metadata from Redis"""
+    def retrieve_product(self, vector_key: str) -> tuple[bool, dict | str]:
+        """Retrieve a product and its embedding from Redis"""
         try:
-            # Retrieve all hash fields for the given key using hgetall()
+            # Retrieve all fields for the product using hgetall()
             retrieved_data = self.r.hgetall(vector_key)
 
             if retrieved_data:
-                # Parse the stored vector from JSON
+                # Convert binary embedding back to list for display
+                embedding_bytes = retrieved_data.get("embedding")
+                if embedding_bytes:
+                    embedding_array = np.frombuffer(embedding_bytes, dtype=np.float32)
+                    vector = embedding_array.tolist()
+                else:
+                    vector = []
+
                 result = {
                     "key": vector_key,
-                    "vector": json.loads(retrieved_data["vector"]),
-                    "metadata": {}
+                    "vector": vector,
+                    "product_id": retrieved_data.get("product_id", ""),
+                    "name": retrieved_data.get("name", ""),
+                    "category": retrieved_data.get("category", "")
                 }
-
-                # Extract metadata fields
-                for key, value in retrieved_data.items():
-                    if key != "vector":
-                        result["metadata"][key] = value
 
                 return True, result
             else:
                 return False, f"Key '{vector_key}' does not exist"
 
         except Exception as e:
-            return False, f"Error retrieving vector: {e}"
+            return False, f"Error retrieving product: {e}"
 
-    # END RETRIEVE VECTOR CODE SECTION
+    # END RETRIEVE PRODUCT CODE SECTION
 
-    # BEGIN SIMILARITY CALCULATION CODE SECTION
+    # BEGIN SEARCH SIMILAR PRODUCTS CODE SECTION
 
-    @staticmethod
-    def calculate_similarity(vector1: list, vector2: list) -> float:
-        """Calculate cosine similarity between two vectors using numpy array operations"""
+    def search_similar_products(self, query_vector: list, top_k: int = 3) -> tuple[bool, list | str]:
+        """Search for products similar to the query vector using RediSearch KNN queries"""
         try:
-            # Convert lists to numpy arrays with float64 precision
-            v1 = np.array(vector1, dtype=np.float64)
-            v2 = np.array(vector2, dtype=np.float64)
+            # Convert query vector to binary bytes for KNN search
+            query_bytes = np.array(query_vector, dtype=np.float32).tobytes()
 
-            # Check for dimension mismatch
-            if v1.shape != v2.shape:
-                return 0.0
+            # Build KNN query using RediSearch vector search syntax for semantic similarity
+            # *=>[KNN k @field_name $query_vec] finds k most similar products based on embedding distance
+            knn_query = (
+                Query(f"*=>[KNN {top_k} @embedding $query_vec AS score]")
+                .return_fields("name", "category", "product_id", "score")
+                .sort_by("score")
+                .dialect(2)  # Dialect 2 enables vector search syntax
+            )
 
-            # Calculate dot product: a·b
-            dot_product = np.dot(v1, v2)
+            # Execute KNN search with query vector as parameter
+            results = self.r.ft("idx:products").search(
+                knn_query,
+                query_params={"query_vec": query_bytes}
+            )
 
-            # Calculate magnitudes (norms): ||a|| and ||b||
-            magnitude1 = np.linalg.norm(v1)
-            magnitude2 = np.linalg.norm(v2)
+            if results.total == 0:
+                return False, "No products found in Redis"
 
-            # Handle zero-magnitude vectors
-            if magnitude1 == 0 or magnitude2 == 0:
-                return 0.0
-
-            # Cosine similarity formula: (a·b) / (||a|| * ||b||)
-            # Result ranges from -1 to 1 (1 = identical, -1 = opposite, 0 = perpendicular)
-            similarity = dot_product / (magnitude1 * magnitude2)
-            return float(similarity)
-        except Exception:
-            return 0.0
-
-    # END SIMILARITY CALCULATION CODE SECTION
-
-    # BEGIN VECTOR SEARCH CODE SECTION
-
-    def search_similar_vectors(self, query_vector: list, top_k: int = 3) -> tuple[bool, list | str]:
-        """Search for vectors similar to the query vector using cosine similarity"""
-        try:
-            # Retrieve all vector keys from Redis using pattern matching
-            vector_keys = self.r.keys("vector:*")
-
-            if not vector_keys:
-                return False, "No vectors found in Redis"
-
+            # Format results
             similarities = []
+            for doc in results.docs:
+                similarities.append({
+                    "key": doc.id,
+                    "similarity": float(doc.score),
+                    "product_id": doc.product_id,
+                    "name": doc.name,
+                    "category": doc.category
+                })
 
-            # Calculate similarity score for each stored vector
-            for key in vector_keys:
-                vector_data = self.r.hgetall(key)  # Retrieve vector and metadata
-                if "vector" in vector_data:
-                    stored_vector = json.loads(vector_data["vector"])  # Parse vector from JSON
-                    similarity = self.calculate_similarity(query_vector, stored_vector)  # Calculate similarity score
-
-                    # Extract metadata
-                    metadata = {k: v for k, v in vector_data.items() if k != "vector"}
-                    similarities.append({
-                        "key": key,
-                        "similarity": similarity,
-                        "metadata": metadata
-                    })
-
-            # Sort by similarity score in descending order and return top_k results
-            similarities.sort(key=lambda x: x["similarity"], reverse=True)
-            return True, similarities[:top_k]
+            return True, similarities
 
         except Exception as e:
-            return False, f"Error searching vectors: {e}"
+            return False, f"Error searching products: {e}"
 
-    # END VECTOR SEARCH CODE SECTION
+    # END SEARCH SIMILAR PRODUCTS CODE SECTION
 
-    def delete_vector(self, vector_key: str) -> tuple[bool, str]:
-        """Delete a vector from Redis using del() method"""
+    def delete_product(self, vector_key: str) -> tuple[bool, str]:
+        """Delete a product from Redis using del() method"""
         try:
-            # Delete the key using Redis del() method
+            # Delete the key using Redis del() command
             result = self.r.delete(vector_key)
             if result == 1:
-                return True, f"Vector '{vector_key}' deleted successfully"
+                return True, f"Product '{vector_key}' deleted successfully"
             else:
-                return False, f"Vector '{vector_key}' does not exist"
+                return False, f"Product '{vector_key}' does not exist"
         except Exception as e:
-            return False, f"Error deleting vector: {e}"
+            return False, f"Error deleting product: {e}"
 
-    def list_all_vectors(self) -> tuple[bool, list | str]:
-        """List all vectors stored in Redis with their dimensions and metadata"""
+    def clear_all_products(self) -> tuple[bool, str]:
+        """Delete all products from Redis"""
         try:
-            # Retrieve all vector keys using pattern matching keys()
-            vector_keys = self.r.keys("vector:*")
-
-            if not vector_keys:
-                return False, "No vectors found in Redis"
-
-            vectors = []
-            for key in sorted(vector_keys):
-                vector_data = self.r.hgetall(key)  # Retrieve all fields for the key
-                if "vector" in vector_data:
-                    vector = json.loads(vector_data["vector"])
-                    metadata = {k: v for k, v in vector_data.items() if k != "vector"}
-
-                    vectors.append({
-                        "key": key,
-                        "dimensions": len(vector),
-                        "metadata": metadata
-                    })
-
-            return True, vectors
-
-        except Exception as e:
-            return False, f"Error listing vectors: {e}"
-
-    def clear_all_vectors(self) -> tuple[bool, str]:
-        """Delete all vectors from Redis"""
-        try:
-            # Retrieve all vector keys and delete them in bulk
-            vector_keys = self.r.keys("vector:*")
-            if vector_keys:
-                self.r.delete(*vector_keys)  # Delete all keys at once
-                return True, f"All {len(vector_keys)} vectors deleted successfully"
+            # Retrieve all product keys and delete them in bulk
+            product_keys = self.r.keys("vector:*")
+            if product_keys:
+                self.r.delete(*product_keys)  # Delete all keys at once
+                return True, f"All {len(product_keys)} products deleted successfully"
             else:
-                return False, "No vectors to delete"
+                return False, "No products to delete"
         except Exception as e:
-            return False, f"Error clearing vectors: {e}"
+            return False, f"Error clearing products: {e}"
 
-    def load_sample_vectors(self) -> tuple[bool, str]:
-        """Load sample vector data into Redis from sample_data.json"""
+    def load_sample_products(self) -> tuple[bool, str]:
+        """Load sample product data into Redis from sample_data.json using binary embedding storage"""
         try:
             # Read sample data from JSON file
             with open("sample_data.json", "r") as f:
-                sample_vectors = json.load(f)
+                sample_products = json.load(f)
 
             count = 0
-            for item in sample_vectors:
-                # Prepare vector data for storage
-                vector_json = json.dumps(item["vector"])
-                data = {"vector": vector_json}
-                data.update(item["metadata"])
+            for item in sample_products:
+                # Convert embedding to binary bytes for efficient storage
+                embedding = np.array(item["embedding"], dtype=np.float32)
+                data = {"embedding": embedding.tobytes()}
 
-                # Store each vector in Redis
+                # Add product metadata (all fields except key and embedding)
+                for key, value in item.items():
+                    if key not in ["key", "embedding"]:
+                        data[key] = str(value)
+
+                # Store each product in Redis
                 self.r.hset(item["key"], mapping=data)
                 count += 1
 
-            return True, f"{count} sample vectors loaded successfully"
+            return True, f"{count} sample products loaded successfully"
 
         except FileNotFoundError:
             return False, "Error: sample_data.json file not found"
         except Exception as e:
-            return False, f"Error loading sample vectors: {e}"
+            return False, f"Error loading sample products: {e}"
