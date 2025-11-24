@@ -1,11 +1,11 @@
 ---
 lab:
     topic: Azure Managed Redis
-    title: 'Implement vector storage and similarity search in Azure Managed Redis'
+    title: 'Implement semantic search in Azure Managed Redis'
     description: 'Learn how to store product vectors with embeddings, create semantic search indexes, and perform similarity searches in Azure Managed Redis using redis-py and RediSearch.'
 ---
 
-# Implement vector storage and similarity search in Azure Managed Redis
+# Implement semantic search in Azure Managed Redis
 
 In this exercise, you create an Azure Managed Redis resource and complete the code for a vector storage application. The application loads sample product data with embeddings, stores new products with vector embeddings and metadata, performs semantic similarity searches using vector embeddings, and displays related products based on cosine similarity. You implement core vector operations including storing vectors as binary data with metadata, creating a RediSearch index with HNSW algorithm configuration, and executing KNN queries to find semantically similar products.
 
