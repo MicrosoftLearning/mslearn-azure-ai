@@ -4,7 +4,7 @@ import redis
 import numpy as np
 from dotenv import load_dotenv
 from redis.commands.search.field import TextField, VectorField
-from redis.commands.search.indexDefinition import IndexDefinition, IndexType
+from redis.commands.search.index_definition import IndexDefinition, IndexType
 from redis.commands.search.query import Query
 
 # Load environment variables from .env file
@@ -80,9 +80,9 @@ class VectorManager:
             if "already exists" in str(e):
                 pass  # Index already exists, which is fine
             else:
-                raise Exception(f"Error creating vector index: {e}")
+                raise Exception(f"Error creating vector index: {str(e)}")
         except Exception as e:
-            raise Exception(f"Error creating vector index: {e}")
+            raise Exception(f"Error creating vector index: {str(e)}")
 
     # BEGIN STORE PRODUCT CODE SECTION
 
