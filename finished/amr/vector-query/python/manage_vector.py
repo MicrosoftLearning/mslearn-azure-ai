@@ -69,12 +69,13 @@ class VectorManager:
             )
 
             # Create index on hash keys starting with "vector:"
+            definition = IndexDefinition(
+                prefix=["vector:"],
+                index_type=IndexType.HASH
+            )
             self.r.ft("idx:products").create_index(
                 fields=schema,
-                definition=IndexDefinition(
-                    prefix=["vector:"],
-                    index_type=IndexType.HASH
-                )
+                definition=definition
             )
         except redis.ResponseError as e:
             if "already exists" in str(e):
