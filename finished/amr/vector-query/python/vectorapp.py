@@ -69,7 +69,7 @@ class VectorQueryGUI:
                  command=self.search_vectors, **btn_style).pack(pady=8)
         tk.Button(left_frame, text="Delete Product",
                  command=self.delete_vector, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Clear All Products",
+        tk.Button(left_frame, text="Delete All Data",
                  command=self.clear_all_vectors, **btn_style).pack(pady=8)
 
         # Status label
@@ -156,13 +156,13 @@ class VectorQueryGUI:
                 if prod_success and isinstance(prod_data, dict):
                     name = prod_data.get("name", "N/A")
                     category = prod_data.get("category", "N/A")
-                    self.display_message(f"      Name: {name}\n")
-                    self.display_message(f"      Category: {category}\n")
+                    self.display_message(f"   Name: {name}\n")
+                    self.display_message(f"   Category: {category}\n")
                     # Format embedding for easy copy/paste
                     embedding_vector = prod_data.get("vector", [])
                     if embedding_vector:
                         formatted_vector = ", ".join([f"{v:.2f}" for v in embedding_vector])
-                        self.display_message(f"      Embedding: [{formatted_vector}]\n")
+                        self.display_message(f"   Embedding: [{formatted_vector}]\n")
                 self.display_message("\n")
         else:
             self.display_message(f"[✗] {result}\n")

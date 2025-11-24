@@ -69,7 +69,7 @@ class VectorQueryGUI:
                  command=self.search_vectors, **btn_style).pack(pady=8)
         tk.Button(left_frame, text="Delete Product",
                  command=self.delete_vector, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Clear All Products",
+        tk.Button(left_frame, text="Delete All Data",
                  command=self.clear_all_vectors, **btn_style).pack(pady=8)
 
         # Status label
