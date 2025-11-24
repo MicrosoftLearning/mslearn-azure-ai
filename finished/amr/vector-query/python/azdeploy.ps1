@@ -28,9 +28,9 @@ function Create-RedisResource {
         --public-network-access "Enabled" `
         --client-protocol "Encrypted" `
         --clustering-policy "NoCluster" `
-        --eviction-policy "AllKeysLRU" `
+        --eviction-policy "NoEviction" `
         --port 10000 `
-        --modules search `
+        --modules name=search `
         --no-wait
 
     Write-Host "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."

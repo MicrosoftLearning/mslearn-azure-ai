@@ -7,7 +7,7 @@ class VectorQueryGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Redis Vector Storage & Search")
-        self.root.geometry("880x800")
+        self.root.geometry("980x800")
 
         # Define fonts using TkDefaultFont
         self.default_font = tkfont.nametofont("TkDefaultFont")
@@ -57,14 +57,14 @@ class VectorQueryGUI:
         title_label.pack(pady=15)
 
         # Menu buttons
-        btn_style = {"font": self.button_font, "width": 30, "pady": 10, "bg": "#4a4a4a", "fg": "white"}
+        btn_style = {"font": self.button_font, "width": 20, "pady": 10, "bg": "#4a4a4a", "fg": "white"}
 
         tk.Button(left_frame, text="Load Sample Products",
                  command=self.load_samples, **btn_style).pack(pady=8)
+        tk.Button(left_frame, text="List All Products",
+                 command=self.list_products, **btn_style).pack(pady=8)
         tk.Button(left_frame, text="Store New Product",
                  command=self.store_new_vector, **btn_style).pack(pady=8)
-        tk.Button(left_frame, text="Retrieve Product",
-                 command=self.retrieve_vector, **btn_style).pack(pady=8)
         tk.Button(left_frame, text="Find Similar Products",
                  command=self.search_vectors, **btn_style).pack(pady=8)
         tk.Button(left_frame, text="Delete Product",
@@ -94,19 +94,13 @@ class VectorQueryGUI:
         self.output_box = scrolledtext.ScrolledText(
             right_frame,
             wrap=tk.WORD,
-            width=75,
+            width=120,
             height=32,
             font=self.fixed_font,
             bg="#1e1e1e",
             fg="#d4d4d4"
         )
         self.output_box.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        # Clear output button
-        clear_btn = tk.Button(right_frame, text="Clear Output",
-                 command=self.clear_output, bg="#4a4a4a", fg="white",
-                 font=self.button_font, width=25, height=2)
-        clear_btn.pack(pady=5, anchor=tk.CENTER)
 
         # Initial message
         self.display_message("[+] Connected to Redis Vector Storage\n[i] Select an operation from the menu\n")
@@ -120,6 +114,13 @@ class VectorQueryGUI:
     def clear_output(self):
         """Clear the output box"""
         self.output_box.delete(1.0, tk.END)
+
+    def parse_embedding(self, embedding_str: str) -> list:
+        """Parse embedding string in various formats: '0.1, 0.2, ...' or '[0.1, 0.2, ...]'"""
+        # Remove brackets and extra whitespace
+        embedding_str = embedding_str.strip().lstrip('[').rstrip(']').strip()
+        # Split by comma and convert to float
+        return [float(x.strip()) for x in embedding_str.split(",")]
 
     def load_samples(self):
         """Load sample vectors"""
@@ -136,6 +137,36 @@ class VectorQueryGUI:
         else:
             self.display_message(f"[✗] {message}\n")
 
+    def list_products(self):
+        """List all products"""
+        if not self.manager:
+            messagebox.showerror("Error", "Not connected to Redis")
+            return
+
+        self.clear_output()
+        self.display_message("[*] Retrieving product list...\n")
+        success, result = self.manager.list_all_products()
+
+        if success:
+            self.display_message(f"[✓] Found {len(result)} products:\n\n")
+            for key in result:
+                self.display_message(f" • Key: {key}\n")
+                # Retrieve product details including embedding
+                prod_success, prod_data = self.manager.retrieve_product(key)
+                if prod_success and isinstance(prod_data, dict):
+                    name = prod_data.get("name", "N/A")
+                    category = prod_data.get("category", "N/A")
+                    self.display_message(f"      Name: {name}\n")
+                    self.display_message(f"      Category: {category}\n")
+                    # Format embedding for easy copy/paste
+                    embedding_vector = prod_data.get("vector", [])
+                    if embedding_vector:
+                        formatted_vector = ", ".join([f"{v:.2f}" for v in embedding_vector])
+                        self.display_message(f"      Embedding: [{formatted_vector}]\n")
+                self.display_message("\n")
+        else:
+            self.display_message(f"[✗] {result}\n")
+
     def store_new_vector(self):
         """Store a new vector with dialog"""
         if not self.manager:
@@ -147,14 +178,14 @@ class VectorQueryGUI:
         dialog.transient(self.root)
         self.center_window(dialog, 480, 390)
 
-        # Vector key input
-        tk.Label(dialog, text="Vector Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        # Product key input
+        tk.Label(dialog, text="Product Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
         key_entry = tk.Entry(dialog, width=50, font=self.fixed_font)
         key_entry.pack(pady=5, padx=15, anchor=tk.W)
-        key_entry.insert(0, "vector:product_<id>")
+        key_entry.insert(0, "product:<id>")
 
-        # Vector input
-        tk.Label(dialog, text="Vector (comma-separated):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        # Embedding input
+        tk.Label(dialog, text="Embedding (comma-separated):", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
 
         vector_text = tk.Text(dialog, width=50, height=2, font=self.fixed_font)
         vector_text.pack(pady=5, padx=15, anchor=tk.W)
@@ -175,7 +206,7 @@ class VectorQueryGUI:
                     messagebox.showwarning("Warning", "Key and vector cannot be empty")
                     return
 
-                vector = [float(x.strip()) for x in vector_str.split(",")]
+                vector = self.parse_embedding(vector_str)
 
                 # Parse metadata
                 metadata = {}
@@ -208,42 +239,6 @@ class VectorQueryGUI:
         if not self.manager:
             messagebox.showerror("Error", "Not connected to Redis")
             return
-
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Retrieve Product")
-        dialog.transient(self.root)
-        self.center_window(dialog, 400, 150)
-
-        tk.Label(dialog, text="Vector Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
-        entry = tk.Entry(dialog, width=40, font=self.fixed_font)
-        entry.pack(pady=5, padx=15, anchor=tk.W)
-        entry.insert(0, "vector:product_<id>")
-
-        def retrieve():
-            key = entry.get().strip()
-            if not key:
-                messagebox.showwarning("Warning", "Enter a vector key")
-                return
-
-            success, result = self.manager.retrieve_product(key)
-
-            self.clear_output()
-            if success:
-                self.display_message(f"[✓] Retrieved product: {key}\n\n")
-                self.display_message(f"Product ID: {result['product_id']}\n")
-                self.display_message(f"Name: {result['name']}\n")
-                self.display_message(f"Category: {result['category']}\n")
-                self.display_message(f"Vector Dimensions: {len(result['vector'])}\n")
-                self.display_message(f"Embedding: {result['vector']}\n")
-            else:
-                self.display_message(f"[✗] {result}\n")
-
-            dialog.destroy()
-
-        retrieve_btn = tk.Button(dialog, text="Retrieve", command=retrieve, bg="#4a4a4a",
-                 fg="white", font=self.button_font, width=20, height=1)
-        retrieve_btn.pack(pady=10, padx=15, anchor=tk.W)
-
     def search_vectors(self):
         """Search for similar vectors"""
         if not self.manager:
@@ -255,7 +250,7 @@ class VectorQueryGUI:
         dialog.transient(self.root)
         self.center_window(dialog, 585, 330)
 
-        tk.Label(dialog, text="Query Vector:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        tk.Label(dialog, text="Query Embedding:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
 
         vector_text = tk.Text(dialog, width=55, height=2, font=self.fixed_font)
         vector_text.pack(pady=5, padx=15, anchor=tk.W)
@@ -272,10 +267,10 @@ class VectorQueryGUI:
             try:
                 vector_str = vector_text.get(1.0, tk.END).strip()
                 if not vector_str:
-                    messagebox.showwarning("Warning", "Enter a query vector")
+                    messagebox.showwarning("Warning", "Enter a query embedding")
                     return
 
-                query_vector = [float(x.strip()) for x in vector_str.split(",")]
+                query_vector = self.parse_embedding(vector_str)
                 top_k = int(count_entry.get())
                 top_k = max(1, min(10, top_k))
 
@@ -313,15 +308,15 @@ class VectorQueryGUI:
         dialog.transient(self.root)
         self.center_window(dialog, 400, 150)
 
-        tk.Label(dialog, text="Vector Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
+        tk.Label(dialog, text="Product Key:", font=self.label_bold).pack(pady=0, anchor=tk.W, padx=15)
         entry = tk.Entry(dialog, width=40, font=self.fixed_font)
         entry.pack(pady=5, padx=15, anchor=tk.W)
-        entry.insert(0, "vector:product_<id>")
+        entry.insert(0, "product:<id>")
 
         def delete():
             key = entry.get().strip()
             if not key:
-                messagebox.showwarning("Warning", "Enter a vector key")
+                messagebox.showwarning("Warning", "Enter a product key")
                 return
 
             success, message = self.manager.delete_product(key)

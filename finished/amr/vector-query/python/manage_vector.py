@@ -68,9 +68,9 @@ class VectorManager:
                 )
             )
 
-            # Create index on hash keys starting with "vector:"
+            # Create index on hash keys starting with "product:"
             definition = IndexDefinition(
-                prefix=["vector:"],
+                prefix=["product:"],
                 index_type=IndexType.HASH
             )
             self.r.ft("idx:products").create_index(
@@ -123,19 +123,26 @@ class VectorManager:
 
             if retrieved_data:
                 # Convert binary embedding back to list for display
-                embedding_bytes = retrieved_data.get("embedding")
+                embedding_bytes = retrieved_data.get(b"embedding") or retrieved_data.get("embedding")
                 if embedding_bytes:
                     embedding_array = np.frombuffer(embedding_bytes, dtype=np.float32)
                     vector = embedding_array.tolist()
                 else:
                     vector = []
 
+                # Decode bytes to strings for text fields
+                def get_field(field_name):
+                    val = retrieved_data.get(field_name.encode()) or retrieved_data.get(field_name)
+                    if isinstance(val, bytes):
+                        return val.decode()
+                    return val if val else ""
+
                 result = {
                     "key": vector_key,
                     "vector": vector,
-                    "product_id": retrieved_data.get("product_id", ""),
-                    "name": retrieved_data.get("name", ""),
-                    "category": retrieved_data.get("category", "")
+                    "product_id": get_field("product_id"),
+                    "name": get_field("name"),
+                    "category": get_field("category")
                 }
 
                 return True, result
@@ -171,7 +178,7 @@ class VectorManager:
             )
 
             if results.total == 0:
-                return False, "No products found in Redis"
+                return False, "No products found in Redis. Ensure products are loaded and RediSearch module is enabled."
 
             # Format results
             similarities = []
@@ -179,12 +186,15 @@ class VectorManager:
                 similarities.append({
                     "key": doc.id,
                     "similarity": float(doc.score),
-                    "product_id": doc.product_id,
-                    "name": doc.name,
-                    "category": doc.category
+                    "product_id": doc.product_id.decode() if isinstance(doc.product_id, bytes) else doc.product_id,
+                    "name": doc.name.decode() if isinstance(doc.name, bytes) else doc.name,
+                    "category": doc.category.decode() if isinstance(doc.category, bytes) else doc.category
                 })
 
             return True, similarities
+
+        except Exception as e:
+            return False, f"Error searching products: {e}"
 
         except Exception as e:
             return False, f"Error searching products: {e}"
@@ -207,7 +217,7 @@ class VectorManager:
         """Delete all products from Redis"""
         try:
             # Retrieve all product keys and delete them in bulk
-            product_keys = self.r.keys("vector:*")
+            product_keys = self.r.keys("product:*")
             if product_keys:
                 self.r.delete(*product_keys)  # Delete all keys at once
                 return True, f"All {len(product_keys)} products deleted successfully"
@@ -215,6 +225,20 @@ class VectorManager:
                 return False, "No products to delete"
         except Exception as e:
             return False, f"Error clearing products: {e}"
+
+    def list_all_products(self) -> tuple[bool, list | str]:
+        """List all product keys available in Redis"""
+        try:
+            product_keys = self.r.keys("product:*")
+            if product_keys:
+                # Convert bytes to strings if needed
+                keys_list = [k.decode() if isinstance(k, bytes) else k for k in product_keys]
+                keys_list.sort()  # Sort for consistent display
+                return True, keys_list
+            else:
+                return False, "No products found"
+        except Exception as e:
+            return False, f"Error listing products: {e}"
 
     def load_sample_products(self) -> tuple[bool, str]:
         """Load sample product data into Redis from sample_data.json using binary embedding storage"""
