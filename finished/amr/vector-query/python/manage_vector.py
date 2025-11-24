@@ -13,6 +13,8 @@ load_dotenv()
 class VectorManager:
     """Handles all product storage, retrieval, and semantic search operations with Redis embeddings"""
 
+    # BEGIN INITIALIZATION AND CONNECTION CODE SECTION
+
     def __init__(self):
         """Initialize the product manager and establish Redis connection"""
         self.r = self._connect_to_redis()
@@ -48,6 +50,10 @@ class VectorManager:
             raise Exception(f"Authentication error: {e}")
         except Exception as e:
             raise Exception(f"Unexpected error: {e}")
+
+    # END INITIALIZATION AND CONNECTION CODE SECTION
+
+    # BEGIN CREATE VECTOR INDEX CODE SECTION
 
     def _create_vector_index(self):
         """Create a RediSearch index for product semantic search using HNSW algorithm"""
@@ -86,6 +92,8 @@ class VectorManager:
         except Exception as e:
             raise Exception(f"Error creating vector index: {str(e)}")
 
+    # END CREATE VECTOR INDEX CODE SECTION
+
     # BEGIN STORE PRODUCT CODE SECTION
 
     def store_product(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
@@ -113,8 +121,6 @@ class VectorManager:
             return False, f"Error storing product: {e}"
 
     # END STORE PRODUCT CODE SECTION
-
-    # BEGIN RETRIEVE PRODUCT CODE SECTION
 
     def retrieve_product(self, vector_key: str) -> tuple[bool, dict | str]:
         """Retrieve a product and its embedding from Redis"""
@@ -152,8 +158,6 @@ class VectorManager:
 
         except Exception as e:
             return False, f"Error retrieving product: {e}"
-
-    # END RETRIEVE PRODUCT CODE SECTION
 
     # BEGIN SEARCH SIMILAR PRODUCTS CODE SECTION
 
@@ -196,10 +200,6 @@ class VectorManager:
 
         except Exception as e:
             return False, f"Error searching products: {e}"
-
-        except Exception as e:
-            return False, f"Error searching products: {e}"
-
     # END SEARCH SIMILAR PRODUCTS CODE SECTION
 
     def delete_product(self, vector_key: str) -> tuple[bool, str]:

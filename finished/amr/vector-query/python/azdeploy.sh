@@ -12,7 +12,6 @@ location="westus2" # Azure region for the resources
 # Generate consistent hash from username (always produces valid Azure resource name)
 user_hash=$(echo -n "$USER" | sha1sum | cut -c1-8)
 cache_name="amr-exercise-${user_hash}"
-cache_name="amr-exercise-jjkl1234" # Temporary hardcoded name for testing purposes
 
 # Function to create Azure Managed Redis resource
 create_redis_resource() {

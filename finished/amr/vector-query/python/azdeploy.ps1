@@ -17,23 +17,21 @@ $cache_name = "amr-exercise-$user_hash"
 
 # Function to create Azure Managed Redis resource
 function Create-RedisResource {
-    Write-Host "Creating Azure Managed Redis resource '$cache_name'..."
+    Write-Host "Creating Azure Managed Redis Enterprise cluster '$cache_name'..."
 
-    # Create the Redis Enterprise cluster with public network access enabled
+    # Create the Redis Enterprise cluster (E10 is the cheapest SKU that supports modules)
     az redisenterprise create `
         --resource-group $rg `
         --name $cache_name `
         --location $location `
-        --sku "Balanced_B0" `
+        --sku Enterprise_E10 `
         --public-network-access "Enabled" `
-        --client-protocol "Encrypted" `
-        --clustering-policy "NoCluster" `
+        --clustering-policy "EnterpriseCluster" `
         --eviction-policy "NoEviction" `
-        --port 10000 `
-        --modules name=search `
+        --modules "name=RediSearch" `
         --no-wait
 
-    Write-Host "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."
+    Write-Host "The Azure Managed Redis Enterprise cluster is being created and takes 5-10 minutes to complete."
     Write-Host "You can check the deployment status from the menu later in the exercise."
 }
 
@@ -123,9 +121,9 @@ function Show-Menu {
     Write-Host "Cache Name: $cache_name"
     Write-Host "Location: $location"
     Write-Host "====================================================================="
-    Write-Host "1. Create Azure Managed Redis resource (with RediSearch module)"
+    Write-Host "1. Create Azure Managed Redis resource"
     Write-Host "2. Check deployment status"
-    Write-Host "3. Enable access key auth and retrieve endpoint and access key"
+    Write-Host "3. Configure for search and retrieve endpoint and access key"
     Write-Host "4. Exit"
     Write-Host "====================================================================="
 }
