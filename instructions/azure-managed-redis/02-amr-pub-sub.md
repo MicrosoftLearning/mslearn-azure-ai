@@ -253,7 +253,7 @@ Take a few minutes to review all of the code in the application.
 
 ## Complete the subscriber app
 
-In this section you add code to the *subscriber.py* script to complete the console app. You run the app later in the exercise, after you confirm the Azure Managed Redis resource is fully deployed and create the **env** file.
+In this section you add code to the *subscriber.py* script to complete the app. You run the app later in the exercise, after you confirm the Azure Managed Redis resource is fully deployed and create the **env** file.
 
 1. Open the *subscriber.py* file to begin adding code.
 

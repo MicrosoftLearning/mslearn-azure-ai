@@ -118,7 +118,7 @@ In this section, you create the Python environment and install the dependencies.
 
 ## Complete the manage vector app
 
-In this section you add code to the *manage_vector.py* script to complete the console app. You run the app later in the exercise, after you confirm the Azure Managed Redis resource is fully deployed and create the *.env* file.
+In this section you add code to the *manage_vector.py* script to complete the app. You run the app later in the exercise, after you confirm the Azure Managed Redis resource is fully deployed and create the *.env* file.
 
 1. Open the *manage_vector.py* file to begin adding code.
 
