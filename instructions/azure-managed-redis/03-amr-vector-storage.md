@@ -2,19 +2,19 @@
 lab:
     topic: Azure Managed Redis
     title: 'Implement vector storage and similarity search in Azure Managed Redis'
-    description: 'Learn how to store vectors, perform similarity searches, and build vector search applications in Azure Managed Redis using redis-py.'
+    description: 'Learn how to store product vectors with embeddings, create semantic search indexes, and perform similarity searches in Azure Managed Redis using redis-py and RediSearch.'
 ---
 
 # Implement vector storage and similarity search in Azure Managed Redis
 
-In this exercise, you create an Azure Managed Redis resource and complete the code for a vector storage application. The application loads sample vector data, stores new vectors with metadata, retrieves vectors by key, and performs similarity searches to find related products. You implement core vector operations including storing vectors with metadata, retrieving stored vectors, calculating vector similarity using cosine similarity, and searching for similar vectors.
+In this exercise, you create an Azure Managed Redis resource and complete the code for a vector storage application. The application loads sample product data with embeddings, stores new products with vector embeddings and metadata, performs semantic similarity searches using vector embeddings, and displays related products based on cosine similarity. You implement core vector operations including storing vectors as binary data with metadata, creating a RediSearch index with HNSW algorithm configuration, and executing KNN queries to find semantically similar products.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
 - Create an Azure Managed Redis resource
 - Add code to complete business logic
-- Run the apps to load, store, and search vector data
+- Run the app to load sample data, store products with embeddings, and perform similarity searches
 
 This exercise takes approximately **40** minutes to complete.
 
@@ -22,7 +22,7 @@ This exercise takes approximately **40** minutes to complete.
 
 To complete the exercise, you need:
 
-- An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- An Azure subscription with the permission to create an Azure Managed Redis instance with an enterprise SKU. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](/cli/azure/install-azure-cli?view=azure-cli-latest).
@@ -124,19 +124,113 @@ In this section you add code to the *manage_vector.py* script to complete the co
 
 >**Note:** The code blocks you add to the application should align with the comment for that section of the code.
 
-### Add the store vector code
+### Add the initialization and connection code
 
-In this section, you add code to store vectors with metadata using Redis. The **store_vector()** function uses the redis-py **hset()** method to store vector embeddings as JSON strings and additional metadata fields in a single hash structure, demonstrating efficient key-value storage in Redis.
+In this section, you add code to establish a connection to Azure Managed Redis using redis-py. The **_connect_to_redis()** function uses the redis-py **Redis** class to create a secure SSL connection with authentication. The **__init__()** method initializes the vector index for semantic search operations.
 
-1. Locate the **# BEGIN STORE VECTOR CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN INITIALIZATION AND CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def store_vector(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
-        """Store a vector with metadata in Redis using hash data structure"""
+    def __init__(self):
+        """Initialize the product manager and establish Redis connection"""
+        self.r = self._connect_to_redis()
+        self._create_vector_index()  # Create RediSearch index for product embeddings
+        self.VECTOR_DIM = 8  # Product embedding dimensionality (matches sample_data.json)
+
+    def _connect_to_redis(self) -> redis.Redis:
+        """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
         try:
-            # Convert vector to JSON string for storage
-            vector_json = json.dumps(vector)
-            data = {"vector": vector_json}  # Store vector as JSON
+            # Get connection parameters from environment variables
+            redis_host = os.getenv("REDIS_HOST")
+            redis_key = os.getenv("REDIS_KEY")
+
+            # Create Redis connection with SSL and authentication
+            r = redis.Redis(
+                host=redis_host,
+                port=10000,  # Azure Managed Redis uses port 10000
+                ssl=True,  # Use SSL encryption
+                decode_responses=False,  # Keep binary for embeddings - only decode text when needed
+                password=redis_key,  # Authentication key
+                db=0,  # Connect to database 0 (the default database with RediSearch module)
+                socket_timeout=30,  # Connection timeout
+                socket_connect_timeout=30,  # Socket timeout
+            )
+
+            # Test connection
+            r.ping()  # Verify Redis connectivity
+            return r
+
+        except redis.ConnectionError as e:
+            raise Exception(f"Connection error: {e}")
+        except redis.AuthenticationError as e:
+            raise Exception(f"Authentication error: {e}")
+        except Exception as e:
+            raise Exception(f"Unexpected error: {e}")
+    ```
+
+1. Save your changes.
+
+### Add the create vector index code
+
+In this section, you add code to create a RediSearch index for vector similarity search using the redis-py search module. The **_create_vector_index()** function defines the schema with text fields and a VectorField configured for HNSW (Hierarchical Navigable Small World) indexing with cosine similarity, enabling efficient semantic search operations.
+
+1. Locate the **# BEGIN CREATE VECTOR INDEX CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def _create_vector_index(self):
+        """Create a RediSearch index for product semantic search using HNSW algorithm"""
+        try:
+            # Define schema with embedding field for HNSW-based product similarity search
+            # DIM=8 matches our sample data dimensions (in production, this would match your embedding model's output)
+            schema = (
+                TextField("name"),
+                TextField("category"),
+                TextField("product_id"),
+                VectorField(
+                    "embedding",
+                    "HNSW",  # Hierarchical Navigable Small World - fast approximate search
+                    {
+                        "TYPE": "FLOAT32",           # Standard for embeddings
+                        "DIM": 8,                    # Must match embedding dimensions in sample_data.json
+                        "DISTANCE_METRIC": "COSINE"  # Cosine similarity for semantic search
+                    }
+                )
+            )
+
+            # Create index on hash keys starting with "product:"
+            definition = IndexDefinition(
+                prefix=["product:"],
+                index_type=IndexType.HASH
+            )
+            self.r.ft("idx:products").create_index(
+                fields=schema,
+                definition=definition
+            )
+        except redis.ResponseError as e:
+            if "already exists" in str(e):
+                pass  # Index already exists, which is fine
+            else:
+                raise Exception(f"Error creating vector index: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Error creating vector index: {str(e)}")
+    ```
+
+1. Save your changes.
+
+### Add the store product code
+
+In this section, you add code to store products with vector embeddings and metadata using Redis. The **store_product()** function uses numpy to convert embedding arrays to binary float32 bytes, then uses the redis-py **hset()** method to store the binary embedding and metadata fields in a Redis hash structure. This approach provides efficient storage and retrieval of vector data.
+
+1. Locate the **# BEGIN STORE PRODUCT CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def store_product(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
+        """Store a product with embedding in Redis using hash data structure with binary embedding storage"""
+        try:
+            # Convert embedding to binary bytes using numpy for efficient storage
+            # This follows redis-py best practices for storing embeddings
+            embedding = np.array(vector, dtype=np.float32)
+            data = {"embedding": embedding.tobytes()}  # Store embedding as binary bytes
 
             # Add metadata fields to the hash
             if metadata:
@@ -147,131 +241,62 @@ In this section, you add code to store vectors with metadata using Redis. The **
             result = self.r.hset(vector_key, mapping=data)
 
             if result > 0:
-                return True, f"Vector stored successfully under key '{vector_key}'"
+                return True, f"Product stored successfully under key '{vector_key}'"
             else:
-                return True, f"Vector updated successfully under key '{vector_key}'"
+                return True, f"Product updated successfully under key '{vector_key}'"
 
         except Exception as e:
-            return False, f"Error storing vector: {e}"
+            return False, f"Error storing product: {e}"
     ```
 
 1. Save your changes.
 
-### Add the retrieve vector code
+### Add the search similar products vector code
 
-In this section, you add code to retrieve vectors and metadata from Redis. The **retrieve_vector()** function uses the redis-py **hgetall()** method to fetch all fields and values from a stored hash, then parses the JSON vector data to reconstruct the original vector and display associated metadata.
+In this section, you add code to perform vector similarity search using RediSearch with the redis-py client. The **search_similar_products()** function uses numpy to convert the query vector to binary float32 bytes, then executes a KNN (k-nearest neighbors) query against the RediSearch index to find the most similar products based on cosine similarity of their embeddings.
 
-1. Locate the **# BEGIN RETRIEVE VECTOR CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def retrieve_vector(self, vector_key: str) -> tuple[bool, dict | str]:
-        """Retrieve a vector and its metadata from Redis"""
-        try:
-            # Retrieve all hash fields for the given key using hgetall()
-            retrieved_data = self.r.hgetall(vector_key)
-
-            if retrieved_data:
-                # Parse the stored vector from JSON
-                result = {
-                    "key": vector_key,
-                    "vector": json.loads(retrieved_data["vector"]),
-                    "metadata": {}
-                }
-
-                # Extract metadata fields
-                for key, value in retrieved_data.items():
-                    if key != "vector":
-                        result["metadata"][key] = value
-
-                return True, result
-            else:
-                return False, f"Key '{vector_key}' does not exist"
-
-        except Exception as e:
-            return False, f"Error retrieving vector: {e}"
-    ```
-
-1. Save your changes.
-
-### Add the similarity calculation code
-
-In this section, you add code to calculate cosine similarity between vectors using NumPy. The **calculate_similarity()** static method converts Python lists to NumPy arrays and uses **np.dot()** for dot product and **np.linalg.norm()** for vector magnitudes, implementing the cosine similarity formula to produce a score between -1 and 1.
-
-1. Locate the **# BEGIN SIMILARITY CALCULATION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN SEARCH SIMILAR PRODUCTS CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    @staticmethod
-    def calculate_similarity(vector1: list, vector2: list) -> float:
-        """Calculate cosine similarity between two vectors using numpy array operations"""
+    def search_similar_products(self, query_vector: list, top_k: int = 3) -> tuple[bool, list | str]:
+        """Search for products similar to the query vector using RediSearch KNN queries"""
         try:
-            # Convert lists to numpy arrays with float64 precision
-            v1 = np.array(vector1, dtype=np.float64)
-            v2 = np.array(vector2, dtype=np.float64)
+            # Convert query vector to binary bytes for KNN search
+            query_bytes = np.array(query_vector, dtype=np.float32).tobytes()
 
-            # Check for dimension mismatch
-            if v1.shape != v2.shape:
-                return 0.0
+            # Build KNN query using RediSearch vector search syntax for semantic similarity
+            # *=>[KNN k @field_name $query_vec] finds k most similar products based on embedding distance
+            knn_query = (
+                Query(f"*=>[KNN {top_k} @embedding $query_vec AS score]")
+                .return_fields("name", "category", "product_id", "score")
+                .sort_by("score")
+                .dialect(2)  # Dialect 2 enables vector search syntax
+            )
 
-            # Calculate dot product: a·b
-            dot_product = np.dot(v1, v2)
+            # Execute KNN search with query vector as parameter
+            results = self.r.ft("idx:products").search(
+                knn_query,
+                query_params={"query_vec": query_bytes}
+            )
 
-            # Calculate magnitudes (norms): ||a|| and ||b||
-            magnitude1 = np.linalg.norm(v1)
-            magnitude2 = np.linalg.norm(v2)
+            if results.total == 0:
+                return False, "No products found in Redis. Ensure products are loaded and RediSearch module is enabled."
 
-            # Handle zero-magnitude vectors
-            if magnitude1 == 0 or magnitude2 == 0:
-                return 0.0
-
-            # Cosine similarity formula: (a·b) / (||a|| * ||b||)
-            # Result ranges from -1 to 1 (1 = identical, -1 = opposite, 0 = perpendicular)
-            similarity = dot_product / (magnitude1 * magnitude2)
-            return float(similarity)
-        except Exception:
-            return 0.0
-    ```
-
-1. Save your changes.
-
-### Add the vector search code
-
-In this section, you add code to search for similar vectors in Redis. The **search_similar_vectors()** function uses redis-py's **keys()** method with pattern matching ("vector:*") to retrieve all stored vectors, then calculates similarity scores for each one and returns the top-k results sorted by relevance.
-
-1. Locate the **# BEGIN VECTOR SEARCH CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def search_similar_vectors(self, query_vector: list, top_k: int = 3) -> tuple[bool, list | str]:
-        """Search for vectors similar to the query vector using cosine similarity"""
-        try:
-            # Retrieve all vector keys from Redis using pattern matching
-            vector_keys = self.r.keys("vector:*")
-
-            if not vector_keys:
-                return False, "No vectors found in Redis"
-
+            # Format results
             similarities = []
+            for doc in results.docs:
+                similarities.append({
+                    "key": doc.id,
+                    "similarity": float(doc.score),
+                    "product_id": doc.product_id.decode() if isinstance(doc.product_id, bytes) else doc.product_id,
+                    "name": doc.name.decode() if isinstance(doc.name, bytes) else doc.name,
+                    "category": doc.category.decode() if isinstance(doc.category, bytes) else doc.category
+                })
 
-            # Calculate similarity score for each stored vector
-            for key in vector_keys:
-                vector_data = self.r.hgetall(key)  # Retrieve vector and metadata
-                if "vector" in vector_data:
-                    stored_vector = json.loads(vector_data["vector"])  # Parse vector from JSON
-                    similarity = self.calculate_similarity(query_vector, stored_vector)  # Calculate similarity score
-
-                    # Extract metadata
-                    metadata = {k: v for k, v in vector_data.items() if k != "vector"}
-                    similarities.append({
-                        "key": key,
-                        "similarity": similarity,
-                        "metadata": metadata
-                    })
-
-            # Sort by similarity score in descending order and return top_k results
-            similarities.sort(key=lambda x: x["similarity"], reverse=True)
-            return True, similarities[:top_k]
+            return True, similarities
 
         except Exception as e:
-            return False, f"Error searching vectors: {e}"
+            return False, f"Error searching products: {e}"
     ```
 
 1. Save your changes.
@@ -322,48 +347,30 @@ In this section, you run the completed application and practice loading, storing
 
 In this section, you practice loading sample vector data into Redis and then performing a similarity search. You practice retrieving a known vector and using it as a query to find semantically related products in your database.
 
-1. Select **Load Sample Vectors**. The status of the load operation will appear in **Operation Results**.
+1. Select **Load Sample Products**. The status of the load operation will appear in **Operation Results**.
 
-1. Select **List All Vectors** to display the sample data. Next, you retrieve a vector using the vector key and use it to perform a similarity search.
+1. Select **List All Products** to display the sample data. The sample data is listed showing the: Key, Name, Category, and Embedding for the products in the sample data.
 
-1. Select **Retrieve Vector** and replace the example in the input box with `vector:product_001`, then select **Retrieve**. The following output is displayed in **Operation Results**.
+1. Select **Find Similar Products** and enter `product:001` in the **Product Key:** input field, then select **Search**.
 
-    ```
-    [✓] Retrieved vector: vector:product_001
+    A list of similar products is returned with the product information and the similarity score.
 
-    Dimensions: 8
-    Vector: [0.1, 0.2, 0.15, 0.8, 0.3, 0.6, 0.4, 0.5]
+### Store a new product and perform a similarity search
 
-    Metadata:
-      product_id: 001
-      name: Smart Watch
-      category: Electronics
-    ```
 
-1. Select **Search Similar Vectors** and enter the following vector - from the previous step - in the **Query Vector** input field, then select **Search**.
+
+1. Select **Store New Product** and enter the following information in the form, then select **Store Product**. Review the operation results.
+
+    Product Key:
 
     ```
-    0.1, 0.2, 0.15, 0.8, 0.3, 0.6, 0.4, 0.5
+    product:011
     ```
 
-    The search returns vectors ranked by cosine similarity score. This demonstrates how cosine similarity effectively finds semantically related vectors, even across different product categories - useful for recommendation systems, product discovery, and content-based filtering.
-
-### Store a new vector and perform a similarity search
-
-In this section, you practice adding a new vector to Redis and then searching for vectors similar to the Premium Backpack. You practice expanding your vector database with new products and using similarity search to find related items.
-
-1. Select **Store New Vector** and enter the following information in the form, then select **Store Vector**. Review the operation results.
-
-    Vector Key:
+    Embedding:
 
     ```
-    vector:product_011
-    ```
-
-    Vector:
-
-    ```
-    0.53, 0.63, 0.58, 0.37, 0.68, 0.47, 0.73, 0.57
+    [0.53, 0.63, 0.58, 0.37, 0.68, 0.47, 0.73, 0.57]
     ```
 
     Metadata:
@@ -374,18 +381,11 @@ In this section, you practice adding a new vector to Redis and then searching fo
     category=Sports
     ```
 
-    > **Note:** You can change any data record using that record's vector key in the **Store New Vector** form.
+    > **Note:** You can also edit any data record by entering that record's product key in the **Store New Product** form and changing the other fields.
 
-1. Select **Retrieve Vector** and enter `vector:product_009` in the input field, then select **Retrieve** and review the output.
+1. Select **Find Similar Products** and enter `product:009` in the **Product Key:** input field, then select **Search**.
 
-1. Select **Search Similar Vectors** and enter the following vector - from the previous step - in the **Query Vector** input field, then select **Search**.
-
-    ```
-    0.55, 0.65, 0.6, 0.35, 0.7, 0.45, 0.75, 0.55
-    ```
-
-    Review the output and notice the Gym Bag is the product most similar to the Premium Backpack.
-
+    Review the output and notice the Gym Bag is now the product most similar to the Premium Backpack.
 
 ## Clean up resources
 
