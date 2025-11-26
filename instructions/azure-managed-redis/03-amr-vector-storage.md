@@ -30,7 +30,7 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure Managed Redis
 
-In this section you download the starter files for the console app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the starter files for the app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
