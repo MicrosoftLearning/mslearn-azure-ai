@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aks-api
+  labels:
+    app: aks-api
+    version: v1
+spec:
+  replicas: 1  # Students may adjust this
+  selector:
+    matchLabels:
+      app: aks-api
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: aks-api
+        version: v1
+    spec:
+      # TODO: Students should update the image URL with their ACR endpoint
+      # Format: <acr-name>.azurecr.io/aks-api:latest
+      containers:
+      - name: api
+        image: <YOUR_ACR_ENDPOINT>/aks-api:latest
+        imagePullPolicy: IfNotPresent
+
+        # Container port
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+
+        # Environment variables from ConfigMap or Secrets
+        # TODO: Students should create these or pass from .env
+        env:
+        - name: FOUNDRY_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: foundry-credentials
+              key: endpoint
+        - name: FOUNDRY_KEY
+          valueFrom:
+            secretKeyRef:
+              name: foundry-credentials
+              key: api-key
+        - name: FOUNDRY_DEPLOYMENT
+          value: "gpt-4o-mini"
+
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        # Resource limits
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
