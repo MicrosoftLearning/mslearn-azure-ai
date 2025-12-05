@@ -46,8 +46,8 @@ setup_env_files() {
     echo ""
 
     # Get Foundry endpoint and key from AZD outputs
-    foundry_endpoint=$(azd env get-value FOUNDRY_ENDPOINT 2>/dev/null)
-    foundry_key=$(azd env get-value FOUNDRY_KEY 2>/dev/null)
+    foundry_endpoint=$(azd env get-values --output json 2>/dev/null | grep -o '"FOUNDRY_ENDPOINT":"[^"]*' | cut -d'"' -f4)
+    foundry_key=$(azd env get-values --output json 2>/dev/null | grep -o '"FOUNDRY_KEY":"[^"]*' | cut -d'"' -f4)
 
     if [ -z "$foundry_endpoint" ] || [ -z "$foundry_key" ]; then
         echo "Warning: Could not retrieve Foundry credentials from AZD."
@@ -77,7 +77,7 @@ EOF
 
     echo "✓ Created client/.env"
     echo ""
-    echo "Next: Run menu option 2 (Create ACR) to continue deployment."
+    echo "Next: Run menu option 2 (Create Azure Container Registry) to continue deployment."
 }
 
 # Function to provision Foundry resources using AZD
@@ -93,17 +93,29 @@ provision_foundry_resources() {
         return 1
     fi
 
-    # Run azd provision with environment variables
-    export FOUNDRY_DEPLOYMENT_NAME="$foundry_deployment"
+    # Create fresh AZD environment with unique name
+    azd_env_name="${aks_cluster}-env"
+    echo "Setting up AZD environment: $azd_env_name"
+    azd env new "$azd_env_name" --confirm >/dev/null 2>&1 || azd env new "$azd_env_name" >/dev/null 2>&1
+
+    # Set AZD environment variables
+    echo "Configuring AZD environment variables..."
+    azd env set AZURE_LOCATION "$location" >/dev/null
+    azd env set AZURE_RESOURCE_GROUP "$rg" >/dev/null
+    azd env set AZURE_ENV_NAME "$azd_env_name" >/dev/null
+
+    # Run azd provision
+    echo "Provisioning resources with AZD (this may take several minutes)..."
+    echo ""
     azd provision
 
     if [ $? -eq 0 ]; then
-        echo "Foundry resources provisioned successfully."
         echo ""
+        echo "✓ Resources provisioned successfully."
         echo "Retrieving Foundry credentials and creating .env files..."
         setup_env_files
     else
-        echo "Error provisioning Foundry resources. Please check azure.yaml and try again."
+        echo "Error provisioning resources. Please check the output above and try again."
         return 1
     fi
 }
