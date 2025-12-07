@@ -39,9 +39,10 @@ app = FastAPI(
 # ============================================================================
 
 # Load Foundry credentials from environment
-FOUNDRY_ENDPOINT = os.getenv("FOUNDRY_ENDPOINT")
-FOUNDRY_KEY = os.getenv("FOUNDRY_KEY")
-FOUNDRY_DEPLOYMENT = os.getenv("FOUNDRY_DEPLOYMENT", "gpt-4o-mini")
+FOUNDRY_ENDPOINT = os.getenv("OPENAI_API_ENDPOINT")
+FOUNDRY_KEY = os.getenv("OPENAI_API_KEY")
+FOUNDRY_DEPLOYMENT = os.getenv("OPENAI_DEPLOYMENT_NAME")
+FOUNDRY_API_VERSION = os.getenv("OPENAI_API_VERSION")
 
 def validate_configuration() -> bool:
     """
@@ -50,10 +51,14 @@ def validate_configuration() -> bool:
     Returns:
         bool: True if configuration is valid, False otherwise
     """
-    # TODO: Implement validation logic
-    # Check if FOUNDRY_ENDPOINT and FOUNDRY_KEY are set
-    # Return True if valid, False otherwise
-    pass
+    if not FOUNDRY_ENDPOINT:
+        logger.error("OPENAI_API_ENDPOINT environment variable not set")
+        return False
+    if not FOUNDRY_KEY:
+        logger.error("OPENAI_API_KEY environment variable not set")
+        return False
+    logger.info(f"Configuration validated. Endpoint: {FOUNDRY_ENDPOINT}")
+    return True
 
 # ============================================================================
 # END CONFIGURATION CODE SECTION
@@ -72,10 +77,7 @@ async def liveness_probe():
     Returns:
         dict: Status message
     """
-    # TODO: Implement liveness check
-    # Return 200 OK if the pod is running
-    # Include any relevant status information
-    pass
+    return {"status": "alive", "service": "aks-foundry-gateway"}
 
 @app.get("/readyz")
 async def readiness_probe():
@@ -88,11 +90,19 @@ async def readiness_probe():
     Raises:
         HTTPException: 503 if Foundry is not reachable
     """
-    # TODO: Implement readiness check
-    # Verify connection to Foundry endpoint
-    # Check that credentials are available
-    # Return 200 OK if ready, 503 if not ready
-    pass
+    if not validate_configuration():
+        raise HTTPException(status_code=503, detail="Foundry configuration not available")
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Simple HEAD request to check endpoint accessibility
+            response = await client.head(FOUNDRY_ENDPOINT)
+            if response.status_code < 500:
+                return {"status": "ready", "foundry_endpoint": FOUNDRY_ENDPOINT}
+    except Exception as e:
+        logger.warning(f"Foundry connectivity check failed: {e}")
+
+    raise HTTPException(status_code=503, detail="Foundry endpoint not reachable")
 
 # ============================================================================
 # END HEALTH CHECK CODE SECTION
@@ -128,12 +138,26 @@ async def synchronous_inference(request: Request):
     Raises:
         HTTPException: 400 for invalid requests, 503 for Foundry errors
     """
-    # TODO: Implement synchronous inference
-    # 1. Parse and validate request body
-    # 2. Prepare request headers with Foundry authentication
-    # 3. Call Foundry inference endpoint
-    # 4. Handle response and return to client
-    pass
+    try:
+        body = await request.json()
+    except Exception as e:
+        logger.error(f"Failed to parse request body: {e}")
+        raise HTTPException(status_code=400, detail="Invalid request body")
+
+    prompt = body.get("inputs", {}).get("prompt")
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Missing 'inputs.prompt' in request body")
+
+    parameters = body.get("parameters", {})
+
+    try:
+        result = await call_foundry_inference(prompt, parameters, stream=False)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Inference failed: {e}")
+        raise HTTPException(status_code=503, detail="Foundry inference failed")
 
 @app.post("/v1/inference/stream")
 async def streaming_inference(request: Request):
@@ -156,12 +180,27 @@ async def streaming_inference(request: Request):
     Raises:
         HTTPException: 400 for invalid requests, 503 for Foundry errors
     """
-    # TODO: Implement streaming inference
-    # 1. Parse and validate request body
-    # 2. Prepare request headers with Foundry authentication
-    # 3. Call Foundry streaming endpoint
-    # 4. Stream tokens as Server-Sent Events to client
-    pass
+    try:
+        body = await request.json()
+    except Exception as e:
+        logger.error(f"Failed to parse request body: {e}")
+        raise HTTPException(status_code=400, detail="Invalid request body")
+
+    prompt = body.get("inputs", {}).get("prompt")
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Missing 'inputs.prompt' in request body")
+
+    parameters = body.get("parameters", {})
+
+    async def event_generator():
+        try:
+            async for chunk in await call_foundry_inference(prompt, parameters, stream=True):
+                yield f"data: {json.dumps(chunk)}\n\n"
+        except Exception as e:
+            logger.error(f"Streaming inference failed: {e}")
+            yield f"data: {json.dumps({'error': 'Inference failed'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 # ============================================================================
 # END INFERENCE CODE SECTION
@@ -191,8 +230,39 @@ async def call_foundry_inference(
     Raises:
         HTTPException: If the Foundry call fails
     """
-    # TODO: Implement Foundry API call
-    pass
+    if not parameters:
+        parameters = {}
+
+    headers = prepare_foundry_headers()
+
+    # Prepare the request payload for Azure OpenAI API
+    payload = {
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": parameters.get("temperature", 0.7),
+        "max_tokens": parameters.get("max_tokens", 1024),
+        "top_p": parameters.get("top_p", 1.0),
+        "stream": stream
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            url = f"{FOUNDRY_ENDPOINT}/openai/deployments/{FOUNDRY_DEPLOYMENT}/chat/completions?api-version={FOUNDRY_API_VERSION}"
+
+            response = await client.post(url, json=payload, headers=headers)
+
+            if response.status_code >= 400:
+                logger.error(f"Foundry API error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=503, detail=f"Foundry error: {response.status_code}")
+
+            if stream:
+                return response.aiter_lines()
+            else:
+                return response.json()
+    except httpx.RequestError as e:
+        logger.error(f"Request to Foundry failed: {e}")
+        raise HTTPException(status_code=503, detail="Failed to reach Foundry endpoint")
 
 def prepare_foundry_headers() -> dict:
     """
@@ -201,8 +271,10 @@ def prepare_foundry_headers() -> dict:
     Returns:
         dict: Headers including authorization and content-type
     """
-    # TODO: Implement header preparation with authentication
-    pass
+    return {
+        "api-key": FOUNDRY_KEY,
+        "Content-Type": "application/json"
+    }
 
 # ============================================================================
 # END HELPER FUNCTIONS CODE SECTION

@@ -3,7 +3,7 @@
 # Change the values of these variables as needed
 
 rg="rg-exercises"           # Resource Group name
-location="westus2"          # Azure region for the resources
+location="eastus2"          # Azure region for the resources
 #subscription="16b3c013-d300-468d-ac64-7eda0820b6d3"             # Azure subscription ID (leave empty to use default)
 
 # ============================================================================
@@ -40,13 +40,19 @@ show_menu() {
     echo "====================================================================="
 }
 
-# Function to setup .env files with credentials from Foundry project
+# Function to setup .env file with credentials from Foundry project
 setup_env_files() {
     local endpoint=$1
     local key=$2
 
-    echo "Creating .env files with Foundry credentials..."
+    echo "Creating .env file with Foundry credentials..."
     echo ""
+
+    # Ensure api directory exists
+    if [ ! -d "api" ]; then
+        echo "Error: api directory not found. Make sure you're running this script from the project root."
+        return 1
+    fi
 
     # Create or update api/.env
     echo "Creating api/.env..."
@@ -58,16 +64,13 @@ OPENAI_DEPLOYMENT_NAME=gpt-4o-mini
 OPENAI_API_VERSION=2024-10-21
 EOF
 
-    echo "✓ Created api/.env"
+    if [ $? -eq 0 ]; then
+        echo "✓ Created api/.env"
+    else
+        echo "Error: Failed to create api/.env"
+        return 1
+    fi
 
-    # Create or update client/.env
-    echo "Creating client/.env..."
-    cat > client/.env << EOF
-# API Endpoint (will be updated after AKS deployment)
-API_ENDPOINT=http://localhost:8000
-EOF
-
-    echo "✓ Created client/.env"
     echo ""
     echo "Next: Run menu option 2 (Create Azure Container Registry) to continue deployment."
 }
@@ -97,7 +100,7 @@ provision_foundry_resources() {
     echo "Checking resource group: $rg"
     if ! az group exists --name "$rg" | grep -q "true"; then
         echo "Creating resource group: $rg in $location"
-        az group create --name "$rg" --location "$location"
+        az group create --name "$rg" --location "$location" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             echo "Error: Failed to create resource group."
             return 1
@@ -108,21 +111,30 @@ provision_foundry_resources() {
 
     # Create Foundry resource (AIServices kind)
     echo ""
-    echo "Creating Microsoft Foundry resource: $foundry_resource"
-    az cognitiveservices account create \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --location "$location" \
-        --kind AIServices \
-        --sku s0 \
-        --public-network-access Enabled \
-        --yes
+    echo "Checking for existing Microsoft Foundry resource: $foundry_resource"
 
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to create Foundry resource."
-        return 1
+    local foundry_exists=$(az cognitiveservices account show \
+        --name "$foundry_resource" \
+        --resource-group "$rg" 2>/dev/null)
+
+    if [ -z "$foundry_exists" ]; then
+        echo "Creating Microsoft Foundry resource: $foundry_resource"
+        az cognitiveservices account create \
+            --name "$foundry_resource" \
+            --resource-group "$rg" \
+            --location "$location" \
+            --kind AIServices \
+            --sku s0 \
+            --yes > /dev/null 2>&1
+
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to create Foundry resource."
+            return 1
+        fi
+        echo "✓ Foundry resource created"
+    else
+        echo "✓ Foundry resource already exists"
     fi
-    echo "✓ Foundry resource created"
 
     # Retrieve endpoint and key for the resource
     echo ""
@@ -147,14 +159,14 @@ provision_foundry_resources() {
     echo ""
     echo "Deploying gpt-4o-mini model (this may take a few minutes)..."
     az cognitiveservices account deployment create \
-        --name "$foundry_resource_name" \
+        --name "$foundry_resource" \
         --resource-group "$rg" \
         --deployment-name "gpt-4o-mini" \
         --model-name "gpt-4o-mini" \
-        --model-version "2024-11-20" \
+        --model-version "2024-07-18" \
         --model-format "OpenAI" \
         --sku-capacity "1" \
-        --sku-name "Standard"
+        --sku-name "Standard" > /dev/null 2>&1
 
     if [ $? -ne 0 ]; then
         echo "Error: Failed to deploy model."
@@ -179,7 +191,7 @@ create_resource_group() {
 
     local exists=$(az group exists --name $rg)
     if [ "$exists" = "false" ]; then
-        az group create --name $rg --location $location
+        az group create --name $rg --location $location > /dev/null 2>&1
         echo "Resource group created: $rg"
     else
         echo "Resource group already exists: $rg"
@@ -196,7 +208,7 @@ create_acr() {
             --resource-group $rg \
             --name $acr_name \
             --sku Basic \
-            --admin-enabled true
+            --admin-enabled true > /dev/null 2>&1
         echo "ACR created: $acr_name"
     else
         echo "ACR already exists: $acr_name"
@@ -221,7 +233,7 @@ build_and_push_image() {
         --registry $acr_name \
         --image ${api_image_name}:latest \
         --file api/Dockerfile \
-        api/
+        api/ > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
         echo "Image built and pushed: ${acr_server}/${api_image_name}:latest"
@@ -248,6 +260,11 @@ create_aks_cluster() {
             --network-plugin azure \
             --attach-acr $acr_name \
             --no-wait
+
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to initiate AKS cluster creation."
+            return 1
+        fi
 
         echo "AKS cluster creation initiated: $aks_cluster"
         echo "This may take 10-15 minutes to complete."
