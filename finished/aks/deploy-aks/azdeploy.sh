@@ -4,7 +4,7 @@
 
 rg="rg-exercises"           # Resource Group name
 location="westus2"          # Azure region for the resources
-subscription_id=""          # Leave empty to use default subscription
+subscription="16b3c013-d300-468d-ac64-7eda0820b6d3"             # Azure subscription ID (leave empty to use default)
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -103,6 +103,12 @@ provision_foundry_resources() {
     azd env set AZURE_LOCATION "$location" >/dev/null
     azd env set AZURE_RESOURCE_GROUP "$rg" >/dev/null
     azd env set AZURE_ENV_NAME "$azd_env_name" >/dev/null
+
+    # Set subscription if specified
+    if [ ! -z "$subscription" ]; then
+        echo "Setting subscription to: $subscription"
+        azd env set AZURE_SUBSCRIPTION_ID "$subscription" >/dev/null
+    fi
 
     # Run azd provision
     echo "Provisioning resources with AZD (this may take several minutes)..."
@@ -235,12 +241,13 @@ check_deployment_status() {
         fi
     else
         echo "  Status: Not found or not ready"
+    fi
 }
 
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-7): " choice
+    read -p "Please select an option (1-6): " choice
 
     case $choice in
         1)
