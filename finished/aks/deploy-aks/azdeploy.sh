@@ -14,7 +14,7 @@ location="westus2"          # Azure region for the resources
 user_hash=$(echo -n "$USER" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
-foundry_deployment="gpt4o-${user_hash}"
+foundry_resource="foundry-resource-${user_hash}"
 acr_name="acr${user_hash}"
 aks_cluster="aks-${user_hash}"
 api_image_name="aks-api"
@@ -27,7 +27,7 @@ show_menu() {
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
-    echo "Foundry Deployment: $foundry_deployment"
+    echo "Foundry Resource: $foundry_resource"
     echo "ACR Name: $acr_name"
     echo "AKS Cluster: $aks_cluster"
     echo "====================================================================="
@@ -106,17 +106,16 @@ provision_foundry_resources() {
         echo "✓ Resource group already exists"
     fi
 
-    # Create Foundry resource (AIServices kind with project management enabled)
-    local foundry_resource_name="foundry-${user_hash}"
+    # Create Foundry resource (AIServices kind)
     echo ""
-    echo "Creating Microsoft Foundry resource: $foundry_resource_name"
+    echo "Creating Microsoft Foundry resource: $foundry_resource"
     az cognitiveservices account create \
-        --name "$foundry_resource_name" \
+        --name "$foundry_resource" \
         --resource-group "$rg" \
         --location "$location" \
         --kind AIServices \
         --sku s0 \
-        --allow-project-management \
+        --public-network-access Enabled \
         --yes
 
     if [ $? -ne 0 ]; then
@@ -125,32 +124,16 @@ provision_foundry_resources() {
     fi
     echo "✓ Foundry resource created"
 
-    # Create Foundry project
-    local foundry_project_name="foundry-project-${user_hash}"
-    echo ""
-    echo "Creating Foundry project: $foundry_project_name"
-    az cognitiveservices account project create \
-        --name "$foundry_resource_name" \
-        --resource-group "$rg" \
-        --project-name "$foundry_project_name" \
-        --location "$location"
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to create Foundry project."
-        return 1
-    fi
-    echo "✓ Foundry project created"
-
     # Retrieve endpoint and key for the resource
     echo ""
     echo "Retrieving Foundry credentials..."
     local endpoint=$(az cognitiveservices account show \
-        --name "$foundry_resource_name" \
+        --name "$foundry_resource" \
         --resource-group "$rg" \
         --query properties.endpoint -o tsv)
 
     local key=$(az cognitiveservices account keys list \
-        --name "$foundry_resource_name" \
+        --name "$foundry_resource" \
         --resource-group "$rg" \
         --query key1 -o tsv)
 
@@ -168,7 +151,7 @@ provision_foundry_resources() {
         --resource-group "$rg" \
         --deployment-name "gpt-4o-mini" \
         --model-name "gpt-4o-mini" \
-        --model-version "2024-07-18" \
+        --model-version "2024-11-20" \
         --model-format "OpenAI" \
         --sku-capacity "1" \
         --sku-name "Standard"
@@ -185,11 +168,12 @@ provision_foundry_resources() {
     echo ""
     echo "✓ Foundry provisioning complete!"
     echo ""
-    echo "Foundry Project Details:"
-    echo "  Resource: $foundry_resource_name"
-    echo "  Project: $foundry_project_name"
+    echo "Foundry Resource Details:"
+    echo "  Resource: $foundry_resource"
     echo "  Endpoint: $endpoint"
-}# Function to create resource group if it doesn't exist
+}
+
+# Function to create resource group if it doesn't exist
 create_resource_group() {
     echo "Checking/creating resource group '$rg'..."
 
