@@ -4,7 +4,7 @@
 
 rg="rg-exercises"           # Resource Group name
 location="westus2"          # Azure region for the resources
-subscription="16b3c013-d300-468d-ac64-7eda0820b6d3"             # Azure subscription ID (leave empty to use default)
+#subscription="16b3c013-d300-468d-ac64-7eda0820b6d3"             # Azure subscription ID (leave empty to use default)
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -40,30 +40,22 @@ show_menu() {
     echo "====================================================================="
 }
 
-# Function to setup .env files with credentials retrieved from AZD
+# Function to setup .env files with credentials from Foundry project
 setup_env_files() {
-    echo "Setting up .env files with Foundry credentials..."
+    local endpoint=$1
+    local key=$2
+
+    echo "Creating .env files with Foundry credentials..."
     echo ""
-
-    # Get Foundry endpoint and key from AZD outputs
-    foundry_endpoint=$(azd env get-values --output json 2>/dev/null | grep -o '"FOUNDRY_ENDPOINT":"[^"]*' | cut -d'"' -f4)
-    foundry_key=$(azd env get-values --output json 2>/dev/null | grep -o '"FOUNDRY_KEY":"[^"]*' | cut -d'"' -f4)
-
-    if [ -z "$foundry_endpoint" ] || [ -z "$foundry_key" ]; then
-        echo "Warning: Could not retrieve Foundry credentials from AZD."
-        echo "Please verify the Foundry deployment is complete."
-        echo "You may need to manually add Foundry credentials to api/.env"
-        foundry_endpoint="<FOUNDRY_ENDPOINT>"
-        foundry_key="<FOUNDRY_KEY>"
-    fi
 
     # Create or update api/.env
     echo "Creating api/.env..."
     cat > api/.env << EOF
-# Foundry Model Configuration
-FOUNDRY_ENDPOINT=$foundry_endpoint
-FOUNDRY_KEY=$foundry_key
-FOUNDRY_DEPLOYMENT=gpt-4o-mini
+# Azure Foundry Model Configuration
+OPENAI_API_ENDPOINT=$endpoint
+OPENAI_API_KEY=$key
+OPENAI_DEPLOYMENT_NAME=gpt-4o-mini
+OPENAI_API_VERSION=2024-10-21
 EOF
 
     echo "✓ Created api/.env"
@@ -80,53 +72,124 @@ EOF
     echo "Next: Run menu option 2 (Create Azure Container Registry) to continue deployment."
 }
 
-# Function to provision Foundry resources using AZD
+# Function to provision Microsoft Foundry project and deploy gpt-4o-mini model using Azure CLI
 provision_foundry_resources() {
-    echo "Provisioning gpt-4o-mini model in Microsoft Foundry..."
-    echo "Note: This uses 'azd provision' to provision Foundry resources."
+    echo "Provisioning Microsoft Foundry project with gpt-4o-mini model..."
     echo ""
 
-    # Check if azure.yaml exists for AZD
-    if [ ! -f "azure.yaml" ]; then
-        echo "Error: azure.yaml not found in current directory."
-        echo "Please ensure you're in the project root directory."
+    # Check if we're authenticated with Azure
+    if ! az account show &> /dev/null; then
+        echo "Not authenticated with Azure. Please run: az login"
         return 1
     fi
-
-    # Create fresh AZD environment with unique name
-    azd_env_name="${aks_cluster}-env"
-    echo "Setting up AZD environment: $azd_env_name"
-    azd env new "$azd_env_name" --confirm >/dev/null 2>&1 || azd env new "$azd_env_name" >/dev/null 2>&1
-
-    # Set AZD environment variables
-    echo "Configuring AZD environment variables..."
-    azd env set AZURE_LOCATION "$location" >/dev/null
-    azd env set AZURE_RESOURCE_GROUP "$rg" >/dev/null
-    azd env set AZURE_ENV_NAME "$azd_env_name" >/dev/null
 
     # Set subscription if specified
     if [ ! -z "$subscription" ]; then
         echo "Setting subscription to: $subscription"
-        azd env set AZURE_SUBSCRIPTION_ID "$subscription" >/dev/null
+        az account set --subscription "$subscription"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to set subscription."
+            return 1
+        fi
     fi
 
-    # Run azd provision
-    echo "Provisioning resources with AZD (this may take several minutes)..."
-    echo ""
-    azd provision
-
-    if [ $? -eq 0 ]; then
-        echo ""
-        echo "✓ Resources provisioned successfully."
-        echo "Retrieving Foundry credentials and creating .env files..."
-        setup_env_files
+    # Check if resource group exists, create if needed
+    echo "Checking resource group: $rg"
+    if ! az group exists --name "$rg" | grep -q "true"; then
+        echo "Creating resource group: $rg in $location"
+        az group create --name "$rg" --location "$location"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to create resource group."
+            return 1
+        fi
     else
-        echo "Error provisioning resources. Please check the output above and try again."
+        echo "✓ Resource group already exists"
+    fi
+
+    # Create Foundry resource (AIServices kind with project management enabled)
+    local foundry_resource_name="foundry-${user_hash}"
+    echo ""
+    echo "Creating Microsoft Foundry resource: $foundry_resource_name"
+    az cognitiveservices account create \
+        --name "$foundry_resource_name" \
+        --resource-group "$rg" \
+        --location "$location" \
+        --kind AIServices \
+        --sku s0 \
+        --allow-project-management \
+        --yes
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to create Foundry resource."
         return 1
     fi
-}
+    echo "✓ Foundry resource created"
 
-# Function to create resource group if it doesn't exist
+    # Create Foundry project
+    local foundry_project_name="foundry-project-${user_hash}"
+    echo ""
+    echo "Creating Foundry project: $foundry_project_name"
+    az cognitiveservices account project create \
+        --name "$foundry_resource_name" \
+        --resource-group "$rg" \
+        --project-name "$foundry_project_name" \
+        --location "$location"
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to create Foundry project."
+        return 1
+    fi
+    echo "✓ Foundry project created"
+
+    # Retrieve endpoint and key for the resource
+    echo ""
+    echo "Retrieving Foundry credentials..."
+    local endpoint=$(az cognitiveservices account show \
+        --name "$foundry_resource_name" \
+        --resource-group "$rg" \
+        --query properties.endpoint -o tsv)
+
+    local key=$(az cognitiveservices account keys list \
+        --name "$foundry_resource_name" \
+        --resource-group "$rg" \
+        --query key1 -o tsv)
+
+    if [ -z "$endpoint" ] || [ -z "$key" ]; then
+        echo "Error: Failed to retrieve endpoint or key."
+        return 1
+    fi
+    echo "✓ Credentials retrieved successfully"
+
+    # Deploy gpt-4o-mini model
+    echo ""
+    echo "Deploying gpt-4o-mini model (this may take a few minutes)..."
+    az cognitiveservices account deployment create \
+        --name "$foundry_resource_name" \
+        --resource-group "$rg" \
+        --deployment-name "gpt-4o-mini" \
+        --model-name "gpt-4o-mini" \
+        --model-version "2024-07-18" \
+        --model-format "OpenAI" \
+        --sku-capacity "1" \
+        --sku-name "Standard"
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to deploy model."
+        return 1
+    fi
+    echo "✓ Model deployed successfully"
+
+    # Setup environment files
+    setup_env_files "$endpoint" "$key"
+
+    echo ""
+    echo "✓ Foundry provisioning complete!"
+    echo ""
+    echo "Foundry Project Details:"
+    echo "  Resource: $foundry_resource_name"
+    echo "  Project: $foundry_project_name"
+    echo "  Endpoint: $endpoint"
+}# Function to create resource group if it doesn't exist
 create_resource_group() {
     echo "Checking/creating resource group '$rg'..."
 
