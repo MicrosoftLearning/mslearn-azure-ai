@@ -33,11 +33,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ============================================================================
-# BEGIN CONFIGURATION CODE SECTION
-# Students should implement configuration loading and validation here
-# ============================================================================
-
 # Load Foundry credentials from environment
 FOUNDRY_ENDPOINT = os.getenv("OPENAI_API_ENDPOINT")
 FOUNDRY_KEY = os.getenv("OPENAI_API_KEY")
@@ -59,15 +54,6 @@ def validate_configuration() -> bool:
         return False
     logger.info(f"Configuration validated. Endpoint: {FOUNDRY_ENDPOINT}")
     return True
-
-# ============================================================================
-# END CONFIGURATION CODE SECTION
-# ============================================================================
-
-# ============================================================================
-# BEGIN HEALTH CHECK CODE SECTION
-# Students should implement health check endpoints here
-# ============================================================================
 
 @app.get("/healthz")
 async def liveness_probe():
@@ -103,15 +89,6 @@ async def readiness_probe():
         logger.warning(f"Foundry connectivity check failed: {e}")
 
     raise HTTPException(status_code=503, detail="Foundry endpoint not reachable")
-
-# ============================================================================
-# END HEALTH CHECK CODE SECTION
-# ============================================================================
-
-# ============================================================================
-# BEGIN INFERENCE CODE SECTION
-# Students should implement inference endpoints here
-# ============================================================================
 
 @app.post("/v1/inference")
 async def synchronous_inference(request: Request):
@@ -225,15 +202,6 @@ async def streaming_inference(request: Request):
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-# ============================================================================
-# END INFERENCE CODE SECTION
-# ============================================================================
-
-# ============================================================================
-# BEGIN HELPER FUNCTIONS CODE SECTION
-# Students can implement helper functions here
-# ============================================================================
-
 async def call_foundry_inference(
     prompt: str,
     parameters: Optional[dict] = None,
@@ -299,10 +267,6 @@ def prepare_foundry_headers() -> dict:
         "api-key": FOUNDRY_KEY,
         "Content-Type": "application/json"
     }
-
-# ============================================================================
-# END HELPER FUNCTIONS CODE SECTION
-# ============================================================================
 
 if __name__ == "__main__":
     import uvicorn
