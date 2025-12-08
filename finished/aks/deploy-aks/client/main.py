@@ -21,10 +21,14 @@ load_dotenv()
 API_ENDPOINT = os.getenv("API_ENDPOINT", "http://localhost:8000")
 TIMEOUT = 30
 
-# ============================================================================
-# BEGIN CLIENT INITIALIZATION CODE SECTION
-# Students should implement API client initialization here
-# ============================================================================
+def clear_screen():
+    """Clear the terminal screen (works on both Windows and Linux)."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def pause_and_continue():
+    """Pause and wait for user to press Enter before continuing."""
+    input("\nPress Enter to continue...")
+    clear_screen()
 
 def initialize_client() -> httpx.AsyncClient:
     """
@@ -38,15 +42,6 @@ def initialize_client() -> httpx.AsyncClient:
         timeout=httpx.Timeout(TIMEOUT),
         headers={"Content-Type": "application/json"}
     )
-
-# ============================================================================
-# END CLIENT INITIALIZATION CODE SECTION
-# ============================================================================
-
-# ============================================================================
-# BEGIN HEALTH CHECK CODE SECTION
-# Students should implement health check functions here
-# ============================================================================
 
 async def check_api_health() -> bool:
     """
@@ -90,15 +85,6 @@ async def check_api_readiness() -> bool:
         print(f"✗ Failed to connect to API: {e}")
         return False
 
-# ============================================================================
-# END HEALTH CHECK CODE SECTION
-# ============================================================================
-
-# ============================================================================
-# BEGIN INFERENCE CODE SECTION
-# Students should implement inference functions here
-# ============================================================================
-
 async def send_inference_request(prompt: str) -> dict:
     """
     Send a synchronous inference request to the API.
@@ -124,7 +110,19 @@ async def send_inference_request(prompt: str) -> dict:
             if response.status_code == 200:
                 result = response.json()
                 print("\n✓ Inference successful")
-                print(f"Response: {json.dumps(result, indent=2)}")
+                # Extract and display the response text
+                try:
+                    # Handle OpenAI format response with choices
+                    if "choices" in result and len(result["choices"]) > 0:
+                        content = result["choices"][0].get("message", {}).get("content", "")
+                        if content:
+                            print(f"Response: {content}")
+                        else:
+                            print(f"Response: {json.dumps(result, indent=2)}")
+                    else:
+                        print(f"Response: {json.dumps(result, indent=2)}")
+                except (KeyError, IndexError, TypeError):
+                    print(f"Response: {json.dumps(result, indent=2)}")
                 return result
             else:
                 print(f"✗ Inference request failed: {response.status_code}")
@@ -192,14 +190,73 @@ async def send_streaming_inference_request(prompt: str):
     except Exception as e:
         print(f"✗ Failed to send streaming request: {e}")
 
-# ============================================================================
-# END INFERENCE CODE SECTION
-# ============================================================================
+async def start_chat_session():
+    """
+    Start an interactive chat session with streaming responses.
 
-# ============================================================================
-# BEGIN MENU CODE SECTION
-# Students should implement the menu system here
-# ============================================================================
+    The session continues until the user types 'exit'.
+    """
+    print("\n[*] Starting chat session...")
+    print("="*60)
+
+    while True:
+        prompt = input("\nYou (type 'exit' to end): ").strip()
+
+        if prompt.lower() == "exit":
+            print("\n[*] Ending chat session...")
+            break
+
+        if not prompt:
+            print("Please enter a message.")
+            continue
+
+        try:
+            payload = {
+                "inputs": {"prompt": prompt},
+                "parameters": {"temperature": 0.7, "max_tokens": 500}
+            }
+
+            async with initialize_client() as client:
+                print("Assistant: ", end="", flush=True)
+                async with client.stream("POST", "/v1/inference/stream", json=payload) as response:
+                    if response.status_code == 200:
+                        has_content = False
+                        async for line in response.aiter_lines():
+                            line = line.strip()
+                            if line.startswith("data: "):
+                                try:
+                                    json_str = line[6:]  # Remove "data: " prefix
+                                    data = json.loads(json_str)
+
+                                    if isinstance(data, dict):
+                                        # Check for error
+                                        if "error" in data:
+                                            print(f"\n✗ Error: {data['error']}")
+                                            break
+
+                                        # Extract content from OpenAI format
+                                        if "choices" in data and isinstance(data["choices"], list):
+                                            for choice in data["choices"]:
+                                                if isinstance(choice, dict) and "delta" in choice:
+                                                    delta = choice["delta"]
+                                                    if isinstance(delta, dict) and "content" in delta:
+                                                        content = delta["content"]
+                                                        if content:
+                                                            print(content, end="", flush=True)
+                                                            has_content = True
+                                except json.JSONDecodeError:
+                                    # Skip malformed JSON lines (e.g., [DONE])
+                                    pass
+
+                        if has_content:
+                            print("\n")
+                    else:
+                        print(f"\n✗ Request failed: {response.status_code}")
+                        print(f"  Error: {response.text}")
+        except Exception as e:
+            print(f"\n✗ Chat error: {e}")
+
+    pause_and_continue()
 
 def display_menu():
     """Display the main menu to the user."""
@@ -227,10 +284,12 @@ async def main():
         if choice == "1":
             print("\n[*] Checking API health...")
             await check_api_health()
+            pause_and_continue()
 
         elif choice == "2":
             print("\n[*] Checking API readiness...")
             await check_api_readiness()
+            pause_and_continue()
 
         elif choice == "3":
             print("\n[*] Sending inference request...")
@@ -242,14 +301,10 @@ async def main():
                     pass
             else:
                 print("Prompt cannot be empty.")
+            pause_and_continue()
 
         elif choice == "4":
-            print("\n[*] Starting chat session (streaming)...")
-            prompt = input("Enter your prompt: ").strip()
-            if prompt:
-                await send_streaming_inference_request(prompt)
-            else:
-                print("Prompt cannot be empty.")
+            await start_chat_session()
 
         elif choice == "5":
             print("\nExiting...")
@@ -257,10 +312,6 @@ async def main():
 
         else:
             print("Invalid option. Please select 1-5.")
-
-# ============================================================================
-# END MENU CODE SECTION
-# ============================================================================
 
 if __name__ == "__main__":
     import asyncio
