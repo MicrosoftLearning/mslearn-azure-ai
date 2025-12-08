@@ -341,38 +341,16 @@ deploy_to_aks() {
     echo "✓ Foundry credentials secret created"
     echo ""
 
-    # Update deployment manifest with correct ACR endpoint
-    echo "Preparing deployment manifest..."
-    local acr_login_server=$(az acr show --resource-group "$rg" --name "$acr_name" --query "loginServer" -o tsv 2>/dev/null)
-
-    if [ -z "$acr_login_server" ]; then
-        echo "Error: Could not get ACR login server."
-        return 1
-    fi
-
-    # Temporarily update the deployment.yaml with the correct ACR endpoint
-    sed -i.bak "s|acra916b14a.azurecr.io|$acr_login_server|g" k8s/deployment.yaml
-    echo "✓ Deployment manifest updated with ACR endpoint: $acr_login_server"
-    echo ""
-
-    # Apply Kubernetes manifests
+    # Update the deployment.yaml with the correct ACR endpoint
     echo "Deploying Kubernetes manifests..."
-    local apply_output=$(kubectl apply -f k8s/ -n default 2>&1)
-
+    sed "s|ACR_ENDPOINT|${acr_name}.azurecr.io|g" k8s/deployment.yaml | kubectl apply -f - -n default 2>&1 > /dev/null
+    
     if [ $? -ne 0 ]; then
         echo "Error: Failed to apply Kubernetes manifests."
-        echo "Details: $apply_output"
-        # Restore the original deployment.yaml and exit
-        rm -f k8s/deployment.yaml
-        mv k8s/deployment.yaml.bak k8s/deployment.yaml 2>/dev/null
         return 1
     fi
-
-    # Restore the original deployment.yaml after successful deployment
-    rm -f k8s/deployment.yaml
-    mv k8s/deployment.yaml.bak k8s/deployment.yaml 2>/dev/null
-
-    echo "✓ Kubernetes manifests deployed"
+    
+    echo "✓ Deployment manifest updated with ACR endpoint: ${acr_name}.azurecr.io"
     echo ""
 
     # Wait for LoadBalancer service to get external IP
@@ -472,10 +450,22 @@ check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
 
-    # Check Foundry deployment (via AZD or environment)
-    echo "Foundry Model Deployment ($foundry_deployment):"
-    # Note: Status check depends on how AZD tracks deployments
-    echo "  (Check Foundry portal for deployment status)"
+    # Check Foundry model deployment
+    echo "Foundry Model Deployment (gpt-4o-mini):"
+    foundry_deployment_status=$(az cognitiveservices account deployment show \
+        --name "$foundry_resource" \
+        --resource-group "$rg" \
+        --deployment-name "gpt-4o-mini" \
+        --query "properties.provisioningState" -o tsv 2>/dev/null)
+    
+    if [ ! -z "$foundry_deployment_status" ]; then
+        echo "  Status: $foundry_deployment_status"
+        if [ "$foundry_deployment_status" = "Succeeded" ]; then
+            echo "  ✓ Model deployed and ready"
+        fi
+    else
+        echo "  Status: Not found or not deployed"
+    fi
 
     # Check ACR
     echo ""
