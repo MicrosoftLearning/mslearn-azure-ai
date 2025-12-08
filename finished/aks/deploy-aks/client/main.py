@@ -33,9 +33,11 @@ def initialize_client() -> httpx.AsyncClient:
     Returns:
         httpx.AsyncClient: Configured HTTP client
     """
-    # TODO: Implement client initialization
-    # Create an AsyncClient with appropriate timeout and headers
-    pass
+    return httpx.AsyncClient(
+        base_url=API_ENDPOINT,
+        timeout=httpx.Timeout(TIMEOUT),
+        headers={"Content-Type": "application/json"}
+    )
 
 # ============================================================================
 # END CLIENT INITIALIZATION CODE SECTION
@@ -53,10 +55,19 @@ async def check_api_health() -> bool:
     Returns:
         bool: True if API is healthy, False otherwise
     """
-    # TODO: Implement health check
-    # Call GET /healthz endpoint
-    # Return True if status is 200, False otherwise
-    pass
+    try:
+        async with initialize_client() as client:
+            response = await client.get("/healthz")
+            if response.status_code == 200:
+                print("✓ API is healthy")
+                print(f"  Response: {response.json()}")
+                return True
+            else:
+                print(f"✗ API health check failed: {response.status_code}")
+                return False
+    except Exception as e:
+        print(f"✗ Failed to connect to API: {e}")
+        return False
 
 async def check_api_readiness() -> bool:
     """
@@ -65,10 +76,19 @@ async def check_api_readiness() -> bool:
     Returns:
         bool: True if API is ready, False otherwise
     """
-    # TODO: Implement readiness check
-    # Call GET /readyz endpoint
-    # Return True if status is 200 and Foundry is connected, False otherwise
-    pass
+    try:
+        async with initialize_client() as client:
+            response = await client.get("/readyz")
+            if response.status_code == 200:
+                print("✓ API is ready and Foundry is connected")
+                print(f"  Response: {response.json()}")
+                return True
+            else:
+                print(f"✗ API readiness check failed: {response.status_code}")
+                return False
+    except Exception as e:
+        print(f"✗ Failed to connect to API: {e}")
+        return False
 
 # ============================================================================
 # END HEALTH CHECK CODE SECTION
@@ -92,11 +112,27 @@ async def send_inference_request(prompt: str) -> dict:
     Raises:
         Exception: If the inference request fails
     """
-    # TODO: Implement inference request
-    # Build request body with prompt
-    # Call POST /v1/inference endpoint
-    # Return parsed JSON response
-    pass
+    try:
+        payload = {
+            "inputs": {"prompt": prompt},
+            "parameters": {"temperature": 0.7}
+        }
+
+        async with initialize_client() as client:
+            response = await client.post("/v1/inference", json=payload)
+
+            if response.status_code == 200:
+                result = response.json()
+                print("\n✓ Inference successful")
+                print(f"Response: {json.dumps(result, indent=2)}")
+                return result
+            else:
+                print(f"✗ Inference request failed: {response.status_code}")
+                print(f"  Error: {response.text}")
+                raise Exception(f"API error: {response.status_code}")
+    except Exception as e:
+        print(f"✗ Failed to send inference request: {e}")
+        raise
 
 async def send_streaming_inference_request(prompt: str):
     """
@@ -108,11 +144,33 @@ async def send_streaming_inference_request(prompt: str):
     Raises:
         Exception: If the streaming request fails
     """
-    # TODO: Implement streaming inference
-    # Build request body with prompt
-    # Call POST /v1/inference/stream endpoint
-    # Stream and print tokens as they arrive
-    pass
+    try:
+        payload = {
+            "inputs": {"prompt": prompt},
+            "parameters": {"temperature": 0.7, "max_tokens": 500}
+        }
+
+        async with initialize_client() as client:
+            print("\n[Streaming response]:")
+            async with client.stream("POST", "/v1/inference/stream", json=payload) as response:
+                if response.status_code == 200:
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            try:
+                                data = json.loads(line[6:])
+                                if "choices" in data:
+                                    delta = data.get("choices", [{}])[0].get("delta", {})
+                                    content = delta.get("content", "")
+                                    if content:
+                                        print(content, end="", flush=True)
+                            except json.JSONDecodeError:
+                                pass
+                    print("\n")
+                else:
+                    print(f"✗ Streaming request failed: {response.status_code}")
+                    print(f"  Error: {response.text}")
+    except Exception as e:
+        print(f"✗ Failed to send streaming request: {e}")
 
 # ============================================================================
 # END INFERENCE CODE SECTION
@@ -147,24 +205,31 @@ async def main():
         choice = input("Select option (1-5): ").strip()
 
         if choice == "1":
-            # TODO: Implement health check menu option
             print("\n[*] Checking API health...")
-            pass
+            await check_api_health()
 
         elif choice == "2":
-            # TODO: Implement readiness check menu option
             print("\n[*] Checking API readiness...")
-            pass
+            await check_api_readiness()
 
         elif choice == "3":
-            # TODO: Implement inference request menu option
             print("\n[*] Sending inference request...")
-            pass
+            prompt = input("Enter your prompt: ").strip()
+            if prompt:
+                try:
+                    await send_inference_request(prompt)
+                except Exception:
+                    pass
+            else:
+                print("Prompt cannot be empty.")
 
         elif choice == "4":
-            # TODO: Implement chat session menu option
-            print("\n[*] Starting chat session...")
-            pass
+            print("\n[*] Starting chat session (streaming)...")
+            prompt = input("Enter your prompt: ").strip()
+            if prompt:
+                await send_streaming_inference_request(prompt)
+            else:
+                print("Prompt cannot be empty.")
 
         elif choice == "5":
             print("\nExiting...")

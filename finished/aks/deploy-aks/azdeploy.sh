@@ -247,9 +247,13 @@ build_and_push_image() {
 create_aks_cluster() {
     echo "Creating AKS cluster '$aks_cluster'..."
     echo "Using smallest SKU (Standard_B2s, 1 node) for cost efficiency."
+    echo "This may take 5-10 minutes to complete. Please wait..."
+    echo ""
 
     local exists=$(az aks show --resource-group $rg --name $aks_cluster 2>/dev/null)
     if [ -z "$exists" ]; then
+        local start_time=$(date +%s)
+
         az aks create \
             --resource-group $rg \
             --name $aks_cluster \
@@ -258,17 +262,20 @@ create_aks_cluster() {
             --load-balancer-sku standard \
             --enable-managed-identity \
             --network-plugin azure \
-            --attach-acr $acr_name \
-            --no-wait
+            --attach-acr $acr_name > /dev/null 2>&1
 
         if [ $? -ne 0 ]; then
-            echo "Error: Failed to initiate AKS cluster creation."
+            echo "Error: Failed to create AKS cluster."
             return 1
         fi
 
-        echo "AKS cluster creation initiated: $aks_cluster"
-        echo "This may take 10-15 minutes to complete."
-        echo "Use menu option 5 to check deployment status."
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        local minutes=$((duration / 60))
+        local seconds=$((duration % 60))
+
+        echo "✓ AKS cluster creation completed: $aks_cluster"
+        echo "  Deployment time: ${minutes}m ${seconds}s"
     else
         echo "AKS cluster already exists: $aks_cluster"
     fi
