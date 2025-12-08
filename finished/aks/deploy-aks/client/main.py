@@ -154,18 +154,38 @@ async def send_streaming_inference_request(prompt: str):
             print("\n[Streaming response]:")
             async with client.stream("POST", "/v1/inference/stream", json=payload) as response:
                 if response.status_code == 200:
+                    has_content = False
                     async for line in response.aiter_lines():
+                        line = line.strip()
                         if line.startswith("data: "):
                             try:
-                                data = json.loads(line[6:])
-                                if "choices" in data:
-                                    delta = data.get("choices", [{}])[0].get("delta", {})
-                                    content = delta.get("content", "")
-                                    if content:
-                                        print(content, end="", flush=True)
-                            except json.JSONDecodeError:
+                                json_str = line[6:]  # Remove "data: " prefix
+                                data = json.loads(json_str)
+
+                                if isinstance(data, dict):
+                                    # Check for error
+                                    if "error" in data:
+                                        print(f"\n✗ Error: {data['error']}")
+                                        return
+
+                                    # Extract content from OpenAI format
+                                    if "choices" in data and isinstance(data["choices"], list):
+                                        for choice in data["choices"]:
+                                            if isinstance(choice, dict) and "delta" in choice:
+                                                delta = choice["delta"]
+                                                if isinstance(delta, dict) and "content" in delta:
+                                                    content = delta["content"]
+                                                    if content:
+                                                        print(content, end="", flush=True)
+                                                        has_content = True
+                            except json.JSONDecodeError as e:
+                                # Skip malformed JSON lines (e.g., [DONE])
                                 pass
-                    print("\n")
+
+                    if has_content:
+                        print("\n")
+                    else:
+                        print("(no content received)")
                 else:
                     print(f"✗ Streaming request failed: {response.status_code}")
                     print(f"  Error: {response.text}")

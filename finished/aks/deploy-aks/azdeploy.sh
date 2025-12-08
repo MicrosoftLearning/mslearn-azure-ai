@@ -248,7 +248,6 @@ build_and_push_image() {
 # Function to create AKS cluster
 create_aks_cluster() {
     echo "Creating AKS cluster '$aks_cluster'..."
-    echo "Using smallest SKU (Standard_B2s, 1 node) for cost efficiency."
     echo "This may take 5-10 minutes to complete. Please wait..."
     echo ""
 
@@ -264,12 +263,17 @@ create_aks_cluster() {
             --load-balancer-sku standard \
             --enable-managed-identity \
             --network-plugin azure \
+            --generate-ssh-keys \
             --attach-acr $acr_name > /dev/null 2>&1
 
         if [ $? -ne 0 ]; then
             echo "Error: Failed to create AKS cluster."
             return 1
         fi
+
+        # Verify cluster is fully provisioned and nodes are Running
+        echo "Waiting for cluster to be fully operational..."
+        az aks wait --resource-group $rg --name $aks_cluster --updated > /dev/null 2>&1
 
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
@@ -358,28 +362,28 @@ deploy_to_aks() {
     if [ $? -ne 0 ]; then
         echo "Error: Failed to apply Kubernetes manifests."
         echo "Details: $apply_output"
-        # Restore the original deployment.yaml
-        mv k8s/deployment.yaml.bak k8s/deployment.yaml
+        # Restore the original deployment.yaml and exit
+        rm -f k8s/deployment.yaml
+        mv k8s/deployment.yaml.bak k8s/deployment.yaml 2>/dev/null
         return 1
     fi
 
-    # Restore the original deployment.yaml
-    if [ -f "k8s/deployment.yaml.bak" ]; then
-        mv k8s/deployment.yaml.bak k8s/deployment.yaml
-    fi
+    # Restore the original deployment.yaml after successful deployment
+    rm -f k8s/deployment.yaml
+    mv k8s/deployment.yaml.bak k8s/deployment.yaml 2>/dev/null
 
     echo "✓ Kubernetes manifests deployed"
     echo ""
 
     # Wait for LoadBalancer service to get external IP
-    echo "Waiting for LoadBalancer external IP (this may take a minute)..."
-    local max_attempts=30
+    echo "Waiting for LoadBalancer external IP (this may take a few minutes)..."
+    local max_attempts=60
     local attempt=0
     local external_ip=""
 
     while [ $attempt -lt $max_attempts ]; do
         external_ip=$(kubectl get svc aks-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' -n default 2>/dev/null)
-        if [ ! -z "$external_ip" ]; then
+        if [ ! -z "$external_ip" ] && [[ "$external_ip" != "10."* ]]; then
             break
         fi
         attempt=$((attempt + 1))

@@ -194,11 +194,34 @@ async def streaming_inference(request: Request):
 
     async def event_generator():
         try:
-            async for chunk in await call_foundry_inference(prompt, parameters, stream=True):
-                yield f"data: {json.dumps(chunk)}\n\n"
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                headers = prepare_foundry_headers()
+                payload = {
+                    "model": FOUNDRY_DEPLOYMENT,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": parameters.get("temperature", 0.7),
+                    "max_tokens": parameters.get("max_tokens", 1024),
+                    "top_p": parameters.get("top_p", 1.0),
+                    "stream": True
+                }
+
+                url = f"{FOUNDRY_ENDPOINT}/openai/deployments/{FOUNDRY_DEPLOYMENT}/chat/completions?api-version={FOUNDRY_API_VERSION}"
+
+                async with client.stream("POST", url, json=payload, headers=headers) as response:
+                    if response.status_code >= 400:
+                        logger.error(f"Foundry streaming error: {response.status_code}")
+                        yield f"data: {json.dumps({'error': 'Foundry streaming failed'})}\n\n"
+                        return
+
+                    async for line in response.aiter_lines():
+                        if line.strip():
+                            # Pass through Foundry SSE format as-is
+                            yield line + "\n"
         except Exception as e:
             logger.error(f"Streaming inference failed: {e}")
-            yield f"data: {json.dumps({'error': 'Inference failed'})}\n\n"
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
