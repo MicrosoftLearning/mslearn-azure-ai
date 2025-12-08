@@ -5,7 +5,7 @@ metadata:
   labels:
     app: aks-api
 spec:
-  type: LoadBalancer  # TODO: Students may change to ClusterIP for internal access
+  type: LoadBalancer
   selector:
     app: aks-api
     version: v1

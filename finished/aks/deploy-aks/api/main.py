@@ -237,6 +237,7 @@ async def call_foundry_inference(
 
     # Prepare the request payload for Azure OpenAI API
     payload = {
+        "model": FOUNDRY_DEPLOYMENT,
         "messages": [
             {"role": "user", "content": prompt}
         ],

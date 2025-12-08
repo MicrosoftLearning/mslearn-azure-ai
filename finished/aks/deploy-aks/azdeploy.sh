@@ -32,11 +32,13 @@ show_menu() {
     echo "AKS Cluster: $aks_cluster"
     echo "====================================================================="
     echo "1. Provision gpt-4o-mini model in Microsoft Foundry"
-    echo "2. Create Azure Container Registry (ACR)"
-    echo "3. Build and push API image to ACR"
-    echo "4. Create AKS cluster"
-    echo "5. Check deployment status"
-    echo "6. Exit"
+    echo "2. Delete/Purge Foundry deployment"
+    echo "3. Create Azure Container Registry (ACR)"
+    echo "4. Build and push API image to ACR"
+    echo "5. Create AKS cluster"
+    echo "6. Check deployment status"
+    echo "7. Deploy to AKS"
+    echo "8. Exit"
     echo "====================================================================="
 }
 
@@ -281,6 +283,186 @@ create_aks_cluster() {
     fi
 }
 
+# Function to deploy to AKS
+deploy_to_aks() {
+    echo "Deploying application to AKS..."
+    echo ""
+
+    # Get AKS credentials
+    echo "Getting AKS credentials..."
+    az aks get-credentials \
+        --resource-group "$rg" \
+        --name "$aks_cluster" \
+        --overwrite-existing > /dev/null 2>&1
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to get AKS credentials."
+        return 1
+    fi
+    echo "✓ AKS credentials configured"
+    echo ""
+
+    # Get Foundry credentials
+    echo "Retrieving Foundry credentials..."
+    local endpoint=$(az cognitiveservices account show \
+        --name "$foundry_resource" \
+        --resource-group "$rg" \
+        --query "properties.endpoint" -o tsv 2>/dev/null)
+
+    local key=$(az cognitiveservices account keys list \
+        --name "$foundry_resource" \
+        --resource-group "$rg" \
+        --query "key1" -o tsv 2>/dev/null)
+
+    if [ -z "$endpoint" ] || [ -z "$key" ]; then
+        echo "Error: Could not retrieve Foundry credentials."
+        return 1
+    fi
+    echo "✓ Foundry credentials retrieved"
+    echo ""
+
+    # Create or update the foundry-credentials secret
+    echo "Creating Foundry credentials secret in AKS..."
+    kubectl delete secret foundry-credentials -n default > /dev/null 2>&1
+    local secret_output=$(kubectl create secret generic foundry-credentials \
+        --from-literal=endpoint="$endpoint" \
+        --from-literal=api-key="$key" \
+        -n default 2>&1)
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to create Foundry credentials secret."
+        echo "Details: $secret_output"
+        return 1
+    fi
+    echo "✓ Foundry credentials secret created"
+    echo ""
+
+    # Update deployment manifest with correct ACR endpoint
+    echo "Preparing deployment manifest..."
+    local acr_login_server=$(az acr show --resource-group "$rg" --name "$acr_name" --query "loginServer" -o tsv 2>/dev/null)
+
+    if [ -z "$acr_login_server" ]; then
+        echo "Error: Could not get ACR login server."
+        return 1
+    fi
+
+    # Temporarily update the deployment.yaml with the correct ACR endpoint
+    sed -i.bak "s|acra916b14a.azurecr.io|$acr_login_server|g" k8s/deployment.yaml
+    echo "✓ Deployment manifest updated with ACR endpoint: $acr_login_server"
+    echo ""
+
+    # Apply Kubernetes manifests
+    echo "Deploying Kubernetes manifests..."
+    local apply_output=$(kubectl apply -f k8s/ -n default 2>&1)
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to apply Kubernetes manifests."
+        echo "Details: $apply_output"
+        # Restore the original deployment.yaml
+        mv k8s/deployment.yaml.bak k8s/deployment.yaml
+        return 1
+    fi
+
+    # Restore the original deployment.yaml
+    if [ -f "k8s/deployment.yaml.bak" ]; then
+        mv k8s/deployment.yaml.bak k8s/deployment.yaml
+    fi
+
+    echo "✓ Kubernetes manifests deployed"
+    echo ""
+
+    # Wait for LoadBalancer service to get external IP
+    echo "Waiting for LoadBalancer external IP (this may take a minute)..."
+    local max_attempts=30
+    local attempt=0
+    local external_ip=""
+
+    while [ $attempt -lt $max_attempts ]; do
+        external_ip=$(kubectl get svc aks-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' -n default 2>/dev/null)
+        if [ ! -z "$external_ip" ]; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 2
+    done
+
+    if [ -z "$external_ip" ]; then
+        echo "Error: Could not obtain external IP for the service."
+        echo "You can check the service status manually with: kubectl get svc aks-api-service"
+        return 1
+    fi
+
+    echo "✓ External IP obtained: $external_ip"
+    echo ""
+
+    # Update client/.env with the API endpoint
+    echo "Updating client/.env with API endpoint..."
+    cat > client/.env << EOF
+# API Endpoint for AKS-deployed service
+API_ENDPOINT=http://$external_ip
+EOF
+    echo "✓ client/.env updated"
+    echo ""
+    echo "=========================================="
+    echo "Deployment completed successfully!"
+    echo "=========================================="
+    echo "API Endpoint: http://$external_ip"
+    echo ""
+    echo "Next steps:"
+    echo "1. Run the client to test the API:"
+    echo "   python client/main.py"
+    echo "=========================================="
+}
+
+# Function to delete and purge Foundry resource
+delete_foundry_resource() {
+    echo "Deleting and purging Foundry resource: $foundry_resource"
+    echo ""
+    read -p "Are you sure you want to delete the Foundry resources? (yes/no): " confirm
+
+    if [ "$confirm" != "yes" ]; then
+        echo "Cancelled. Foundry resource was not deleted."
+        return 0
+    fi
+
+    echo ""
+    local exists=$(az cognitiveservices account show \
+        --name "$foundry_resource" \
+        --resource-group "$rg" 2>/dev/null)
+
+    if [ -z "$exists" ]; then
+        echo "Foundry resource does not exist: $foundry_resource"
+        return 0
+    fi
+
+    echo "Deleting Foundry resource..."
+    az cognitiveservices account delete \
+        --name "$foundry_resource" \
+        --resource-group "$rg" \
+        --yes > /dev/null 2>&1
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to delete Foundry resource."
+        return 1
+    fi
+
+    echo "✓ Resource deleted"
+    echo ""
+    echo "Purging resource to free up the name..."
+    az cognitiveservices account purge \
+        --name "$foundry_resource" \
+        --resource-group "$rg" \
+        --location "$location" > /dev/null 2>&1
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to purge Foundry resource."
+        return 1
+    fi
+
+    echo "✓ Resource purged"
+    echo "The Foundry resource has been deleted and purged."
+}
+
 # Function to check deployment status
 check_deployment_status() {
     echo "Checking deployment status..."
@@ -318,7 +500,7 @@ check_deployment_status() {
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-6): " choice
+    read -p "Please select an option (1-8): " choice
 
     case $choice in
         1)
@@ -329,37 +511,49 @@ while true; do
             ;;
         2)
             echo ""
+            delete_foundry_resource
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        3)
+            echo ""
             create_resource_group
             echo ""
             create_acr
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        3)
+        4)
             echo ""
             build_and_push_image
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        4)
+        5)
             echo ""
             create_aks_cluster
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        5)
+        6)
             echo ""
             check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        6)
+        7)
+            echo ""
+            deploy_to_aks
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        8)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
-            echo "Invalid option. Please select 1-6."
+            echo "Invalid option. Please select 1-8."
             read -p "Press Enter to continue..."
             ;;
     esac
