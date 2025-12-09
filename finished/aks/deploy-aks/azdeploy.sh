@@ -4,7 +4,6 @@
 
 rg="rg-exercises"           # Resource Group name
 location="eastus2"          # Azure region for the resources
-#subscription="16b3c013-d300-468d-ac64-7eda0820b6d3"             # Azure subscription ID (leave empty to use default)
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -40,41 +39,6 @@ show_menu() {
     echo "7. Deploy to AKS"
     echo "8. Exit"
     echo "====================================================================="
-}
-
-# Function to setup .env file with credentials from Foundry project
-setup_env_files() {
-    local endpoint=$1
-    local key=$2
-
-    echo "Creating .env file with Foundry credentials..."
-    echo ""
-
-    # Ensure api directory exists
-    if [ ! -d "api" ]; then
-        echo "Error: api directory not found. Make sure you're running this script from the project root."
-        return 1
-    fi
-
-    # Create or update api/.env
-    echo "Creating api/.env..."
-    cat > api/.env << EOF
-# Azure Foundry Model Configuration
-OPENAI_API_ENDPOINT=$endpoint
-OPENAI_API_KEY=$key
-OPENAI_DEPLOYMENT_NAME=gpt-4o-mini
-OPENAI_API_VERSION=2024-10-21
-EOF
-
-    if [ $? -eq 0 ]; then
-        echo "✓ Created api/.env"
-    else
-        echo "Error: Failed to create api/.env"
-        return 1
-    fi
-
-    echo ""
-    echo "Next: Run menu option 2 (Create Azure Container Registry) to continue deployment."
 }
 
 # Function to provision Microsoft Foundry project and deploy gpt-4o-mini model using Azure CLI
@@ -175,9 +139,6 @@ provision_foundry_resources() {
         return 1
     fi
     echo "✓ Model deployed successfully"
-
-    # Setup environment files
-    setup_env_files "$endpoint" "$key"
 
     echo ""
     echo "✓ Foundry provisioning complete!"
@@ -344,12 +305,12 @@ deploy_to_aks() {
     # Update the deployment.yaml with the correct ACR endpoint
     echo "Deploying Kubernetes manifests..."
     sed "s|ACR_ENDPOINT|${acr_name}.azurecr.io|g" k8s/deployment.yaml | kubectl apply -f - -n default 2>&1 > /dev/null
-    
+
     if [ $? -ne 0 ]; then
         echo "Error: Failed to apply Kubernetes manifests."
         return 1
     fi
-    
+
     echo "✓ Deployment manifest updated with ACR endpoint: ${acr_name}.azurecr.io"
     echo ""
 
@@ -457,7 +418,7 @@ check_deployment_status() {
         --resource-group "$rg" \
         --deployment-name "gpt-4o-mini" \
         --query "properties.provisioningState" -o tsv 2>/dev/null)
-    
+
     if [ ! -z "$foundry_deployment_status" ]; then
         echo "  Status: $foundry_deployment_status"
         if [ "$foundry_deployment_status" = "Succeeded" ]; then
