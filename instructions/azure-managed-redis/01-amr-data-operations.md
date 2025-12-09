@@ -75,8 +75,6 @@ In this section you download the starter files for the console app and use a scr
     ./azdeploy.ps1
     ```
 
-    >**Note:** You may need to modify the commands for your environment. The *Scripts* folder may be *bin* depending on your operating system.
-
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
 
     This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
