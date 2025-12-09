@@ -1,8 +1,8 @@
 # Azure Managed Redis Deployment Script (PowerShell)
 
 # Change the values of these variables as needed
-$rg = "rg-exercises"        # Resource Group name
-$location = "westus2"       # Azure region for the resources
+$rg = "<your-resource-group-name>"        # Resource Group name
+$location = "<your-azure-region>"       # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
