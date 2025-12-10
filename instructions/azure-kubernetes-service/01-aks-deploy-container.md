@@ -12,9 +12,7 @@ In this exercise, you create a
 Tasks performed in this exercise:
 
 - Download the project starter files
-- Deploy an inference model to Microsoft Foundry
-- Deploy a containerized API to Azure Container Registry (ACR)
-- Create an Azure Kubernetes Service (AKS) resource
+- Deploy resources to Azure
 - Complete the *deployment.yaml* and *service.yaml* files and deploy the container to AKS
 - Run the client app to test the API
 
