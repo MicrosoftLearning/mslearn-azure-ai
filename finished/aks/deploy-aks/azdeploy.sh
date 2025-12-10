@@ -312,11 +312,21 @@ deploy_to_aks() {
     sed "s|ACR_ENDPOINT|${acr_name}.azurecr.io|g" k8s/deployment.yaml | kubectl apply -f - -n default 2>&1 > /dev/null
 
     if [ $? -ne 0 ]; then
-        echo "Error: Failed to apply Kubernetes manifests."
+        echo "Error: Failed to apply deployment manifest."
         return 1
     fi
 
     echo "✓ Deployment manifest updated with ACR endpoint: ${acr_name}.azurecr.io"
+
+    # Apply the service manifest
+    kubectl apply -f k8s/service.yaml -n default 2>&1 > /dev/null
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to apply service manifest."
+        return 1
+    fi
+
+    echo "✓ Service manifest applied"
     echo ""
 
     # Wait for LoadBalancer service to get external IP

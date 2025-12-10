@@ -61,6 +61,12 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
+1. Run the follwoing command to ensure your subscription has the necessary resource provider to install AKS.
+
+    ```
+    az provider register --namespace Microsoft.ContainerService
+    ```
+
 1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the script.
 
     **Bash**
