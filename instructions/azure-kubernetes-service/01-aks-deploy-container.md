@@ -5,7 +5,7 @@ lab:
     description: 'Learn how to create deployment and service manifests to deploy containers to Azure Kubernetes Service.'
 ---
 
-# Perform data operations in Azure Managed Redis
+# Deploy a containerized API to Azure Kubernetes Service
 
 In this exercise, you create a
 
@@ -15,7 +15,7 @@ Tasks performed in this exercise:
 - Deploy an inference model to Microsoft Foundry
 - Deploy a containerized API to Azure Container Registry (ACR)
 - Create an Azure Kubernetes Service (AKS) resource
-- Complete the *deployment.yaml* and *service.yaml* files and deploy the container in ACR to a pod in AKS
+- Complete the *deployment.yaml* and *service.yaml* files and deploy the container to AKS
 - Run the client app to test the API
 
 This exercise takes approximately **30** minutes to complete.
@@ -24,15 +24,15 @@ This exercise takes approximately **30** minutes to complete.
 
 To complete the exercise, you need:
 
-- An Azure subscription with the permissions to deploy Azure Kubernetes Service. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- An Azure subscription with the permissions to deploy the necessary Azure services. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](/cli/azure/install-azure-cli?view=azure-cli-latest).
-- The Kubernetes command-line tool, [kubctl](https://kubernetes.io/docs/tasks/tools/).
+- The Kubernetes command-line tool, [kubectl](https://kubernetes.io/docs/tasks/tools/).
 
-## Download project starter files and deploy Azure Managed Redis
+## Download project starter files and deploy Azure services
 
-In this section you download the starter files for the console app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the starter files for the console app and use a script to deploy the necessary services to your Azure subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -51,6 +51,8 @@ In this section you download the starter files for the console app and use a scr
     "<your-azure-region>" # Azure region for the resources
     ```
 
+    > **Note:** It is recommended to use one of the following three Azure regions for deployment: **eastus2**, **swedencentral**, or **australiaeast**. These regions support the deployment of the AI inference model used in the exercise.
+
 1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code.
 
 1. Run the following command to login to your Azure account. Answer the prompts to select your Azure account and subscription for the exercise.
@@ -59,7 +61,7 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
-1. Run the appropriate command in the terminal to launch the script.
+1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the script.
 
     **Bash**
     ```bash
@@ -71,17 +73,23 @@ In this section you download the starter files for the console app and use a scr
     ./azdeploy.ps1
     ```
 
-    >**Note:** You may need to modify the commands for your environment. The *Scripts* folder may be *bin* depending on your operating system.
+### Deploy resources to Azure
 
-1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
+With the deployment script running, follow these steps to create the needed resources in Azure.
 
-    This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
+1. Enter **1** to launch the **1. Provision gpt-4o-mini model in Microsoft Foundry** option. This option creates the resource group if it doesn't already exist, creates the resource in MIcrosoft Foundry, and deploys the **gpt-4o-mini** model to the resource.
 
-1. After the following messages appear in the console, select **Enter** to return to the menu and then select **4** to exit the script. You run the script again later to check on the deployment status and also to create the *.env* file for the project.
+    > **Important:** If there are errors during the model deployment, enter **2** to launch the **2. Delete/Purge Foundry deployment** option. This will delete the deployment and purge the resource name. Exit the menu, and change the region in the deployment script to one of the other recommended regions. Then restart the deployment script and run the model provisioning option again.
 
-    *The Azure Managed Redis resource is being created and takes 5-10 minutes to complete.*
+1. After the model is deployed, enter **3** to launch **3. Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
 
-    *You can check the deployment status from the menu later in the exercise.*
+1. After the ACR resource has been created, enter **4** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
+
+1. After the image has been built and pushed to ACR, enter **5** to launch the **5. Create AKS resource** option. This creates the AKS resource configured with a managed identity and gives the service permission to pull images from the ACR resource. This operation can take 5-10 minutes to complete.
+
+1. After the AKS resources has been deployed, enter **6** to launch the **6. Check deployment stats** option. This option reports if each of the three resources have been successfully deployed.
+
+    If all of the services return a **successful** message, enter **8** to exit the deployment script.
 
 
 ## Configure the Python environment
