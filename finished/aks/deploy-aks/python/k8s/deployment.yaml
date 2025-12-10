@@ -56,7 +56,6 @@ spec:  # Desired state specification for the deployment
           failureThreshold: 3  # Consecutive failures before restarting container
         # END: Liveness Probe Configuration
 
-        # BEGIN: Readiness Probe Configuration
         readinessProbe:  # Detects if container is ready to receive traffic
           httpGet:
             path: /readyz  # Readiness check endpoint path
@@ -65,7 +64,6 @@ spec:  # Desired state specification for the deployment
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3  # Consecutive failures before removing from service
-        # END: Readiness Probe Configuration
 
         # BEGIN: Resource Limits Configuration
         resources:  # CPU and memory resource specifications

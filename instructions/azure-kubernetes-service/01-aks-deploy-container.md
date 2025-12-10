@@ -97,12 +97,57 @@ With the deployment script running, follow these steps to create the needed reso
 
 Next, you complete the YAML files necessary to deploy the API to AKS.
 
-## Complete the YAML deployment files
+## Complete the YAML deployment files and deploy to AKS
 
+In this section you complete both the *deployment.yaml* and *service.yaml* files. The deployment manifest defines how the API container is deployed and managed in AKS, while the service manifest exposes the API to external traffic through a load balancer.
 
+1. Open the *k8s/deployment.yaml* file to begin completing the file.
 
+1. Locate the **# BEGIN: Container specification** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
-## Configure the Python environment
+    ```yml
+    containers:  # List of containers to run in the pod
+    - name: api
+      image: ACR_ENDPOINT/aks-api:latest  # Container image from ACR
+      imagePullPolicy: Always  # Always pull the latest image from registry
+      ports:  # Ports exposed by the container
+      - name: http
+        containerPort: 8000
+        protocol: TCP
+    ```
+
+1. Locate the **# BEGIN: Liveness Probe Configuration** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```yml
+    livenessProbe:  # Detects if container is alive or needs restart
+      httpGet:
+        path: /healthz  # Health check endpoint path
+        port: http
+      initialDelaySeconds: 10  # Seconds to wait before first check
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3  # Consecutive failures before restarting container
+    ```
+
+1. Locate the **# BEGIN: Resource Limits Configuration** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```yml
+    resources:  # CPU and memory resource specifications
+      requests:  # Minimum resources guaranteed to the container
+        memory: "256Mi"
+        cpu: "250m"
+      limits:  # Maximum resources the container can use
+        memory: "512Mi"
+        cpu: "500m"
+    ```
+
+1. Save your changes and take a few minutes to review the completed *deployment.yaml* file.
+
+## Run the client app
+
+In this section, you configure the Python environment and then perform operations on the API using the client app
+
+### Configure the Python environment
 
 In this section, you create the Python environment and install the dependencies.
 
@@ -134,9 +179,9 @@ In this section, you create the Python environment and install the dependencies.
     pip install -r requirements.txt
     ```
 
-## Run the client app
+### Perform operations with the app
 
-In this section, you run the client application to perform various operations on the API. The app provides a menu-driven interface.
+Now it's time to run the client application to perform various operations on the API. The app provides a menu-driven interface.
 
 1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
