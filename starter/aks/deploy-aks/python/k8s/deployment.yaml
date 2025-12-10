@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment  # Deployment: manages replicated pod instances and rolling updates
+metadata:
+  name: aks-api  # Unique name for the deployment
+  labels:  # Labels for selecting this deployment resource
+    app: aks-api
+    version: v1
+spec:  # Desired state specification for the deployment
+  replicas: 1
+  selector:  # Selects which pods this deployment manages based on labels
+    matchLabels:
+      app: aks-api # Will match pods with label app: aks-api
+      version: v1
+  template:  # Pod template: defines the blueprint for creating pods
+    metadata:
+      labels:  # Labels applied to each pod created from this template
+        app: aks-api
+        version: v1
+    spec:  # Defines what the pod should contain
+
+      # BEGIN: Container specification
+
+
+      # END: Container specification
+
+        env:  # Environment variables passed to the container
+        - name: OPENAI_API_ENDPOINT
+          valueFrom:  # Retrieve value from secret
+            secretKeyRef:
+              name: foundry-credentials
+              key: endpoint
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: foundry-credentials
+              key: api-key
+        - name: OPENAI_DEPLOYMENT_NAME # Value not pulled from secrets
+          value: "gpt-4o-mini"
+        - name: OPENAI_API_VERSION
+          value: "2024-10-21"
+
+        # BEGIN: Liveness Probe Configuration
+
+
+        # END: Liveness Probe Configuration
+
+        readinessProbe:  # Detects if container is ready to receive traffic
+          httpGet:
+            path: /readyz  # Readiness check endpoint path
+            port: http
+          initialDelaySeconds: 15  # Seconds to wait before first check
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3  # Consecutive failures before removing from service
+
+        # BEGIN: Resource Limits Configuration
+
+
+        # END: Resource Limits Configuration

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="280" viewBox="0 0 1100 280">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#1f2937"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="280" fill="#ffffff"/>
+
+  <!-- Client Application -->
+  <rect x="40" y="60" width="220" height="160" rx="12" ry="12" fill="#fff" stroke="#111827" stroke-width="2"/>
+  <circle cx="150" cy="110" r="30" fill="#e5e7eb"/>
+  <text x="150" y="190" font-family="Segoe UI, Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#1f2937">Client</text>
+  <text x="150" y="210" font-family="Segoe UI, Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#1f2937">Application</text>
+
+  <!-- API on AKS -->
+  <rect x="370" y="60" width="240" height="160" rx="12" ry="12" fill="#f0f7ff" stroke="#2563eb" stroke-width="2"/>
+  <rect x="390" y="85" width="40" height="40" rx="4" fill="#2563eb"/>
+  <text x="490" y="95" font-family="Segoe UI, Arial" font-size="12" fill="#2563eb">AKS</text>
+  <text x="490" y="150" font-family="Segoe UI, Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#1f2937">API on AKS</text>
+
+  <!-- gpt-4o-mini -->
+  <rect x="700" y="60" width="180" height="160" rx="12" ry="12" fill="#fff" stroke="#111827" stroke-width="2"/>
+  <rect x="725" y="90" width="50" height="50" rx="4" fill="#ff9500"/>
+  <text x="790" y="150" font-family="Segoe UI, Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#1f2937">gpt-4o</text>
+  <text x="790" y="170" font-family="Segoe UI, Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#1f2937">mini</text>
+
+  <!-- Microsoft Foundry -->
+  <rect x="950" y="60" width="100" height="160" rx="12" ry="12" fill="#fff" stroke="#111827" stroke-width="2"/>
+  <rect x="965" y="90" width="50" height="50" rx="4" fill="#0078d4"/>
+  <text x="1000" y="165" font-family="Segoe UI, Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#1f2937">Foundry</text>
+
+  <!-- Arrow: Client to API -->
+  <line x1="260" y1="140" x2="370" y2="140" stroke="#1f2937" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Arrow: API to gpt-4o-mini -->
+  <line x1="610" y1="140" x2="700" y2="140" stroke="#1f2937" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Arrow: gpt-4o-mini to Foundry -->
+  <line x1="880" y1="140" x2="950" y2="140" stroke="#1f2937" stroke-width="2" marker-end="url(#arrow)"/>
