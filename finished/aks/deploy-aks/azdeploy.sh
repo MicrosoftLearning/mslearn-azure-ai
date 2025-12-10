@@ -9,8 +9,13 @@ location="eastus2"          # Azure region for the resources
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
 # ============================================================================
 
-# Generate consistent hash from username (always produces valid Azure resource name)
-user_hash=$(echo -n "$USER" | sha1sum | cut -c1-8)
+# Generate consistent hash from Azure user object ID (based on az login account)
+user_object_id=$(az ad signed-in-user show --query "id" -o tsv 2>/dev/null)
+if [ -z "$user_object_id" ]; then
+    echo "Error: Not authenticated with Azure. Please run: az login"
+    exit 1
+fi
+user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
 foundry_resource="foundry-resource-${user_hash}"
