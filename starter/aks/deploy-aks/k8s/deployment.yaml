@@ -1,37 +1,31 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: Deployment  # Deployment: manages replicated pod instances and rolling updates
 metadata:
-  name: aks-api
-  labels:
+  name: aks-api  # Unique name for the deployment
+  labels:  # Labels for selecting this deployment resource
     app: aks-api
     version: v1
-spec:
+spec:  # Desired state specification for the deployment
   replicas: 1
-  selector:
+  selector:  # Selects which pods this deployment manages based on labels
     matchLabels:
-      app: aks-api
+      app: aks-api # Will match pods with label app: aks-api
       version: v1
-  template:
+  template:  # Pod template: defines the blueprint for creating pods
     metadata:
-      labels:
+      labels:  # Labels applied to each pod created from this template
         app: aks-api
         version: v1
-    spec:
-      containers:
-      - name: api
-        image: ACR_ENDPOINT/aks-api:latest
-        imagePullPolicy: Always
+    spec:  # Defines what the pod should contain
 
-        # Container port
-        ports:
-        - name: http
-          containerPort: 8000
-          protocol: TCP
+      # BEGIN: Container specification
 
-        # Environment variables from Secrets
-        env:
+
+      # END: Container specification
+
+        env:  # Environment variables passed to the container
         - name: OPENAI_API_ENDPOINT
-          valueFrom:
+          valueFrom:  # Retrieve value from secret
             secretKeyRef:
               name: foundry-credentials
               key: endpoint
@@ -40,36 +34,26 @@ spec:
             secretKeyRef:
               name: foundry-credentials
               key: api-key
-        - name: OPENAI_DEPLOYMENT_NAME
+        - name: OPENAI_DEPLOYMENT_NAME # Value not pulled from secrets
           value: "gpt-4o-mini"
         - name: OPENAI_API_VERSION
           value: "2024-10-21"
 
-        # Liveness probe
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-          initialDelaySeconds: 10
-          periodSeconds: 30
-          timeoutSeconds: 5
-          failureThreshold: 3
+        # BEGIN: Liveness Probe Configuration
 
-        # Readiness probe
-        readinessProbe:
+
+        # END: Liveness Probe Configuration
+
+        readinessProbe:  # Detects if container is ready to receive traffic
           httpGet:
-            path: /readyz
+            path: /readyz  # Readiness check endpoint path
             port: http
-          initialDelaySeconds: 15
+          initialDelaySeconds: 15  # Seconds to wait before first check
           periodSeconds: 10
           timeoutSeconds: 5
-          failureThreshold: 3
+          failureThreshold: 3  # Consecutive failures before removing from service
 
-        # Resource limits
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
+        # BEGIN: Resource Limits Configuration
+
+
+        # END: Resource Limits Configuration
