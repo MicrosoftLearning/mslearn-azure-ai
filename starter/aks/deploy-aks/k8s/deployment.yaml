@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aks-api
+  labels:
+    app: aks-api
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aks-api
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: aks-api
+        version: v1
+    spec:
+      containers:
+      - name: api
+        image: ACR_ENDPOINT/aks-api:latest
+        imagePullPolicy: Always
+
+        # Container port
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+
+        # Environment variables from Secrets
+        env:
+        - name: OPENAI_API_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: foundry-credentials
+              key: endpoint
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: foundry-credentials
+              key: api-key
+        - name: OPENAI_DEPLOYMENT_NAME
+          value: "gpt-4o-mini"
+        - name: OPENAI_API_VERSION
+          value: "2024-10-21"
+
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        # Resource limits
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
