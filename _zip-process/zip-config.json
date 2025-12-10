@@ -15,6 +15,11 @@
       "source": "starter/amr/vector-query/python",
       "output": "downloads/python",
       "name": "amr-vector-query-python.zip"
+    },
+    {
+      "source": "starter/aks/deploy-aks/python",
+      "output": "downloads/python",
+      "name": "aks-deploy-python.zip"
     }
   ]
 }
