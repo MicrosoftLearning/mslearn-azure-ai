@@ -1,37 +1,37 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: Deployment  # Deployment: manages replicated pod instances and rolling updates
 metadata:
-  name: aks-api
-  labels:
+  name: aks-api  # Unique name for the deployment
+  labels:  # Labels for selecting this deployment resource
     app: aks-api
     version: v1
-spec:
+spec:  # Desired state specification for the deployment
   replicas: 1
-  selector:
+  selector:  # Selects which pods this deployment manages based on labels
     matchLabels:
-      app: aks-api
+      app: aks-api # Will match pods with label app: aks-api
       version: v1
-  template:
+  template:  # Pod template: defines the blueprint for creating pods
     metadata:
-      labels:
+      labels:  # Labels applied to each pod created from this template
         app: aks-api
         version: v1
-    spec:
-      containers:
-      - name: api
-        image: ACR_ENDPOINT/aks-api:latest
-        imagePullPolicy: Always
+    spec:  # Defines what the pod should contain
 
-        # Container port
-        ports:
+      # BEGIN: Container specification
+      containers:  # List of containers to run in the pod
+      - name: api
+        image: ACR_ENDPOINT/aks-api:latest  # Container image from ACR
+        imagePullPolicy: Always  # Always pull the latest image from registry
+        ports:  # Ports exposed by the container
         - name: http
           containerPort: 8000
           protocol: TCP
+      # END: Container specification
 
-        # Environment variables from Secrets
-        env:
+        env:  # Environment variables passed to the container
         - name: OPENAI_API_ENDPOINT
-          valueFrom:
+          valueFrom:  # Retrieve value from secret
             secretKeyRef:
               name: foundry-credentials
               key: endpoint
@@ -40,36 +40,39 @@ spec:
             secretKeyRef:
               name: foundry-credentials
               key: api-key
-        - name: OPENAI_DEPLOYMENT_NAME
+        - name: OPENAI_DEPLOYMENT_NAME # Value not pulled from secrets
           value: "gpt-4o-mini"
         - name: OPENAI_API_VERSION
           value: "2024-10-21"
 
-        # Liveness probe
-        livenessProbe:
+        # BEGIN: Liveness Probe Configuration
+        livenessProbe:  # Detects if container is alive or needs restart
           httpGet:
-            path: /healthz
+            path: /healthz  # Health check endpoint path
             port: http
-          initialDelaySeconds: 10
+          initialDelaySeconds: 10  # Seconds to wait before first check
           periodSeconds: 30
           timeoutSeconds: 5
-          failureThreshold: 3
+          failureThreshold: 3  # Consecutive failures before restarting container
+        # END: Liveness Probe Configuration
 
-        # Readiness probe
-        readinessProbe:
+        # BEGIN: Readiness Probe Configuration
+        readinessProbe:  # Detects if container is ready to receive traffic
           httpGet:
-            path: /readyz
+            path: /readyz  # Readiness check endpoint path
             port: http
-          initialDelaySeconds: 15
+          initialDelaySeconds: 15  # Seconds to wait before first check
           periodSeconds: 10
           timeoutSeconds: 5
-          failureThreshold: 3
+          failureThreshold: 3  # Consecutive failures before removing from service
+        # END: Readiness Probe Configuration
 
-        # Resource limits
-        resources:
-          requests:
+        # BEGIN: Resource Limits Configuration
+        resources:  # CPU and memory resource specifications
+          requests:  # Minimum resources guaranteed to the container
             memory: "256Mi"
             cpu: "250m"
-          limits:
+          limits:  # Maximum resources the container can use
             memory: "512Mi"
             cpu: "500m"
+        # END: Resource Limits Configuration

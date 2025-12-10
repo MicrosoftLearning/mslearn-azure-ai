@@ -95,10 +95,18 @@ With the deployment script running, follow these steps to create the needed reso
 
     If all of the services return a **successful** message, enter **8** to exit the deployment script.
 
+Next, you complete the YAML files necessary to deploy the API to AKS.
+
+## Complete the YAML deployment files
+
+
+
 
 ## Configure the Python environment
 
 In this section, you create the Python environment and install the dependencies.
+
+1. Ensure you are in the *client* folder of the project in the terminal.
 
 1. Run the following command in the VS Code terminal to create the Python environment.
 
@@ -126,156 +134,9 @@ In this section, you create the Python environment and install the dependencies.
     pip install -r requirements.txt
     ```
 
-## Complete the app
+## Run the client app
 
-In this section you add code to the *main.py* script to complete the console app. You run the app later in the exercise, after you confirm the Azure Managed Redis resource is fully deployed and create the *.env* file.
-
-1. Open the *main.py* file to begin adding code.
-
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
-### Add the client connection
-
-In this section, you add code to establish a connection to Azure Managed Redis using the redis-py library. The code retrieves connection credentials from environment variables and creates a Redis client instance configured for secure SSL communication.
-
-1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    try:
-        # Azure Managed Redis with Non-Clustered policy uses standard Redis connection
-        redis_host = os.getenv("REDIS_HOST")
-        redis_key = os.getenv("REDIS_KEY")
-
-        # Non-clustered policy uses standard Redis client connection
-        r = redis.Redis(
-            host=redis_host,
-            port=10000,  # Azure Managed Redis uses port 10000
-            ssl=True,
-            decode_responses=True, # Decode responses to strings
-            password=redis_key,
-            socket_timeout=30,  # Add timeout for better reliability
-            socket_connect_timeout=30,
-        )
-
-        print(f"Connected to Redis at {redis_host}")
-        input("\nPress Enter to continue...")
-        return r
-    ```
-
-### Add code to store and retrieve data
-
-In this section, you add code to work with Redis hash data structures using the **hset** and **hgetall** commands. The **hset** method stores multiple field-value pairs under a single key, while **hgetall** retrieves all fields and values for a given key.
-
-1. Locate the **# BEGIN STORE AND RETRIEVE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def store_hash_data(r, key, value) -> None:
-        """Store hash data in Redis"""
-        clear_screen()
-        print(f"Storing hash data for key: {key}")
-        result = r.hset(key, mapping=value) # Store hash data
-        if result > 0: # New fields were added
-            print(f"Data stored successfully under key '{key}' ({result} new fields added)")
-        else:
-            print(f"Data updated successfully under key '{key}' (all fields already existed)")
-        input("\nPress Enter to continue...")
-
-    def retrieve_hash_data(r, key) -> None:
-        """Retrieve hash data from Redis"""
-        clear_screen()
-        print(f"Retrieving hash data for key: {key}")
-        retrieved_value = r.hgetall(key) # Retrieve hash data
-        if retrieved_value:
-            print("\nRetrieved hash data:")
-            for field, value in retrieved_value.items():
-                print(f"  {field}: {value}")
-        else:
-            print(f"Key '{key}' does not exist.")
-
-        input("\nPress Enter to continue...")
-    ```
-
-### Add code to set and retrieve expiration
-
-In this section, you add code to manage key expiration using the **expire** and **ttl** commands. The **expire** method sets a Time-To-Live (TTL) on a key, causing it to automatically expire after the specified number of seconds, while **ttl** retrieves the remaining time before a key expires.
-
-1. Locate the **# BEGIN EXPIRATION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def set_expiration(r, key) -> None:
-        """Set an expiration time for a key"""
-        clear_screen()
-        print("Set expiration time for a key")
-        # Set expiration time, 1 hour equals 3600 seconds
-        expiration = int(input("Enter expiration time in seconds (default 3600): ") or 3600)
-        result = r.expire(key, expiration) # Set expiration time
-        if result:
-            print(f"Expiration time of {expiration} seconds set for key '{key}'")
-        else:
-            print(f"Key '{key}' does not exist. Expiration not set.")
-
-        input("\nPress Enter to continue...")
-
-    def retrieve_expiration(r, key) -> None:
-        """Retrieve the TTL of a key"""
-        clear_screen()
-        print(f"Retrieving the current TTL of {key}...")
-        ttl = r.ttl(key) # Get current TTL
-        if ttl == -2: # Key does not exist
-            print(f"\nKey '{key}' does not exist.")
-        elif ttl == -1: # No expiration set
-            print(f"\nKey '{key}' has no expiration set (persists indefinitely).")
-        else:
-            print(f"\nCurrent TTL for '{key}': {ttl} seconds")
-        input("\nPress Enter to continue...")
-    ```
-
-### Add code to delete data
-
-In this section, you add code to remove keys from Redis using the **delete** command. The **delete** method permanently removes a key and its associated value from the cache, freeing up memory and ensuring the data is no longer accessible.
-
-1. Locate the **# BEGIN DELETE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def delete_key(r, key) -> None:
-        """Delete a key"""
-        clear_screen()
-        print(f"Deleting key: {key}...")
-        result = r.delete(key) # Delete the key
-        if result == 1:
-            print(f"Key '{key}' deleted successfully.")
-        else:
-            print(f"Key '{key}' does not exist.")
-        input("\nPress Enter to continue...")
-    ```
-
-1. Save your changes to the *main.py* file.
-
-## Verify resource deployment
-
-In this section you run the deployment script again to verify if the Azure Managed Redis deployment is completed, and create the *.env* file with the endpoint and access key values.
-
-1. Run the appropriate command in the terminal to start the deployment script. If you closed the previous terminal, select **Terminal > New Terminal** in the menu to open a new one.
-
-    **Bash**
-    ```bash
-    bash azdeploy.sh
-    ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Succeeded**, proceed to the next step. If not, then wait a few minutes and try the option again.
-
-1. After the deployment is complete, enter **3** to run the **3. Enable access key auth and retrieve endpoint and access key** option. This will query the Azure Managed Redis resource and retrieve the endpoint and access key. It then creates the *.env* file with those values.
-
-1. Review the *.env* file to verify the values are present, then enter **4** to exit the deployment script.
-
-## Run the console app
-
-In this section, you run the completed console application to perform various Redis data operations. The app provides a menu-driven interface that lets you store hash data, retrieve values, manage key expiration, and delete keys.
+In this section, you run the client application to perform various operations on the API. The app provides a menu-driven interface.
 
 1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
