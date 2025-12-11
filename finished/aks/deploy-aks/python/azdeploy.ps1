@@ -286,9 +286,9 @@ function Deploy-ToAKS {
 
     # Get Foundry credentials
     Write-Host "Retrieving Foundry credentials..."
-    $endpoint = az cognitiveservices account show --name $foundryResource --resource-group $rg --query "properties.endpoint" -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
+    $endpoint = az cognitiveservices account show --name $foundryResource --resource-group $rg --query "properties.endpoint" -o tsv 2>$null
 
-    $key = az cognitiveservices account keys list --name $foundryResource --resource-group $rg --query "key1" -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
+    $key = az cognitiveservices account keys list --name $foundryResource --resource-group $rg --query "key1" -o tsv 2>$null
 
     if ([string]::IsNullOrEmpty($endpoint) -or [string]::IsNullOrEmpty($key)) {
         Write-Host "Error: Could not retrieve Foundry credentials."
