@@ -82,23 +82,25 @@ function Provision-FoundryResources {
     Write-Host ""
     Write-Host "Checking for existing Microsoft Foundry resource: $foundryResource"
 
-    $foundryExists = az cognitiveservices account show --name $foundryResource --resource-group $rg 2>&1 | Where-Object { $_ -notmatch 'ERROR' }
-
-    if ([string]::IsNullOrEmpty($foundryExists)) {
+    $foundryCheck = az cognitiveservices account show --name $foundryResource --resource-group $rg 2>&1
+    if ($LASTEXITCODE -ne 0) {
         Write-Host "Creating Microsoft Foundry resource: $foundryResource"
-        az cognitiveservices account create `
+        $createResult = az cognitiveservices account create `
             --name $foundryResource `
             --resource-group $rg `
             --location $location `
             --kind AIServices `
             --sku s0 `
-            --yes 2>&1 | Out-Null
+            --yes 2>&1
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to create Foundry resource."
+            Write-Host "Error details: $createResult" -ForegroundColor Red
             return $false
         }
         Write-Host "✓ Foundry resource created"
+        Write-Host "Waiting for resource to be fully ready..."
+        Start-Sleep -Seconds 10
     }
     else {
         Write-Host "✓ Foundry resource already exists"
@@ -110,12 +112,12 @@ function Provision-FoundryResources {
     $endpoint = az cognitiveservices account show `
         --name $foundryResource `
         --resource-group $rg `
-        --query properties.endpoint -o tsv
+        --query properties.endpoint -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
 
     $key = az cognitiveservices account keys list `
         --name $foundryResource `
         --resource-group $rg `
-        --query key1 -o tsv
+        --query key1 -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
 
     if ([string]::IsNullOrEmpty($endpoint) -or [string]::IsNullOrEmpty($key)) {
         Write-Host "Error: Failed to retrieve endpoint or key."
@@ -172,8 +174,8 @@ function Create-ResourceGroup {
 function Create-ACR {
     Write-Host "Creating Azure Container Registry '$acrName'..."
 
-    $exists = az acr show --resource-group $rg --name $acrName 2>&1 | Where-Object { $_ -notmatch 'ERROR' }
-    if ([string]::IsNullOrEmpty($exists)) {
+    $acrCheck = az acr show --resource-group $rg --name $acrName 2>&1
+    if ($LASTEXITCODE -ne 0) {
         az acr create `
             --resource-group $rg `
             --name $acrName `
@@ -224,8 +226,8 @@ function Create-AKSCluster {
     Write-Host "This may take 5-10 minutes to complete. Please wait..."
     Write-Host ""
 
-    $exists = az aks show --resource-group $rg --name $aksCluster 2>&1 | Where-Object { $_ -notmatch 'ERROR' }
-    if ([string]::IsNullOrEmpty($exists)) {
+    $aksCheck = az aks show --resource-group $rg --name $aksCluster 2>&1
+    if ($LASTEXITCODE -ne 0) {
         $startTime = Get-Date
 
         az aks create `
@@ -392,9 +394,9 @@ function Delete-FoundryResource {
     }
 
     Write-Host ""
-    $exists = az cognitiveservices account show --name $foundryResource --resource-group $rg 2>&1 | Where-Object { $_ -notmatch 'ERROR' }
+    $foundryCheck = az cognitiveservices account show --name $foundryResource --resource-group $rg 2>&1
 
-    if ([string]::IsNullOrEmpty($exists)) {
+    if ($LASTEXITCODE -ne 0) {
         Write-Host "Foundry resource does not exist: $foundryResource"
         return $true
     }
