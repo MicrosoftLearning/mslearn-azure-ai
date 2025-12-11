@@ -1,13 +1,13 @@
 ---
 lab:
     topic: Azure Kubernetes Service
-    title: 'Deploy a containerized API to Azure Kubernetes Service'
-    description: 'Learn how to create deployment and service manifests to deploy containers to Azure Kubernetes Service.'
+    title: 'Deploy an AI inference API on Azure Kubernetes Service'
+    description: 'Learn how to create Kubernetes deployment and service manifests to deploy an AI inference API container to Azure Kubernetes Service.'
 ---
 
 # Deploy a containerized API to Azure Kubernetes Service
 
-In this exercise, you create a
+In this exercise, you deploy Azure resources including a Microsoft Foundry AI model, Azure Container Registry (ACR), and Azure Kubernetes Service (AKS) cluster. You then complete Kubernetes manifest files to define container specifications, health probes, resource limits, and load balancing. After deploying the containerized API to AKS, you use a Python client application to test the deployed API endpoints including health checks, readiness validation, and AI model inference requests.
 
 Tasks performed in this exercise:
 
@@ -16,7 +16,7 @@ Tasks performed in this exercise:
 - Complete the *deployment.yaml* and *service.yaml* files and deploy the container to AKS
 - Run the client app to test the API
 
-This exercise takes approximately **30** minutes to complete.
+This exercise takes approximately **30-40** minutes to complete.
 
 ## Before you start
 
@@ -35,7 +35,7 @@ In this section you download the starter files for the console app and use a scr
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
-    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/amr-data-operations-python.zip
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/aks-deploy-python.zip
     ```
 
 1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
@@ -59,13 +59,13 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
-1. Run the follwoing command to ensure your subscription has the necessary resource provider to install AKS.
+1. Run the following command to ensure your subscription has the necessary resource provider to install AKS.
 
     ```
     az provider register --namespace Microsoft.ContainerService
     ```
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the script.
+1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
 
     **Bash**
     ```bash
@@ -103,7 +103,7 @@ In this section you complete both the *deployment.yaml* and *service.yaml* files
 
 1. Open the *k8s/deployment.yaml* file to begin completing the file.
 
-1. Locate the **# BEGIN: Container specification** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN: Container specification** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
 
     ```yml
     containers:  # List of containers to run in the pod
@@ -116,7 +116,9 @@ In this section you complete both the *deployment.yaml* and *service.yaml* files
         protocol: TCP
     ```
 
-1. Locate the **# BEGIN: Liveness Probe Configuration** comment and add the following code under the comment. Be sure to check for proper code alignment.
+    This section defines the container specification, including which container image to use from ACR, the pull policy, and which port the container exposes for HTTP traffic.
+
+1. Locate the **# BEGIN: Liveness Probe Configuration** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
 
     ```yml
     livenessProbe:  # Detects if container is alive or needs restart
@@ -129,7 +131,9 @@ In this section you complete both the *deployment.yaml* and *service.yaml* files
       failureThreshold: 3  # Consecutive failures before restarting container
     ```
 
-1. Locate the **# BEGIN: Resource Limits Configuration** comment and add the following code under the comment. Be sure to check for proper code alignment.
+    This section configures the liveness probe, which periodically checks if the container is healthy by making HTTP requests to the `/healthz` endpoint. If the probe fails three consecutive times, Kubernetes automatically restarts the container.
+
+1. Locate the **# BEGIN: Resource Limits Configuration** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
 
     ```yml
     resources:  # CPU and memory resource specifications
@@ -141,7 +145,66 @@ In this section you complete both the *deployment.yaml* and *service.yaml* files
         cpu: "500m"
     ```
 
+    This section defines the CPU and memory resources for the container. Requests specify the minimum resources guaranteed, while limits set the maximum resources the container can consume. This helps Kubernetes schedule pods efficiently and prevents resource starvation.
+
 1. Save your changes and take a few minutes to review the completed *deployment.yaml* file.
+
+Next, you update the *service.yaml* file.
+
+1. Open the *k8s/service.yaml* to complete the file.
+
+1. Add the following YAML to the manifest. Ensure YAML indentation is correct.
+
+    ```yml
+    apiVersion: v1
+    kind: Service  # Service: exposes pods on a network and provides load balancing
+    metadata:
+      name: aks-api-service  # Unique name for the service
+      labels:
+        app: aks-api # Matches deployment and pod labels
+      annotations:
+        service.beta.kubernetes.io/azure-load-balancer-internal: "false"  # Use public load balancer
+    spec:  # Service specification
+      type: LoadBalancer  # Exposes service externally
+      selector:  # Selects which pods to route traffic to based on labels
+        app: aks-api
+        version: v1
+      ports:  # Port mappings between service and pods
+      - name: http
+        port: 80  # Service port exposed externally
+        targetPort: http  # Pod container port to forward traffic to
+        protocol: TCP
+      sessionAffinity: None  # Client requests not pinned to specific pods
+    ```
+
+    This manifest creates a LoadBalancer Service that exposes your API pods externally through an Azure Load Balancer. It routes incoming traffic on port 80 to the container's port 8000, using label selectors to identify which pods should receive traffic.
+
+1. Save your changes and take a few minutes to review the file.
+
+### Apply the manifests to AKS
+
+In this section you use the deployment script to apply the manifests to AKS.
+
+1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+
+    **Bash**
+    ```bash
+    bash azdeploy.sh
+    ```
+
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
+    ```
+
+1. Enter **7** to launch the **7. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, creates a Kubernetes secret with your Foundry credentials, updates the deployment manifest with your ACR endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **8** to exit the deployment script.
+
+1. Run the following commands in the terminal to verify the deployment. Expect **kubectl get deploy,svc** to show the Deployment **READY** as **1/1** (or your replica count) and the Service **EXTERNAL-IP** to have a public IP (not **\<pending>**). The rollout command should print **deployment "aks-api" successfully rolled out** when the update is complete.
+
+    ```
+    kubectl get deploy,svc
+    kubectl rollout status deploy/aks-api
+    ```
 
 ## Run the client app
 
@@ -189,22 +252,15 @@ Now it's time to run the client application to perform various operations on the
     python main.py
     ```
 
-1. The app has the following options. Select the **1. Store hash data** to get started.
+1. Enter **1** to start the **1. Check API Health (Liveness)** option. This verifies that the API container is running and responds to health checks, which is the same endpoint used by the Kubernetes liveness probe.
 
-    ```
-    1. Store hash data
-    2. Retrieve hash data
-    3. Set expiration
-    4. Retrieve expiration (TTL)
-    5. Delete key
-    6. Exit
-    ```
+1. Enter **2** to start the **2. Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
 
-1. Select the remaining options in order to run the different operations.
+1. Enter **3** to start the **3. Send Inference Request** option. This sends a single prompt to the API and receives a complete response from the deployed model. Single inference requests are useful for batch processing, automated tasks, or when you need the entire response at once for further processing.
 
->**Note:** You can run the options in any order you choose. For example, after storing the hash data you can retrieve the expiration information to learn there is no expiration set on the key.
+1. Enter **4** to start the **4. Start Chat Session (Streaming)** option. This starts an interactive chat session where responses from the model are streamed in real-time as they're generated.
 
-The mock hash data used in the app is defined in the beginning of the **main()** function. You can update the code to use a different key, or add more values to the hash data.
+When you're finished enter **5** to exit the app.
 
 ## Clean up resources
 
@@ -222,21 +278,30 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 
 If you encounter issues while completing this exercise, try the following troubleshooting steps:
 
-**Verify Azure Managed Redis resource deployment**
+**Verify Azure resource deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
-- Confirm that the Azure Managed Redis resource shows a **Provisioning State** of **Succeeded**.
-- Check that the resource has **Public network access** enabled and **Access keys authentication** set to **Enabled**.
+- Confirm that the Microsoft Foundry resource shows a **Provisioning State** of **Succeeded** and the **gpt-4o-mini** model is deployed.
+- Verify the Azure Container Registry (ACR) exists and contains the **aks-api** image.
+- Check that the AKS cluster is in a **Succeeded** state and the nodes are running.
 
-**Check code completeness and indentation**
-- Ensure all code blocks were added to the correct sections in *main.py* between the appropriate BEGIN/END comment markers.
-- Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
-- Confirm that no code was accidentally removed or modified outside the designated sections.
+**Verify AKS deployment status**
+- Run `kubectl get pods` to check if the API pods are running. Look for **Running** status.
+- Run `kubectl get svc` to verify the LoadBalancer service has an external IP assigned (not **\<pending>**).
+- Run `kubectl describe pod <pod-name>` to see detailed pod status and events if issues occur.
+- Check pod logs with `kubectl logs <pod-name>` to see container startup errors or runtime issues.
 
-**Verify environment variables**
-- Check that the *.env* file exists in the project folder and contains valid **REDIS_HOST** and **REDIS_KEY** values.
-- Ensure the *.env* file is in the same directory as *main.py*.
+**Verify YAML file completeness**
+- Ensure all YAML sections were added correctly to *deployment.yaml* and *service.yaml* between the appropriate comment markers.
+- Verify YAML indentation is correct (use spaces, not tabs) as incorrect indentation will cause deployment failures.
+- Confirm the ACR endpoint was properly substituted in the deployment manifest by the deployment script.
+
+**Verify client configuration**
+- Check that the *.env* file exists in the *client* folder and contains a valid **API_ENDPOINT** value.
+- Ensure the API endpoint uses the correct external IP from the LoadBalancer service.
+- Verify you can reach the API endpoint by running `curl http://<external-ip>/healthz` from the terminal.
 
 **Check Python environment and dependencies**
-- Confirm the virtual environment is activated before running the app.
+- Confirm the virtual environment is activated before running the client app.
 - Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
+- Ensure you're running the client from the *client* directory.
 

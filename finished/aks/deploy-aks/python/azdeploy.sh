@@ -2,6 +2,9 @@
 
 # Change the values of these variables as needed
 
+# rg="<your-resource-group-name>"  # Resource Group name
+# location="<your-azure-region>"   # Azure region for the resources
+
 rg="rg-exercises"           # Resource Group name
 location="eastus2"          # Azure region for the resources
 
