@@ -1,7 +1,10 @@
 # Change the values of these variables as needed
 
-$rg = "<your-resource-group-name>"  # Resource Group name
-$location = "<your-azure-region>"   # Azure region for the resources
+# $rg = "<your-resource-group-name>"  # Resource Group name
+# $location = "<your-azure-region>"   # Azure region for the resources
+
+$rg = "rg-exercises"           # Resource Group name
+$location = "eastus2"          # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -358,7 +361,7 @@ function Deploy-ToAKS {
 
     # Update client/.env with the API endpoint
     Write-Host "Updating client/.env with API endpoint..."
-    @"
+@"
 # API Endpoint for AKS-deployed service
 API_ENDPOINT=http://$externalIp
 "@ | Out-File -FilePath client/.env -Encoding utf8
