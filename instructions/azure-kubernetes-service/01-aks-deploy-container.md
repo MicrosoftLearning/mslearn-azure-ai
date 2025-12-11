@@ -131,7 +131,7 @@ In this section you complete both the *deployment.yaml* and *service.yaml* files
       failureThreshold: 3  # Consecutive failures before restarting container
     ```
 
-    This section configures the liveness probe, which periodically checks if the container is healthy by making HTTP requests to the `/healthz` endpoint. If the probe fails three consecutive times, Kubernetes automatically restarts the container.
+    This section configures the liveness probe, which periodically checks if the container is healthy by making HTTP requests to the **/healthz** endpoint. If the probe fails three consecutive times, Kubernetes automatically restarts the container.
 
 1. Locate the **# BEGIN: Resource Limits Configuration** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
 
@@ -285,10 +285,10 @@ If you encounter issues while completing this exercise, try the following troubl
 - Check that the AKS cluster is in a **Succeeded** state and the nodes are running.
 
 **Verify AKS deployment status**
-- Run `kubectl get pods` to check if the API pods are running. Look for **Running** status.
-- Run `kubectl get svc` to verify the LoadBalancer service has an external IP assigned (not **\<pending>**).
-- Run `kubectl describe pod <pod-name>` to see detailed pod status and events if issues occur.
-- Check pod logs with `kubectl logs <pod-name>` to see container startup errors or runtime issues.
+- Run **kubectl get pods** to check if the API pods are running. Look for **Running** status.
+- Run **kubectl get svc** to verify the LoadBalancer service has an external IP assigned (not **\<pending>**).
+- Run **kubectl describe pod \<pod-name>** to see detailed pod status and events if issues occur.
+- Check pod logs with **kubectl logs \<pod-name>** to see container startup errors or runtime issues.
 
 **Verify YAML file completeness**
 - Ensure all YAML sections were added correctly to *deployment.yaml* and *service.yaml* between the appropriate comment markers.
@@ -298,7 +298,7 @@ If you encounter issues while completing this exercise, try the following troubl
 **Verify client configuration**
 - Check that the *.env* file exists in the *client* folder and contains a valid **API_ENDPOINT** value.
 - Ensure the API endpoint uses the correct external IP from the LoadBalancer service.
-- Verify you can reach the API endpoint by running `curl http://<external-ip>/healthz` from the terminal.
+- Verify you can reach the API endpoint by running **curl http://\<external-ip>/healthz** from the terminal.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the client app.
