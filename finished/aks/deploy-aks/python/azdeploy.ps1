@@ -361,7 +361,7 @@ function Deploy-ToAKS {
 
     # Update client/.env with the API endpoint
     Write-Host "Updating client/.env with API endpoint..."
-    @"
+@"
 # API Endpoint for AKS-deployed service
 API_ENDPOINT=http://$externalIp
 "@ | Out-File -FilePath client/.env -Encoding utf8
