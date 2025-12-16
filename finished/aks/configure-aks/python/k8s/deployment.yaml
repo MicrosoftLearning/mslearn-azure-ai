@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aks-config-api
+  labels:
+    app: aks-config-api
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aks-config-api
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: aks-config-api
+        version: v1
+    spec:
+      containers:
+      - name: api
+        image: ACR_ENDPOINT/aks-config-api:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+
+        # Environment variables from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: api-config
+
+        # Environment variables from Secrets
+        env:
+        - name: SECRET_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: secret-endpoint
+        - name: SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: secret-access-key
+
+        # Volume mount for persistent logs
+        volumeMounts:
+        - name: log-storage
+          mountPath: /var/log/api
+
+        # Liveness probe - checks if container is alive
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        # Readiness probe - checks if container is ready to serve traffic
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        # Resource limits
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+      # Volume definition for persistent storage
+      volumes:
+      - name: log-storage
+        persistentVolumeClaim:
+          claimName: api-logs-pvc

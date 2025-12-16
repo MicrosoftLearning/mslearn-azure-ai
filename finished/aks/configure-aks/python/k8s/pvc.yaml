@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: api-logs-pvc
+  labels:
+    app: aks-config-api
+spec:
+  accessModes:
+    - ReadWriteMany  # Volume can be mounted by multiple nodes
+  resources:
+    requests:
+      storage: 100Mi  # Minimal storage for logging ~50 requests
+  storageClassName: azurefile-csi  # Azure Files CSI driver (supports smaller sizes)
