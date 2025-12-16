@@ -7,13 +7,15 @@ lab:
 
 # Configure Azure Kubernetes Service
 
-In this exercise, you deploy Azure resources including a Microsoft Foundry AI model, Azure Container Registry (ACR), and Azure Kubernetes Service (AKS) cluster. You then complete Kubernetes manifest files to define container specifications, health probes, resource limits, and load balancing. After deploying the containerized API to AKS, you use a Python client application to test the deployed API endpoints including health checks, readiness validation, and AI model inference requests.
+>**NOTE:** This exercise is under construction. &#x1F6A7;
+
+In this exercise, you deploy Azure resources...
 
 Tasks performed in this exercise:
 
 - Download the project starter files
 - Deploy resources to Azure
-- Complete the *deployment.yaml* and *service.yaml* files and deploy the container to AKS
+- ...
 - Run the client app to test the API
 
 This exercise takes approximately **30-40** minutes to complete.
