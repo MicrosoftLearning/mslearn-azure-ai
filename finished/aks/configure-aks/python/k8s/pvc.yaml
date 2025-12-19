@@ -6,8 +6,8 @@ metadata:
     app: aks-config-api
 spec:
   accessModes:
-    - ReadWriteMany  # Volume can be mounted by multiple nodes
+    - ReadWriteOnce  # Volume can be mounted by a single pod
   resources:
     requests:
-      storage: 100Mi  # Minimal storage for logging ~50 requests
-  storageClassName: azurefile-csi  # Azure Files CSI driver (supports smaller sizes)
+      storage: 1Gi  # Minimum size for Azure Disk
+  storageClassName: managed-csi  # Azure Disk CSI driver (default, more reliable)
