@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: ACR_ENDPOINT/aks-config-api:latest
+        image: acr42d29b3b.azurecr.io/aks-config-api:latest
         imagePullPolicy: Always
         ports:
         - name: http

@@ -39,7 +39,7 @@ show_menu() {
     echo "1. Create Azure Container Registry (ACR)"
     echo "2. Build and push API image to ACR"
     echo "3. Create AKS cluster"
-    echo "4. Deploy API to AKS (Deployment and Service only)"
+    echo "4. Get AKS credentials for kubectl"
     echo "5. Check deployment status"
     echo "6. Exit"
     echo "====================================================================="
@@ -70,8 +70,10 @@ create_acr() {
             --sku Basic \
             --admin-enabled true > /dev/null 2>&1
         echo "ACR created: $acr_name"
+        echo "ACR endpoint: $acr_name.azurecr.io"
     else
         echo "ACR already exists: $acr_name"
+        echo "ACR endpoint: $acr_name.azurecr.io"
     fi
 }
 
@@ -140,21 +142,29 @@ create_aks_cluster() {
 
         echo "✓ AKS cluster creation completed: $aks_cluster"
         echo "  Deployment time: ${minutes}m ${seconds}s"
+
+        # Assign Storage Account Contributor role to kubelet identity for Azure Files support
+        echo "Configuring storage permissions for Azure Files..."
+        local kubelet_id=$(az aks show --resource-group $rg --name $aks_cluster --query "identityProfile.kubeletidentity.clientId" -o tsv)
+        local node_rg=$(az aks show --resource-group $rg --name $aks_cluster --query "nodeResourceGroup" -o tsv)
+
+        az role assignment create \
+            --role "Storage Account Contributor" \
+            --assignee "$kubelet_id" \
+            --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$node_rg" > /dev/null 2>&1
+
+        echo "✓ Storage permissions configured"
     else
         echo "AKS cluster already exists: $aks_cluster"
     fi
 }
 
-# Function to deploy to AKS
-deploy_to_aks() {
-    echo "Deploying API to AKS..."
-    echo ""
-    echo "NOTE: This script only deploys the Deployment and Service."
-    echo "Students should manually create ConfigMap, Secrets, and PVC first."
+# Function to get AKS credentials
+get_aks_credentials() {
+    echo "Getting AKS credentials for kubectl..."
     echo ""
 
     # Get AKS credentials
-    echo "Getting AKS credentials..."
     az aks get-credentials \
         --resource-group "$rg" \
         --name "$aks_cluster" \
@@ -166,105 +176,14 @@ deploy_to_aks() {
     fi
     echo "✓ AKS credentials configured"
     echo ""
-
-    # Verify required Kubernetes resources exist
-    echo "Verifying required Kubernetes resources..."
-
-    # Check ConfigMap
-    if ! kubectl get configmap api-config -n default &> /dev/null; then
-        echo "⚠ Warning: ConfigMap 'api-config' not found. Please create it first."
-        echo "  Use: kubectl apply -f k8s/configmap.yaml"
-    else
-        echo "✓ ConfigMap 'api-config' found"
-    fi
-
-    # Check Secrets
-    if ! kubectl get secret api-secrets -n default &> /dev/null; then
-        echo "⚠ Warning: Secret 'api-secrets' not found. Please create it first."
-        echo "  Use: kubectl apply -f k8s/secrets.yaml"
-    else
-        echo "✓ Secret 'api-secrets' found"
-    fi
-
-    # Check PVC
-    if ! kubectl get pvc api-logs-pvc -n default &> /dev/null; then
-        echo "⚠ Warning: PersistentVolumeClaim 'api-logs-pvc' not found. Please create it first."
-        echo "  Use: kubectl apply -f k8s/pvc.yaml"
-    else
-        echo "✓ PersistentVolumeClaim 'api-logs-pvc' found"
-    fi
-
+    echo "You can now use kubectl to interact with your AKS cluster."
     echo ""
-    read -p "Continue with deployment? (yes/no): " confirm
-    if [ "$confirm" != "yes" ]; then
-        echo "Deployment cancelled."
-        return 0
-    fi
-    echo ""
-
-    # Update the deployment.yaml with the correct ACR endpoint
-    echo "Deploying Kubernetes manifests..."
-    sed "s|ACR_ENDPOINT|${acr_name}.azurecr.io|g" k8s/deployment.yaml | kubectl apply -f - -n default 2>&1 > /dev/null
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to apply deployment manifest."
-        return 1
-    fi
-
-    echo "✓ Deployment manifest applied with ACR endpoint: ${acr_name}.azurecr.io"
-
-    # Apply the service manifest
-    kubectl apply -f k8s/service.yaml -n default 2>&1 > /dev/null
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to apply service manifest."
-        return 1
-    fi
-
-    echo "✓ Service manifest applied"
-    echo ""
-
-    # Wait for LoadBalancer service to get external IP
-    echo "Waiting for LoadBalancer external IP (this may take a few minutes)..."
-    local max_attempts=60
-    local attempt=0
-    local external_ip=""
-
-    while [ $attempt -lt $max_attempts ]; do
-        external_ip=$(kubectl get svc aks-config-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' -n default 2>/dev/null)
-        if [ ! -z "$external_ip" ] && [[ "$external_ip" != "10."* ]]; then
-            break
-        fi
-        attempt=$((attempt + 1))
-        sleep 2
-    done
-
-    if [ -z "$external_ip" ]; then
-        echo "Error: Could not obtain external IP for the service."
-        echo "You can check the service status manually with: kubectl get svc aks-config-api-service"
-        return 1
-    fi
-
-    echo "✓ External IP obtained: $external_ip"
-    echo ""
-
-    # Update client/.env with the API endpoint
-    echo "Updating client/.env with API endpoint..."
-    cat > client/.env << EOF
-# API Endpoint for AKS-deployed service
-API_ENDPOINT=http://$external_ip
-EOF
-    echo "✓ client/.env updated"
-    echo ""
-    echo "=========================================="
-    echo "Deployment completed successfully!"
-    echo "=========================================="
-    echo "API Endpoint: http://$external_ip"
-    echo ""
-    echo "Next steps:"
-    echo "1. Run the client to test the API:"
-    echo "   python client/main.py"
-    echo "=========================================="
+    echo "Example commands:"
+    echo "  kubectl get nodes"
+    echo "  kubectl get pods -n default"
+    echo "  kubectl apply -f k8s/configmap.yaml"
+    echo "  kubectl apply -f k8s/secrets.yaml"
+    echo "  kubectl apply -f k8s/pvc.yaml"
 }
 
 # Function to check deployment status
@@ -372,7 +291,7 @@ while true; do
             ;;
         4)
             echo ""
-            deploy_to_aks
+            get_aks_credentials
             echo ""
             read -p "Press Enter to continue..."
             ;;
