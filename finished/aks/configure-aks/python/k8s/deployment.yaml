@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: aks-config-api
   labels:
-    app: aks-config-api
+    app: aks-config-api # Label for the AKS configuration API
     version: v1
 spec:
   replicas: 1
@@ -26,12 +26,12 @@ spec:
           containerPort: 8000
           protocol: TCP
 
-        # Environment variables from ConfigMap
+        # Inject environment variables from ConfigMap
         envFrom:
         - configMapRef:
             name: api-config
 
-        # Environment variables from Secrets
+        # Inject environment variables from Secrets
         env:
         - name: SECRET_ENDPOINT
           valueFrom:
@@ -44,7 +44,7 @@ spec:
               name: api-secrets
               key: secret-access-key
 
-        # Volume mount for persistent logs
+        # Attach persistent volume for logs
         volumeMounts:
         - name: log-storage
           mountPath: /var/log/api
@@ -80,6 +80,6 @@ spec:
 
       # Volume definition for persistent storage
       volumes:
-      - name: log-storage
+      - name: log-storage # Volume for API logs
         persistentVolumeClaim:
-          claimName: api-logs-pvc
+          claimName: api-logs-pvc # PVC for API logs

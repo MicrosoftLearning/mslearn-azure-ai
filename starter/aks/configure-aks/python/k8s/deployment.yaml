@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: aks-config-api
   labels:
-    app: aks-config-api
+    app: aks-config-api # Label for the AKS configuration API
     version: v1
 spec:
   replicas: 1
@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: acr42d29b3b.azurecr.io/aks-config-api:latest
+        image: <ACR_ENDPOINT>/aks-config-api:latest
         imagePullPolicy: Always
         ports:
         - name: http
@@ -80,6 +80,6 @@ spec:
 
       # Volume definition for persistent storage
       volumes:
-      - name: log-storage
+      - name: log-storage # Volume for API logs
         persistentVolumeClaim:
-          claimName: api-logs-pvc
+          claimName: api-logs-pvc # PVC for API logs
