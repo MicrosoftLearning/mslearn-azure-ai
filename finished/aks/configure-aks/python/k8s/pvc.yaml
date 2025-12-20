@@ -10,4 +10,5 @@ spec:
   resources:
     requests:
       storage: 1Gi  # Minimum size for Azure Disk
-  storageClassName: managed-csi  # Azure Disk CSI driver (default, more reliable)
+  storageClassName: managed-csi  # Azure Disk CSI driver (default)
+  volumeMode: Filesystem  # Default mode
