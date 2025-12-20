@@ -20,6 +20,11 @@
       "source": "starter/aks/deploy-aks/python",
       "output": "downloads/python",
       "name": "aks-deploy-python.zip"
+    },
+    {
+      "source": "starter/aks/configure-aks/python",
+      "output": "downloads/python",
+      "name": "aks-configure-python.zip"
     }
   ]
 }
