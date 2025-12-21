@@ -7,17 +7,18 @@ lab:
 
 # Configure Azure Kubernetes Service
 
-In this exercise, you ...
-
-
-
+In this exercise, you learn how to configure Kubernetes deployments with ConfigMaps for non-sensitive settings, Secrets for sensitive credentials, and PersistentVolumeClaims for persistent storage. You deploy a containerized API to Azure Kubernetes Service (AKS), configure it with various Kubernetes resources, and interact with it using a Python client application.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
-- Deploy resources to Azure
-- ...
-- Run the client app to test the API
+- Deploy resources to Azure (ACR, AKS cluster)
+- Build and push a container image to Azure Container Registry
+- Configure kubectl credentials for AKS cluster access
+- Apply updated YAML files to AKS to create the pod and expose the API with a LoadBalancer
+- Run the client app to test the API endpoints
+- View API logs stored on persistent volume
+- Clean up Azure resources
 
 This exercise takes approximately **30-40** minutes to complete.
 
@@ -84,6 +85,8 @@ In this section you download the starter files for the console app and use a scr
 
 ### Deploy resources to Azure
 
+With the deployment script running, follow these steps to create the needed resources in Azure.
+
 1. After the model is deployed, enter **1** to launch **Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
 
     When the operation is complete it will return the ACR endpoint. Copy the information, you need it later in the exercise.
@@ -106,6 +109,7 @@ In this section you complete YAML files, located in the *k8s* folder, needed to 
 
 ### Complete the ConfigMap YAML file
 
+ConfigMaps store non-sensitive configuration data as key-value pairs that can be consumed by pods. In this section, you create a ConfigMap to store application settings like the student name, API version, and log path.
 
 1. Open the *k8s/configmap.yaml* file and add the following code to the file. You can update the value for **STUDENT_NAME** with your name if you want to.
 
@@ -127,7 +131,7 @@ In this section you complete YAML files, located in the *k8s* folder, needed to 
 
 ### Complete the Secrets YAML file
 
-
+Secrets store sensitive information like passwords, tokens, and keys in a base64-encoded format. In this section, you create a Secret to store sensitive credentials that the API will access at runtime.
 
 1. Open the *k8s/secrets.yaml* file and add the following code to the file.
 
@@ -148,6 +152,8 @@ In this section you complete YAML files, located in the *k8s* folder, needed to 
 1. Take a few minutes to review the comments in the code, then save your changes.
 
 ### Complete the PVC YAML file
+
+A PersistentVolumeClaim (PVC) requests storage resources from Azure that can be mounted to pods. In this section, you create a PVC that uses Azure Disk storage to persist API log files across pod restarts.
 
 1. Open the *k8s/pvc.yaml* file and add the following code to the file.
 
@@ -171,6 +177,8 @@ In this section you complete YAML files, located in the *k8s* folder, needed to 
 1. Take a few minutes to review the comments in the code, then save your changes.
 
 ### Update the Deployment YAML file
+
+The deployment manifest is already partially configured with environment variables, volume mounts, and probes. You just need to update the container image reference with your specific ACR endpoint.
 
 1. Open the *k8s/deployment.yaml* file and locate the **image: \<YOUR_ACR_ENDPOINT>/aks-config-api:latest** line.
 
@@ -258,7 +266,7 @@ In this section, you create the Python environment and install the dependencies.
 
 ### Perform operations with the app
 
-Now it's time to run the client application to perform various operations on the API. The API is logging the operations to the persistent volume. The app provides a menu-driven interface.
+With the Python environment configured and dependencies installed, you can now run the client application to test the deployed API. The API logs all operations to the persistent volume, and the client provides a menu-driven interface to interact with various endpoints.
 
 1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
