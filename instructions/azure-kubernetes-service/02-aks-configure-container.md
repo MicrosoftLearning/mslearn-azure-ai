@@ -215,18 +215,17 @@ In this section you apply the manifests to AKS. The following steps are performe
     kubectl apply -f k8s/deployment.yaml
     ```
 
-
 1. Run the following command to create the Service.
 
     ```
     kubectl apply -f k8s/service.yaml
     ```
 
-1. After you create the Service it can take a few minutes for the deployment to complete. The following command will monitor the service and update the external IP address of the pod when it's available.
+1. After you create the Service it can take a few minutes for the deployment to complete. The following command will monitor the service and update the external IP address of the pod when it's available. Note the external IP address, you need it later in the exercise. Enter **ctrl + c** to exit the command after the IP address appears.
 
-```
-kubectl get svc aks-config-api-service -w
-```
+    ```
+    kubectl get svc aks-config-api-service -w
+    ```
 
 ## Run the client app
 
@@ -264,6 +263,13 @@ In this section, you create the Python environment and install the dependencies.
     pip install -r requirements.txt
     ```
 
+1. Create a *.env* file in the client directory and add the following code. Replace **\<API_IP_address>** with the value you copied earlier in the exercise.
+
+    ```
+    # API endpoint - update this with the external IP from the LoadBalancer service
+    # Get the IP with: kubectl get services
+    API_ENDPOINT=http://<API_IP_address>
+    ```
 ### Perform operations with the app
 
 With the Python environment configured and dependencies installed, you can now run the client application to test the deployed API. The API logs all operations to the persistent volume, and the client provides a menu-driven interface to interact with various endpoints.
@@ -303,7 +309,7 @@ With the Python environment configured and dependencies installed, you can now r
 
 1. Enter **5** to start the **List All Products** option. This displays the mock data included in the API.
 
-1. Now that the API has logged operations for several different endpoints, it's time to view the logs. Enter **6** to start the **View Log Summary** option and see a summary of the different operations. Note the total number of requests, and the requests to the **/readyz** and **/healthz** endpoints. Those operations are executing automatically based on the schedule set in the *deployment.yaml* file.
+1. Now that the API has logged operations for several different endpoints, it's time to view the logs. Enter **6** to start the **View Log Summary** option and see a summary of the different operations. Note the total number of requests, and the requests to the **/readyz** and **/healthz** endpoints. Those two operations are executing automatically based on the schedule set in the *deployment.yaml* file.
 
     ```
     ✓ Log summary retrieved
@@ -348,30 +354,24 @@ If you encounter issues while completing this exercise, try the following troubl
   - Kubernetes resources (ConfigMap, Secrets, PVC, Deployment availability, Service LoadBalancer IP)
 - Use this output to identify which component may be causing issues.
 
-**Verify Azure resource deployment**
-- Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
-- Confirm that the Microsoft Foundry resource shows a **Provisioning State** of **Succeeded** and the **gpt-4o-mini** model is deployed.
-- Verify the Azure Container Registry (ACR) exists and contains the **aks-api** image.
-- Check that the AKS cluster is in a **Succeeded** state and the nodes are running.
-
-**Verify AKS deployment status**
-- Run **kubectl get pods** to check if the API pods are running. Look for **Running** status.
-- Run **kubectl get svc** to verify the LoadBalancer service has an external IP assigned (not **\<pending>**).
-- Run **kubectl describe pod \<pod-name>** to see detailed pod status and events if issues occur.
-- Check pod logs with **kubectl logs \<pod-name>** to see container startup errors or runtime issues.
-
 **Verify YAML file completeness**
-- Ensure all YAML sections were added correctly to *deployment.yaml* and *service.yaml* between the appropriate comment markers.
-- Verify YAML indentation is correct (use spaces, not tabs) as incorrect indentation will cause deployment failures.
-- Confirm the ACR endpoint was properly substituted in the deployment manifest by the deployment script.
+- Ensure all YAML content was added correctly to *configmap.yaml*, *secrets.yaml*, and *pvc.yaml* and that indentation is correct.
+- Confirm the ACR endpoint was properly updated in *deployment.yaml* (replace **\<YOUR_ACR_ENDPOINT>** with your actual ACR endpoint).
+- If you make changes to any YAML file after initial deployment, reapply the file with **kubectl apply -f k8s/\<filename>.yaml**.
+- After updating ConfigMap or Secret files, perform a rolling restart to reload the configuration: **kubectl rollout restart deployment aks-config-api**.
 
 **Verify client configuration**
-- Check that the *.env* file exists in the *client* folder and contains a valid **API_ENDPOINT** value.
-- Ensure the API endpoint uses the correct external IP from the LoadBalancer service.
+- Ensure you've created a *.env* file in the *client* folder with **API_ENDPOINT** set to the LoadBalancer's external IP (for example, **http://20.xxx.xxx.xxx**).
 - Verify you can reach the API endpoint by running **curl http://\<external-ip>/healthz** from the terminal.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the client app.
 - Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
 - Ensure you're running the client from the *client* directory.
+
+**Troubleshoot API functionality issues**
+- If the health check fails, verify the API container started successfully with **kubectl logs \<pod-name>**.
+- If secrets aren't loading, verify the Secret exists and the deployment manifest maps the secret keys correctly to environment variables.
+- If log viewing fails, verify the PVC is mounted and the API has write permissions to the log directory.
+- Run **kubectl exec -it \<pod-name> -- ls -la /var/log/api** to verify log files are being created in the persistent volume.
 
