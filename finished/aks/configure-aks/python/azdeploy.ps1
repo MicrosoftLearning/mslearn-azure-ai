@@ -75,9 +75,11 @@ function Create-ACR {
             --sku Basic `
             --admin-enabled true 2>&1 | Out-Null
         Write-Host "ACR created: $acrName"
+        Write-Host "ACR endpoint: $acrName.azurecr.io"
     }
     else {
         Write-Host "ACR already exists: $acrName"
+        Write-Host "ACR endpoint: $acrName.azurecr.io"
     }
 
     return $true
