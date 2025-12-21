@@ -7,12 +7,10 @@ lab:
 
 # Configure Azure Kubernetes Service
 
->**NOTE:** This exercise is under construction. &#x1F6A7;
-
 In this exercise, you ...
 
 
->**IMPORTANT:** The persistent storage implementation in this exercise is for demonstration purposes only. For logging, production applications should use a centralized logging solution like Azure Monitor or Application Insights instead of storing logs on persistent volumes. If persistent storage is required, implement log rotation policies to prevent storage from filling up, which can cause container failures and pod evictions.
+
 
 Tasks performed in this exercise:
 
@@ -22,6 +20,8 @@ Tasks performed in this exercise:
 - Run the client app to test the API
 
 This exercise takes approximately **30-40** minutes to complete.
+
+>**IMPORTANT:** The persistent storage implementation in this exercise is for demonstration purposes only. For logging, production applications should use a centralized logging solution like Azure Monitor or Application Insights instead of storing logs on persistent volumes. If persistent storage is required, implement log rotation policies to prevent storage from filling up, which can cause container failures and pod evictions.
 
 ## Before you start
 
@@ -258,7 +258,7 @@ In this section, you create the Python environment and install the dependencies.
 
 ### Perform operations with the app
 
-Now it's time to run the client application to perform various operations on the API. The app provides a menu-driven interface.
+Now it's time to run the client application to perform various operations on the API. The API is logging the operations to the persistent volume. The app provides a menu-driven interface.
 
 1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
@@ -266,12 +266,55 @@ Now it's time to run the client application to perform various operations on the
     python main.py
     ```
 
-1. Enter **1** to start the **1. Check API Health (Liveness)** option. This verifies that the API container is running and responds to health checks, which is the same endpoint used by the Kubernetes liveness probe.
+1. Enter **1** to start the **Check API Health (Liveness)** option. This verifies that the API container is running and responds to health checks, which is the same endpoint used by the Kubernetes liveness probe. Note the information it returns contains the non-sensitive student name set in ConfigMap.
 
-1. Enter **2** to start the **2. Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
+    ```
+    [*] Checking API health...
+    ✓ API is healthy
+      Service: aks-config-api
+      Version: 1.0.0
+      Student: YourNameHere
+    ```
+1. Enter **2** to start the **Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
 
+1. Enter **3** to start the **View Secrets Information** option. This functionality exists only so you can confirm your secrets were set in the pod and is for demonstration purposes only. In the output you can view information about the secrets, the output is masked.
 
-When you're finished enter **5** to exit the app.
+    ```
+    Secret Details:
+
+      secret_endpoint:
+        Loaded: True
+        Value: SecretEndp...
+        Length: 19 characters
+
+      secret_access_key:
+        Loaded: True
+        Value: ***3456
+        Length: 21 characters
+    ```
+
+1. Enter **5** to start the **List All Products** option. This displays the mock data included in the API.
+
+1. Now that the API has logged operations for several different endpoints, it's time to view the logs. Enter **6** to start the **View Log Summary** option and see a summary of the different operations. Note the total number of requests, and the requests to the **/readyz** and **/healthz** endpoints. Those operations are executing automatically based on the schedule set in the *deployment.yaml* file.
+
+    ```
+    ✓ Log summary retrieved
+
+    Log file: /var/log/api/api-requests-2025-12-21.log
+    Total requests: 220
+    Student: YourNameHere
+
+    First request: 2025-12-21T02:19:48.953308
+    Last request: 2025-12-21T02:46:08.952772
+
+    Requests by endpoint:
+      /readyz: 160
+      /healthz: 56
+      /secrets: 1
+      /products: 1
+    ```
+
+1. You can continue to generate log information and when you're finished enter **7** to exit the app.
 
 ## Clean up resources
 
