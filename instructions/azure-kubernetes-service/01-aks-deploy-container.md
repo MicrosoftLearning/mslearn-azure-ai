@@ -89,7 +89,7 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the ACR resource has been created, enter **4** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
 
-1. After the image has been built and pushed to ACR, enter **5** to launch the **5. Create AKS resource** option. This creates the AKS resource configured with a managed identity and gives the service permission to pull images from the ACR resource. This operation can take 5-10 minutes to complete.
+1. After the image has been built and pushed to ACR, enter **5** to launch the **5. Create AKS cluster** option. This creates the AKS resource configured with a managed identity and gives the service permission to pull images from the ACR resource. This operation can take 5-10 minutes to complete.
 
 1. After the AKS resources has been deployed, enter **6** to launch the **6. Check deployment stats** option. This option reports if each of the three resources have been successfully deployed.
 

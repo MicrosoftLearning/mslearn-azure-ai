@@ -41,7 +41,7 @@ function Show-Menu {
     Write-Host "1. Create Azure Container Registry (ACR)"
     Write-Host "2. Build and push API image to ACR"
     Write-Host "3. Create AKS cluster"
-    Write-Host "4. Deploy API to AKS (Deployment and Service only)"
+    Write-Host "4. Get AKS credentials for kubectl"
     Write-Host "5. Check deployment status"
     Write-Host "6. Exit"
     Write-Host "====================================================================="
@@ -150,6 +150,19 @@ function Create-AKSCluster {
 
         Write-Host "✓ AKS cluster creation completed: $aksCluster"
         Write-Host "  Deployment time: ${minutes}m ${seconds}s"
+
+        # Assign Storage Account Contributor role to kubelet identity for Azure Files support
+        Write-Host "Configuring storage permissions for Azure Files..."
+        $kubeletId = az aks show --resource-group $rg --name $aksCluster --query "identityProfile.kubeletidentity.clientId" -o tsv
+        $nodeRg = az aks show --resource-group $rg --name $aksCluster --query "nodeResourceGroup" -o tsv
+        $subscriptionId = az account show --query id -o tsv
+
+        az role assignment create `
+            --role "Storage Account Contributor" `
+            --assignee $kubeletId `
+            --scope "/subscriptions/$subscriptionId/resourceGroups/$nodeRg" 2>&1 | Out-Null
+
+        Write-Host "✓ Storage permissions configured"
     }
     else {
         Write-Host "AKS cluster already exists: $aksCluster"
@@ -158,16 +171,12 @@ function Create-AKSCluster {
     return $true
 }
 
-# Function to deploy to AKS
-function Deploy-ToAKS {
-    Write-Host "Deploying API to AKS..."
-    Write-Host ""
-    Write-Host "NOTE: This script only deploys the Deployment and Service."
-    Write-Host "Students should manually create ConfigMap, Secrets, and PVC first."
+# Function to get AKS credentials
+function Get-AKSCredentials {
+    Write-Host "Getting AKS credentials for kubectl..."
     Write-Host ""
 
     # Get AKS credentials
-    Write-Host "Getting AKS credentials..."
     az aks get-credentials `
         --resource-group $rg `
         --name $aksCluster `
@@ -179,110 +188,14 @@ function Deploy-ToAKS {
     }
     Write-Host "✓ AKS credentials configured"
     Write-Host ""
-
-    # Verify required Kubernetes resources exist
-    Write-Host "Verifying required Kubernetes resources..."
-
-    # Check ConfigMap
-    $configMapCheck = kubectl get configmap api-config -n default 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "⚠ Warning: ConfigMap 'api-config' not found. Please create it first."
-        Write-Host "  Use: kubectl apply -f k8s/configmap.yaml"
-    } else {
-        Write-Host "✓ ConfigMap 'api-config' found"
-    }
-
-    # Check Secrets
-    $secretCheck = kubectl get secret api-secrets -n default 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "⚠ Warning: Secret 'api-secrets' not found. Please create it first."
-        Write-Host "  Use: kubectl apply -f k8s/secrets.yaml"
-    } else {
-        Write-Host "✓ Secret 'api-secrets' found"
-    }
-
-    # Check PVC
-    $pvcCheck = kubectl get pvc api-logs-pvc -n default 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "⚠ Warning: PersistentVolumeClaim 'api-logs-pvc' not found. Please create it first."
-        Write-Host "  Use: kubectl apply -f k8s/pvc.yaml"
-    } else {
-        Write-Host "✓ PersistentVolumeClaim 'api-logs-pvc' found"
-    }
-
+    Write-Host "You can now use kubectl to interact with your AKS cluster."
     Write-Host ""
-    $confirm = Read-Host "Continue with deployment? (yes/no)"
-    if ($confirm -ne "yes") {
-        Write-Host "Deployment cancelled."
-        return $true
-    }
-    Write-Host ""
-
-    # Update the deployment.yaml with the correct ACR endpoint
-    Write-Host "Deploying Kubernetes manifests..."
-    $deploymentContent = Get-Content k8s/deployment.yaml -Raw
-    $deploymentContent = $deploymentContent -replace "ACR_ENDPOINT", "$acrName.azurecr.io"
-    $deploymentContent | kubectl apply -f - -n default 2>&1 | Out-Null
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to apply deployment manifest."
-        return $false
-    }
-
-    Write-Host "✓ Deployment manifest applied with ACR endpoint: $acrName.azurecr.io"
-
-    # Apply the service manifest
-    kubectl apply -f k8s/service.yaml -n default 2>&1 | Out-Null
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to apply service manifest."
-        return $false
-    }
-
-    Write-Host "✓ Service manifest applied"
-    Write-Host ""
-
-    # Wait for LoadBalancer service to get external IP
-    Write-Host "Waiting for LoadBalancer external IP (this may take a few minutes)..."
-    $maxAttempts = 60
-    $attempt = 0
-    $externalIp = ""
-
-    while ($attempt -lt $maxAttempts) {
-        $externalIp = (kubectl get svc aks-config-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' -n default 2>&1) | Where-Object { $_ -notmatch 'Error' -and $_ -notmatch 'not found' } | Select-Object -First 1
-        if (-not [string]::IsNullOrEmpty($externalIp) -and -not $externalIp.StartsWith("10.")) {
-            break
-        }
-        $attempt++
-        Start-Sleep -Seconds 2
-    }
-
-    if ([string]::IsNullOrEmpty($externalIp)) {
-        Write-Host "Error: Could not obtain external IP for the service."
-        Write-Host "You can check the service status manually with: kubectl get svc aks-config-api-service"
-        return $false
-    }
-
-    Write-Host "✓ External IP obtained: $externalIp"
-    Write-Host ""
-
-    # Update client/.env with the API endpoint
-    Write-Host "Updating client/.env with API endpoint..."
-@"
-# API Endpoint for AKS-deployed service
-API_ENDPOINT=http://$externalIp
-"@ | Out-File -FilePath client/.env -Encoding utf8
-    Write-Host "✓ client/.env updated"
-    Write-Host ""
-    Write-Host "=========================================="
-    Write-Host "Deployment completed successfully!"
-    Write-Host "=========================================="
-    Write-Host "API Endpoint: http://$externalIp"
-    Write-Host ""
-    Write-Host "Next steps:"
-    Write-Host "1. Run the client to test the API:"
-    Write-Host "   python client/main.py"
-    Write-Host "=========================================="
+    Write-Host "Example commands:"
+    Write-Host "  kubectl get nodes"
+    Write-Host "  kubectl get pods -n default"
+    Write-Host "  kubectl apply -f k8s/configmap.yaml"
+    Write-Host "  kubectl apply -f k8s/secrets.yaml"
+    Write-Host "  kubectl apply -f k8s/pvc.yaml"
 
     return $true
 }
@@ -397,7 +310,7 @@ while ($true) {
         }
         "4" {
             Write-Host ""
-            Deploy-ToAKS | Out-Null
+            Get-AKSCredentials | Out-Null
             Write-Host ""
             Read-Host "Press Enter to continue"
         }

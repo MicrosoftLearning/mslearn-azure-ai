@@ -3,9 +3,9 @@ kind: ConfigMap
 metadata:
   name: api-config
   labels:
-    app: aks-config-api
+    app: aks-config-api # Label for the AKS configuration API
 data:
-  # Non-sensitive configuration values
-  STUDENT_NAME: "YourNameHere"  # Students should update this with their name
+  # Store non-sensitive configuration values
+  STUDENT_NAME: "YourNameHere"
   API_VERSION: "1.0.0"
-  LOG_PATH: "/var/log/api"
+  LOG_PATH: "/var/log/api" # Path for API logs

@@ -5,15 +5,15 @@ metadata:
   labels:
     app: aks-config-api
   annotations:
-    service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+    service.beta.kubernetes.io/azure-load-balancer-internal: "false"  # Use public load balancer
 spec:
-  type: LoadBalancer
-  selector:
+  type: LoadBalancer  # Expose service externally via Azure Load Balancer
+  selector:  # Route traffic to pods matching these labels
     app: aks-config-api
     version: v1
-  ports:
+  ports:  # Map external port to container port
   - name: http
-    port: 80
-    targetPort: http
+    port: 80  # External port for incoming traffic
+    targetPort: http  # Forward to container's http port (8000)
     protocol: TCP
-  sessionAffinity: None
+  sessionAffinity: None  # Distribute requests across all pods

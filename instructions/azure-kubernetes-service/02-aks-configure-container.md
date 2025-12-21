@@ -9,7 +9,10 @@ lab:
 
 >**NOTE:** This exercise is under construction. &#x1F6A7;
 
-In this exercise, you deploy Azure resources...
+In this exercise, you ...
+
+
+>**IMPORTANT:** The persistent storage implementation in this exercise is for demonstration purposes only. For logging, production applications should use a centralized logging solution like Azure Monitor or Application Insights instead of storing logs on persistent volumes. If persistent storage is required, implement log rotation policies to prevent storage from filling up, which can cause container failures and pod evictions.
 
 Tasks performed in this exercise:
 
@@ -37,7 +40,7 @@ In this section you download the starter files for the console app and use a scr
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
-    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/aks-deploy-python.zip
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/aks-configure-python.zip
     ```
 
 1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
@@ -81,132 +84,141 @@ In this section you download the starter files for the console app and use a scr
 
 ### Deploy resources to Azure
 
-With the deployment script running, follow these steps to create the needed resources in Azure.
+1. After the model is deployed, enter **1** to launch **Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
 
-1. Enter **1** to launch the **1. Provision gpt-4o-mini model in Microsoft Foundry** option. This option creates the resource group if it doesn't already exist, creates the resource in MIcrosoft Foundry, and deploys the **gpt-4o-mini** model to the resource.
+    When the operation is complete it will return the ACR endpoint. Copy the information, you need it later in the exercise.
 
-    > **Important:** If there are errors during the model deployment, enter **2** to launch the **2. Delete/Purge Foundry deployment** option. This will delete the deployment and purge the resource name. Exit the menu, and change the region in the deployment script to one of the other recommended regions. Then restart the deployment script and run the model provisioning option again.
+1. After the ACR resource has been created, enter **2** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
 
-1. After the model is deployed, enter **3** to launch **3. Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
+1. After the image has been built and pushed to ACR, enter **3** to launch the **Create AKS cluster** option. This creates the AKS resource configured with a managed identity, gives the service permission to pull images from the ACR resource, and assigns the needed RBAC role to write to the persistent storage. This operation can take 5-10 minutes to complete.
 
-1. After the ACR resource has been created, enter **4** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
+1. After the AKS cluster deployment has completed, enter **4** to launch the **Get AKS credentials for kubectl** option. This uses the **az aks get-credentials** command to retrieve credentials and configure **kubectl**.
 
-1. After the image has been built and pushed to ACR, enter **5** to launch the **5. Create AKS resource** option. This creates the AKS resource configured with a managed identity and gives the service permission to pull images from the ACR resource. This operation can take 5-10 minutes to complete.
+1. After the credentials have been configured, enter **5** to launch the **Check deployment stats** option. This option reports if each of the resources have been successfully deployed.
 
-1. After the AKS resources has been deployed, enter **6** to launch the **6. Check deployment stats** option. This option reports if each of the three resources have been successfully deployed.
-
-    If all of the services return a **successful** message, enter **8** to exit the deployment script.
+    If all of the services return a **successful** message, enter **6** to exit the deployment script.
 
 Next, you complete the YAML files necessary to deploy the API to AKS.
 
 ## Complete the YAML deployment files and deploy to AKS
 
-In this section you complete both the *deployment.yaml* and *service.yaml* files. The deployment manifest defines how the API container is deployed and managed in AKS, while the service manifest exposes the API to external traffic through a load balancer.
+In this section you complete YAML files, located in the *k8s* folder, needed to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings.
 
-1. Open the *k8s/deployment.yaml* file to begin completing the file.
+### Complete the ConfigMap YAML file
 
-1. Locate the **# BEGIN: Container specification** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
 
-    ```yml
-    containers:  # List of containers to run in the pod
-    - name: api
-      image: ACR_ENDPOINT/aks-api:latest  # Container image from ACR
-      imagePullPolicy: Always  # Always pull the latest image from registry
-      ports:  # Ports exposed by the container
-      - name: http
-        containerPort: 8000
-        protocol: TCP
-    ```
-
-    This section defines the container specification, including which container image to use from ACR, the pull policy, and which port the container exposes for HTTP traffic.
-
-1. Locate the **# BEGIN: Liveness Probe Configuration** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
-
-    ```yml
-    livenessProbe:  # Detects if container is alive or needs restart
-      httpGet:
-        path: /healthz  # Health check endpoint path
-        port: http
-      initialDelaySeconds: 10  # Seconds to wait before first check
-      periodSeconds: 30
-      timeoutSeconds: 5
-      failureThreshold: 3  # Consecutive failures before restarting container
-    ```
-
-    This section configures the liveness probe, which periodically checks if the container is healthy by making HTTP requests to the **/healthz** endpoint. If the probe fails three consecutive times, Kubernetes automatically restarts the container.
-
-1. Locate the **# BEGIN: Resource Limits Configuration** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
-
-    ```yml
-    resources:  # CPU and memory resource specifications
-      requests:  # Minimum resources guaranteed to the container
-        memory: "256Mi"
-        cpu: "250m"
-      limits:  # Maximum resources the container can use
-        memory: "512Mi"
-        cpu: "500m"
-    ```
-
-    This section defines the CPU and memory resources for the container. Requests specify the minimum resources guaranteed, while limits set the maximum resources the container can consume. This helps Kubernetes schedule pods efficiently and prevents resource starvation.
-
-1. Save your changes and take a few minutes to review the completed *deployment.yaml* file.
-
-Next, you update the *service.yaml* file.
-
-1. Open the *k8s/service.yaml* to complete the file.
-
-1. Add the following YAML to the manifest. Ensure YAML indentation is correct.
+1. Open the *k8s/configmap.yaml* file and add the following code to the file. You can update the value for **STUDENT_NAME** with your name if you want to.
 
     ```yml
     apiVersion: v1
-    kind: Service  # Service: exposes pods on a network and provides load balancing
+    kind: ConfigMap
     metadata:
-      name: aks-api-service  # Unique name for the service
+      name: api-config
       labels:
-        app: aks-api # Matches deployment and pod labels
-      annotations:
-        service.beta.kubernetes.io/azure-load-balancer-internal: "false"  # Use public load balancer
-    spec:  # Service specification
-      type: LoadBalancer  # Exposes service externally
-      selector:  # Selects which pods to route traffic to based on labels
-        app: aks-api
-        version: v1
-      ports:  # Port mappings between service and pods
-      - name: http
-        port: 80  # Service port exposed externally
-        targetPort: http  # Pod container port to forward traffic to
-        protocol: TCP
-      sessionAffinity: None  # Client requests not pinned to specific pods
+        app: aks-config-api # Label for the AKS configuration API
+    data:
+      # Store non-sensitive configuration values
+      STUDENT_NAME: "YourNameHere"
+      API_VERSION: "1.0.0"
+      LOG_PATH: "/var/log/api" # Path for API logs
     ```
 
-    This manifest creates a LoadBalancer Service that exposes your API pods externally through an Azure Load Balancer. It routes incoming traffic on port 80 to the container's port 8000, using label selectors to identify which pods should receive traffic.
+1. Review the comments in the code, then save your changes.
 
-1. Save your changes and take a few minutes to review the file.
+### Complete the Secrets YAML file
 
-### Apply the manifests to AKS
 
-In this section you use the deployment script to apply the manifests to AKS.
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Open the *k8s/secrets.yaml* file and add the following code to the file.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
+    ```yml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: api-secrets
+      labels:
+        app: aks-config-api
+    type: Opaque
+    stringData:
+      # Store sensitive credentials as base64-encoded values
+      secret-endpoint: "SecretEndpointValue"
+      secret-access-key: "SecretAccessKey123456"
     ```
 
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
+1. Take a few minutes to review the comments in the code, then save your changes.
+
+### Complete the PVC YAML file
+
+1. Open the *k8s/pvc.yaml* file and add the following code to the file.
+
+    ```yml
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: api-logs-pvc
+      labels:
+        app: aks-config-api # Label for the AKS configuration API
+    spec:
+      accessModes:
+        - ReadWriteOnce  # Allow single pod to mount volume for read/write
+      resources:
+        requests:
+          storage: 1Gi  # Request minimum Azure Disk size
+      storageClassName: managed-csi  # Use Azure Disk CSI driver (default)
+      volumeMode: Filesystem  # Default mode
     ```
 
-1. Enter **7** to launch the **7. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, creates a Kubernetes secret with your Foundry credentials, updates the deployment manifest with your ACR endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **8** to exit the deployment script.
+1. Take a few minutes to review the comments in the code, then save your changes.
 
-1. Run the following commands in the terminal to verify the deployment. Expect **kubectl get deploy,svc** to show the Deployment **READY** as **1/1** (or your replica count) and the Service **EXTERNAL-IP** to have a public IP (not **\<pending>**). The rollout command should print **deployment "aks-api" successfully rolled out** when the update is complete.
+### Update the Deployment YAML file
+
+1. Open the *k8s/deployment.yaml* file and locate the **image: \<YOUR_ACR_ENDPOINT>/aks-config-api:latest** line.
+
+1. Replace **\<YOUR_ACR_ENDPOINT>** with the value you recorded earlier in the exercise.
+
+1. Take a few minutes to review the comments in the code, then save your changes.
+
+
+## Apply the manifests to AKS
+
+In this section you apply the manifests to AKS. The following steps are performed in the VS Code terminal. Ensure you are in the root of the project before running the commands.
+
+1. Run the following command to apply the ConfigMap.
 
     ```
-    kubectl get deploy,svc
-    kubectl rollout status deploy/aks-api
+    kubectl apply -f k8s/configmap.yaml
     ```
+
+1. Run the following command to apply the Secrets.
+
+    ```
+    kubectl apply -f k8s/secrets.yaml
+    ```
+
+1. Run the following command to apply the PersistentVolumeClaim.
+
+    ```
+    kubectl apply -f k8s/pvc.yaml
+    ```
+
+1. Run the following command to apply the Deployment.
+
+    ```
+    kubectl apply -f k8s/deployment.yaml
+    ```
+
+
+1. Run the following command to create the Service.
+
+    ```
+    kubectl apply -f k8s/service.yaml
+    ```
+
+1. After you create the Service it can take a few minutes for the deployment to complete. The following command will monitor the service and update the external IP address of the pod when it's available.
+
+```
+kubectl get svc aks-config-api-service -w
+```
 
 ## Run the client app
 
@@ -258,9 +270,6 @@ Now it's time to run the client application to perform various operations on the
 
 1. Enter **2** to start the **2. Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
 
-1. Enter **3** to start the **3. Send Inference Request** option. This sends a single prompt to the API and receives a complete response from the deployed model. Single inference requests are useful for batch processing, automated tasks, or when you need the entire response at once for further processing.
-
-1. Enter **4** to start the **4. Start Chat Session (Streaming)** option. This starts an interactive chat session where responses from the model are streamed in real-time as they're generated.
 
 When you're finished enter **5** to exit the app.
 
@@ -279,6 +288,14 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 ## Troubleshooting
 
 If you encounter issues while completing this exercise, try the following troubleshooting steps:
+
+**Check deployment status with the deployment script**
+- Run the deployment script and select option **5. Check deployment status** to verify the state of all deployed resources.
+- This command checks:
+  - ACR provisioning state and readiness
+  - AKS cluster provisioning state
+  - Kubernetes resources (ConfigMap, Secrets, PVC, Deployment availability, Service LoadBalancer IP)
+- Use this output to identify which component may be causing issues.
 
 **Verify Azure resource deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
