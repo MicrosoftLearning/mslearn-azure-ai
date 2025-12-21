@@ -145,7 +145,7 @@ In this section you complete YAML files, located in the *k8s* folder, needed to 
       secret-access-key: "SecretAccessKey123456"
     ```
 
-1. Review the comments in the code, then save your changes.
+1. Take a few minutes to review the comments in the code, then save your changes.
 
 ### Complete the PVC YAML file
 
@@ -168,29 +168,57 @@ In this section you complete YAML files, located in the *k8s* folder, needed to 
       volumeMode: Filesystem  # Default mode
     ```
 
-1. Review the comments in the code, then save your changes.
+1. Take a few minutes to review the comments in the code, then save your changes.
 
 ### Update the Deployment YAML file
 
-1. Open the *k8s/deployment.yaml* file and locate the **image: \<YOUR_ACR_ENDPOINT.azurecr.io>/aks-config-api:latest** line.
+1. Open the *k8s/deployment.yaml* file and locate the **image: \<YOUR_ACR_ENDPOINT>/aks-config-api:latest** line.
 
-1. Replace **\<YOUR_ACR_ENDPOINT.azurecr.io>** with the value you recorded earlier in the exercise.
+1. Replace **\<YOUR_ACR_ENDPOINT>** with the value you recorded earlier in the exercise.
 
-1. Review the comments in the code, then save your changes.
+1. Take a few minutes to review the comments in the code, then save your changes.
 
 
 ## Apply the manifests to AKS
 
-In this section you apply the manifests to AKS.
+In this section you apply the manifests to AKS. The following steps are performed in the VS Code terminal. Ensure you are in the root of the project before running the commands.
 
-
-
-1. Run the following commands in the terminal to verify the deployment. Expect **kubectl get deploy,svc** to show the Deployment **READY** as **1/1** (or your replica count) and the Service **EXTERNAL-IP** to have a public IP (not **\<pending>**). The rollout command should print **deployment "aks-api" successfully rolled out** when the update is complete.
+1. Run the following command to apply the ConfigMap.
 
     ```
-    kubectl get deploy,svc
-    kubectl rollout status deploy/aks-api
+    kubectl apply -f k8s/configmap.yaml
     ```
+
+1. Run the following command to apply the Secrets.
+
+    ```
+    kubectl apply -f k8s/secrets.yaml
+    ```
+
+1. Run the following command to apply the PersistentVolumeClaim.
+
+    ```
+    kubectl apply -f k8s/pvc.yaml
+    ```
+
+1. Run the following command to apply the Deployment.
+
+    ```
+    kubectl apply -f k8s/deployment.yaml
+    ```
+
+
+1. Run the following command to create the Service.
+
+    ```
+    kubectl apply -f k8s/service.yaml
+    ```
+
+1. After you create the Service it can take a few minutes for the deployment to complete. The following command will monitor the service and update the external IP address of the pod when it's available.
+
+```
+kubectl get svc aks-config-api-service -w
+```
 
 ## Run the client app
 
@@ -242,9 +270,6 @@ Now it's time to run the client application to perform various operations on the
 
 1. Enter **2** to start the **2. Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
 
-1. Enter **3** to start the **3. Send Inference Request** option. This sends a single prompt to the API and receives a complete response from the deployed model. Single inference requests are useful for batch processing, automated tasks, or when you need the entire response at once for further processing.
-
-1. Enter **4** to start the **4. Start Chat Session (Streaming)** option. This starts an interactive chat session where responses from the model are streamed in real-time as they're generated.
 
 When you're finished enter **5** to exit the app.
 
