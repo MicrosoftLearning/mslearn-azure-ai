@@ -8,11 +8,14 @@ In this exercise, you practice diagnosing and fixing common issues with applicat
 
 In this task, you confirm the application deployed by the setup script is running correctly.
 
-1. Run the deployment script (`azdeploy.sh`) and complete options 1-6 to provision Azure resources and deploy the application. This process takes approximately 10-15 minutes.
+1. Run the deployment script and complete options 1-6 to provision Azure resources and deploy the application. This process takes approximately 10-15 minutes.
+
+    - **Bash (Linux/macOS):** `bash azdeploy.sh`
+    - **PowerShell (Windows/Linux/macOS):** `pwsh azdeploy.ps1`
 
 1. Verify that the pod is running and the Service has endpoints.
 
-    ```bash
+    ```
     kubectl get pods -n aks-troubleshoot
     kubectl get endpoints -n aks-troubleshoot
     ```
@@ -21,15 +24,14 @@ In this task, you confirm the application deployed by the setup script is runnin
 
 1. Test connectivity with port-forward.
 
-    ```bash
+    ```
     kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
 1. In a separate terminal on your workstation, send a test request.
 
-    ```bash
-    curl http://localhost:8080/healthz
-    ```
+    - **Bash/macOS/Linux:** `curl http://localhost:8080/healthz`
+    - **PowerShell:** `Invoke-RestMethod http://localhost:8080/healthz`
 
     You should receive a JSON response with `"status": "healthy"`.
 
@@ -41,13 +43,13 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 
 1. Edit the Deployment to change the pod label from `app: api` to `app: api-v2`.
 
-    ```bash
+    ```
     kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
 
 1. Wait for the new pod to start, then check the Service endpoints.
 
-    ```bash
+    ```
     kubectl get pods --show-labels -n aks-troubleshoot
     kubectl get endpoints api-service -n aks-troubleshoot
     ```
@@ -56,16 +58,18 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 
 1. Compare the Service selector with the pod labels.
 
-    ```bash
-    kubectl describe service api-service -n aks-troubleshoot | grep Selector
+    ```
+    kubectl describe service api-service -n aks-troubleshoot
     kubectl get pods --show-labels -n aks-troubleshoot
     ```
+
+    Look for the `Selector` field in the Service description and compare it to the pod labels.
 
 1. Fix the issue by changing the pod label back to `app: api`, or update the Service selector to match `app: api-v2`.
 
 1. Verify the endpoints are restored.
 
-    ```bash
+    ```
     kubectl get endpoints api-service -n aks-troubleshoot
     ```
 
@@ -75,13 +79,13 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 
 1. Edit the Deployment to remove or rename the required `API_KEY` environment variable.
 
-    ```bash
+    ```
     kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
 
 1. Watch the pod status.
 
-    ```bash
+    ```
     kubectl get pods -n aks-troubleshoot -w
     ```
 
@@ -89,7 +93,7 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 
 1. Check the pod logs for the error message.
 
-    ```bash
+    ```
     kubectl logs <pod-name> -n aks-troubleshoot
     ```
 
@@ -97,7 +101,7 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 
 1. Inspect the pod events for additional context.
 
-    ```bash
+    ```
     kubectl describe pod <pod-name> -n aks-troubleshoot
     ```
 
@@ -105,7 +109,7 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 
 1. Verify the pod returns to `Running` status.
 
-    ```bash
+    ```
     kubectl get pods -n aks-troubleshoot
     ```
 
@@ -115,27 +119,26 @@ When the Service targetPort doesn't match the container's listening port, connec
 
 1. Edit the Service to change `targetPort` from `8000` to `9000`.
 
-    ```bash
+    ```
     kubectl edit service api-service -n aks-troubleshoot
     ```
 
 1. Attempt to connect via port-forward.
 
-    ```bash
+    ```
     kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
 1. In a separate terminal, send a request.
 
-    ```bash
-    curl http://localhost:8080/healthz
-    ```
+    - **Bash/macOS/Linux:** `curl http://localhost:8080/healthz`
+    - **PowerShell:** `Invoke-RestMethod http://localhost:8080/healthz`
 
     The connection is refused, even though the pod shows `Running`.
 
-1. Use `kubectl exec` to test the port from inside the cluster.
+1. Use `kubectl exec` to test the port from inside the container.
 
-    ```bash
+    ```
     kubectl exec -it <pod-name> -n aks-troubleshoot -- wget -qO- http://localhost:8000/healthz
     ```
 
@@ -151,13 +154,13 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 
 1. Edit the Deployment to change the readiness probe path from `/healthz` to `/invalid-path`.
 
-    ```bash
+    ```
     kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
 
 1. Watch the pod status.
 
-    ```bash
+    ```
     kubectl get pods -n aks-troubleshoot
     ```
 
@@ -165,7 +168,7 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 
 1. Check the pod events for probe failures.
 
-    ```bash
+    ```
     kubectl describe pod <pod-name> -n aks-troubleshoot
     ```
 
@@ -173,7 +176,7 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 
 1. Verify the Service has no endpoints.
 
-    ```bash
+    ```
     kubectl get endpoints api-service -n aks-troubleshoot
     ```
 
@@ -181,7 +184,7 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 
 1. Verify the pod becomes ready and endpoints are restored.
 
-    ```bash
+    ```
     kubectl get pods -n aks-troubleshoot
     kubectl get endpoints api-service -n aks-troubleshoot
     ```
@@ -192,21 +195,31 @@ After completing all troubleshooting scenarios, confirm the application is fully
 
 1. Use port-forward to access the Service.
 
-    ```bash
+    ```
     kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
 1. In a separate terminal, test all endpoints.
 
-    ```bash
-    curl http://localhost:8080/healthz
-    curl http://localhost:8080/readyz
-    curl http://localhost:8080/api/info
-    ```
+    - **Bash/macOS/Linux:**
+
+        ```
+        curl http://localhost:8080/healthz
+        curl http://localhost:8080/readyz
+        curl http://localhost:8080/api/info
+        ```
+
+    - **PowerShell:**
+
+        ```powershell
+        Invoke-RestMethod http://localhost:8080/healthz
+        Invoke-RestMethod http://localhost:8080/readyz
+        Invoke-RestMethod http://localhost:8080/api/info
+        ```
 
 1. Check the pod logs to see the requests.
 
-    ```bash
+    ```
     kubectl logs <pod-name> -n aks-troubleshoot
     ```
 

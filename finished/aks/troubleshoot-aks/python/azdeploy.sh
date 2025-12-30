@@ -40,8 +40,8 @@ show_menu() {
     echo "2. Build and push API image to ACR"
     echo "3. Create AKS cluster"
     echo "4. Get AKS credentials for kubectl"
-    echo "5. Check deployment status"
-    echo "6. Deploy application to AKS"
+    echo "5. Deploy application to AKS"
+    echo "6. Check deployment status"
     echo "7. Exit"
     echo "====================================================================="
 }
@@ -143,18 +143,6 @@ create_aks_cluster() {
 
         echo "✓ AKS cluster creation completed: $aks_cluster"
         echo "  Deployment time: ${minutes}m ${seconds}s"
-
-        # Assign Storage Account Contributor role to kubelet identity for Azure Files support
-        echo "Configuring storage permissions for Azure Files..."
-        local kubelet_id=$(az aks show --resource-group $rg --name $aks_cluster --query "identityProfile.kubeletidentity.clientId" -o tsv)
-        local node_rg=$(az aks show --resource-group $rg --name $aks_cluster --query "nodeResourceGroup" -o tsv)
-
-        az role assignment create \
-            --role "Storage Account Contributor" \
-            --assignee "$kubelet_id" \
-            --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$node_rg" > /dev/null 2>&1
-
-        echo "✓ Storage permissions configured"
     else
         echo "AKS cluster already exists: $aks_cluster"
     fi
@@ -245,7 +233,7 @@ check_deployment_status() {
     if [ ! -z "$aks_status" ]; then
         echo "  Status: $aks_status"
         if [ "$aks_status" = "Succeeded" ]; then
-            echo "  ✓ AKS cluster is ready for deployment"
+            echo "  ✓ AKS cluster is ready"
         fi
     else
         echo "  Status: Not found or not ready"
@@ -276,17 +264,17 @@ check_deployment_status() {
         # Check Pods
         echo ""
         echo "  Pods:"
-        kubectl get pods -n aks-troubleshoot -o wide 2>/dev/null || echo "    No pods found"
+        kubectl get pods -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,READY:.status.containerStatuses[0].ready,STATUS:.status.phase" 2>/dev/null | sed 's/^/    /' || echo "    No pods found"
 
         # Check Service
         echo ""
         echo "  Service:"
-        kubectl get svc -n aks-troubleshoot 2>/dev/null || echo "    No services found"
+        kubectl get svc -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,TYPE:.spec.type,CLUSTER-IP:.spec.clusterIP,EXTERNAL-IP:.status.loadBalancer.ingress[0].ip,PORT:.spec.ports[0].port" 2>/dev/null | sed 's/^/    /' || echo "    No services found"
 
         # Check Endpoints
         echo ""
         echo "  Endpoints:"
-        kubectl get endpoints -n aks-troubleshoot 2>/dev/null || echo "    No endpoints found"
+        kubectl get endpoints -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,ENDPOINTS:.subsets[0].addresses[0].ip" 2>/dev/null | sed 's/^/    /' || echo "    No endpoints found"
     fi
 }
 
@@ -324,13 +312,13 @@ while true; do
             ;;
         5)
             echo ""
-            check_deployment_status
+            deploy_to_aks
             echo ""
             read -p "Press Enter to continue..."
             ;;
         6)
             echo ""
-            deploy_to_aks
+            check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
