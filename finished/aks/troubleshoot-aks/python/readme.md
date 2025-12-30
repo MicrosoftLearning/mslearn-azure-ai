@@ -4,49 +4,36 @@ In this exercise, you practice diagnosing and fixing common issues with applicat
 
 **Estimated time:** 30-40 minutes
 
-## Task 1: Deploy the sample application (~5 minutes)
+## Task 1: Verify the deployment (~5 minutes)
 
-In this task, you deploy a working application and verify it's healthy before introducing issues.
+In this task, you confirm the application deployed by the setup script is running correctly.
 
-1. Verify that `kubectl` points to the target AKS cluster.
-
-    ```bash
-    kubectl config current-context
-    ```
-
-1. Create a namespace for the exercise.
-
-    ```bash
-    kubectl create namespace troubleshoot-lab
-    ```
-
-1. Deploy the sample API and Service.
-
-    ```bash
-    kubectl apply -f api-deployment.yaml -n troubleshoot-lab
-    kubectl apply -f api-service.yaml -n troubleshoot-lab
-    ```
+1. Run the deployment script (`azdeploy.sh`) and complete options 1-6 to provision Azure resources and deploy the application. This process takes approximately 10-15 minutes.
 
 1. Verify that the pod is running and the Service has endpoints.
 
     ```bash
-    kubectl get pods -n troubleshoot-lab
-    kubectl get endpoints -n troubleshoot-lab
+    kubectl get pods -n aks-troubleshoot
+    kubectl get endpoints -n aks-troubleshoot
     ```
+
+    You should see one pod in `Running` status and one endpoint listed.
 
 1. Test connectivity with port-forward.
 
     ```bash
-    kubectl port-forward service/api-service 8080:80 -n troubleshoot-lab
+    kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
-1. In a separate terminal, send a test request.
+1. In a separate terminal on your workstation, send a test request.
 
     ```bash
     curl http://localhost:8080/healthz
     ```
 
-You should receive a successful response. Stop the port-forward (Ctrl+C) before continuing.
+    You should receive a JSON response with `"status": "healthy"`.
+
+1. Stop the port-forward (Ctrl+C) before continuing to the troubleshooting tasks.
 
 ## Task 2: Diagnose a label mismatch (~7 minutes)
 
@@ -55,14 +42,14 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 1. Edit the Deployment to change the pod label from `app: api` to `app: api-v2`.
 
     ```bash
-    kubectl edit deployment api-deployment -n troubleshoot-lab
+    kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
 
 1. Wait for the new pod to start, then check the Service endpoints.
 
     ```bash
-    kubectl get pods --show-labels -n troubleshoot-lab
-    kubectl get endpoints api-service -n troubleshoot-lab
+    kubectl get pods --show-labels -n aks-troubleshoot
+    kubectl get endpoints api-service -n aks-troubleshoot
     ```
 
     Notice the endpoints list is empty.
@@ -70,8 +57,8 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 1. Compare the Service selector with the pod labels.
 
     ```bash
-    kubectl describe service api-service -n troubleshoot-lab | grep Selector
-    kubectl get pods --show-labels -n troubleshoot-lab
+    kubectl describe service api-service -n aks-troubleshoot | grep Selector
+    kubectl get pods --show-labels -n aks-troubleshoot
     ```
 
 1. Fix the issue by changing the pod label back to `app: api`, or update the Service selector to match `app: api-v2`.
@@ -79,7 +66,7 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 1. Verify the endpoints are restored.
 
     ```bash
-    kubectl get endpoints api-service -n troubleshoot-lab
+    kubectl get endpoints api-service -n aks-troubleshoot
     ```
 
 ## Task 3: Diagnose a CrashLoopBackOff (~8 minutes)
@@ -89,13 +76,13 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 1. Edit the Deployment to remove or rename the required `API_KEY` environment variable.
 
     ```bash
-    kubectl edit deployment api-deployment -n troubleshoot-lab
+    kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
 
 1. Watch the pod status.
 
     ```bash
-    kubectl get pods -n troubleshoot-lab -w
+    kubectl get pods -n aks-troubleshoot -w
     ```
 
     After a few moments, the pod enters `CrashLoopBackOff`.
@@ -103,7 +90,7 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 1. Check the pod logs for the error message.
 
     ```bash
-    kubectl logs <pod-name> -n troubleshoot-lab
+    kubectl logs <pod-name> -n aks-troubleshoot
     ```
 
     You should see an error indicating the missing environment variable.
@@ -111,7 +98,7 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 1. Inspect the pod events for additional context.
 
     ```bash
-    kubectl describe pod <pod-name> -n troubleshoot-lab
+    kubectl describe pod <pod-name> -n aks-troubleshoot
     ```
 
 1. Fix the issue by restoring the `API_KEY` environment variable in the Deployment.
@@ -119,7 +106,7 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
 1. Verify the pod returns to `Running` status.
 
     ```bash
-    kubectl get pods -n troubleshoot-lab
+    kubectl get pods -n aks-troubleshoot
     ```
 
 ## Task 4: Diagnose a port mismatch (~7 minutes)
@@ -129,13 +116,13 @@ When the Service targetPort doesn't match the container's listening port, connec
 1. Edit the Service to change `targetPort` from `8000` to `9000`.
 
     ```bash
-    kubectl edit service api-service -n troubleshoot-lab
+    kubectl edit service api-service -n aks-troubleshoot
     ```
 
 1. Attempt to connect via port-forward.
 
     ```bash
-    kubectl port-forward service/api-service 8080:80 -n troubleshoot-lab
+    kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
 1. In a separate terminal, send a request.
@@ -149,7 +136,7 @@ When the Service targetPort doesn't match the container's listening port, connec
 1. Use `kubectl exec` to test the port from inside the cluster.
 
     ```bash
-    kubectl exec -it <pod-name> -n troubleshoot-lab -- wget -qO- http://localhost:8000/healthz
+    kubectl exec -it <pod-name> -n aks-troubleshoot -- wget -qO- http://localhost:8000/healthz
     ```
 
     This works because you're connecting directly to the container's actual port.
@@ -165,13 +152,13 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 1. Edit the Deployment to change the readiness probe path from `/healthz` to `/invalid-path`.
 
     ```bash
-    kubectl edit deployment api-deployment -n troubleshoot-lab
+    kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
 
 1. Watch the pod status.
 
     ```bash
-    kubectl get pods -n troubleshoot-lab
+    kubectl get pods -n aks-troubleshoot
     ```
 
     The pod shows `Running` but `0/1` in the READY column.
@@ -179,7 +166,7 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 1. Check the pod events for probe failures.
 
     ```bash
-    kubectl describe pod <pod-name> -n troubleshoot-lab
+    kubectl describe pod <pod-name> -n aks-troubleshoot
     ```
 
     Look for `Readiness probe failed` in the Events section.
@@ -187,7 +174,7 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 1. Verify the Service has no endpoints.
 
     ```bash
-    kubectl get endpoints api-service -n troubleshoot-lab
+    kubectl get endpoints api-service -n aks-troubleshoot
     ```
 
 1. Fix the readiness probe path back to `/healthz`.
@@ -195,8 +182,8 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 1. Verify the pod becomes ready and endpoints are restored.
 
     ```bash
-    kubectl get pods -n troubleshoot-lab
-    kubectl get endpoints api-service -n troubleshoot-lab
+    kubectl get pods -n aks-troubleshoot
+    kubectl get endpoints api-service -n aks-troubleshoot
     ```
 
 ## Task 6: Verify end-to-end connectivity (~5 minutes)
@@ -206,7 +193,7 @@ After completing all troubleshooting scenarios, confirm the application is fully
 1. Use port-forward to access the Service.
 
     ```bash
-    kubectl port-forward service/api-service 8080:80 -n troubleshoot-lab
+    kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
 1. In a separate terminal, test all endpoints.
@@ -220,7 +207,7 @@ After completing all troubleshooting scenarios, confirm the application is fully
 1. Check the pod logs to see the requests.
 
     ```bash
-    kubectl logs <pod-name> -n troubleshoot-lab
+    kubectl logs <pod-name> -n aks-troubleshoot
     ```
 
 ## Summary
