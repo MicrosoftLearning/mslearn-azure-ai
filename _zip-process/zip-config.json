@@ -25,6 +25,11 @@
       "source": "starter/aks/configure-aks/python",
       "output": "downloads/python",
       "name": "aks-configure-python.zip"
+    },
+    {
+      "source": "starter/aks/troubleshoot-aks/python",
+      "output": "downloads/python",
+      "name": "aks-troubleshoot-python.zip"
     }
   ]
 }
