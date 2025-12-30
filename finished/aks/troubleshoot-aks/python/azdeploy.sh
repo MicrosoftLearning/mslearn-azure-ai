@@ -21,139 +21,28 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
-foundry_resource="foundry-resource-${user_hash}"
 acr_name="acr${user_hash}"
 aks_cluster="aks-${user_hash}"
-api_image_name="aks-api"
+api_image_name="aks-config-api"
 
 # Function to display menu
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    AKS Deployment with Foundry Model Integration"
+    echo "    AKS Configuration Exercise - Deployment Script"
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
-    echo "Foundry Resource: $foundry_resource"
     echo "ACR Name: $acr_name"
     echo "AKS Cluster: $aks_cluster"
     echo "====================================================================="
-    echo "1. Provision gpt-4o-mini model in Microsoft Foundry"
-    echo "2. Delete/Purge Foundry deployment"
-    echo "3. Create Azure Container Registry (ACR)"
-    echo "4. Build and push API image to ACR"
-    echo "5. Create AKS cluster"
-    echo "6. Check deployment status"
-    echo "7. Deploy to AKS"
-    echo "8. Exit"
+    echo "1. Create Azure Container Registry (ACR)"
+    echo "2. Build and push API image to ACR"
+    echo "3. Create AKS cluster"
+    echo "4. Get AKS credentials for kubectl"
+    echo "5. Check deployment status"
+    echo "6. Exit"
     echo "====================================================================="
-}
-
-# Function to provision Microsoft Foundry project and deploy gpt-4o-mini model using Azure CLI
-provision_foundry_resources() {
-    echo "Provisioning Microsoft Foundry project with gpt-4o-mini model..."
-    echo ""
-
-    # Check if we're authenticated with Azure
-    if ! az account show &> /dev/null; then
-        echo "Not authenticated with Azure. Please run: az login"
-        return 1
-    fi
-
-    # Set subscription if specified
-    if [ ! -z "$subscription" ]; then
-        echo "Setting subscription to: $subscription"
-        az account set --subscription "$subscription"
-        if [ $? -ne 0 ]; then
-            echo "Error: Failed to set subscription."
-            return 1
-        fi
-    fi
-
-    # Check if resource group exists, create if needed
-    echo "Checking resource group: $rg"
-    if ! az group exists --name "$rg" | grep -q "true"; then
-        echo "Creating resource group: $rg in $location"
-        az group create --name "$rg" --location "$location" > /dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            echo "Error: Failed to create resource group."
-            return 1
-        fi
-    else
-        echo "✓ Resource group already exists"
-    fi
-
-    # Create Foundry resource (AIServices kind)
-    echo ""
-    echo "Checking for existing Microsoft Foundry resource: $foundry_resource"
-
-    local foundry_exists=$(az cognitiveservices account show \
-        --name "$foundry_resource" \
-        --resource-group "$rg" 2>/dev/null)
-
-    if [ -z "$foundry_exists" ]; then
-        echo "Creating Microsoft Foundry resource: $foundry_resource"
-        az cognitiveservices account create \
-            --name "$foundry_resource" \
-            --resource-group "$rg" \
-            --location "$location" \
-            --kind AIServices \
-            --sku s0 \
-            --yes > /dev/null 2>&1
-
-        if [ $? -ne 0 ]; then
-            echo "Error: Failed to create Foundry resource."
-            return 1
-        fi
-        echo "✓ Foundry resource created"
-    else
-        echo "✓ Foundry resource already exists"
-    fi
-
-    # Retrieve endpoint and key for the resource
-    echo ""
-    echo "Retrieving Foundry credentials..."
-    local endpoint=$(az cognitiveservices account show \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --query properties.endpoint -o tsv)
-
-    local key=$(az cognitiveservices account keys list \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --query key1 -o tsv)
-
-    if [ -z "$endpoint" ] || [ -z "$key" ]; then
-        echo "Error: Failed to retrieve endpoint or key."
-        return 1
-    fi
-    echo "✓ Credentials retrieved successfully"
-
-    # Deploy gpt-4o-mini model
-    echo ""
-    echo "Deploying gpt-4o-mini model (this may take a few minutes)..."
-    az cognitiveservices account deployment create \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --deployment-name "gpt-4o-mini" \
-        --model-name "gpt-4o-mini" \
-        --model-version "2024-07-18" \
-        --model-format "OpenAI" \
-        --sku-capacity "1" \
-        --sku-name "Standard" > /dev/null 2>&1
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to deploy model."
-        return 1
-    fi
-    echo "✓ Model deployed successfully"
-
-    echo ""
-    echo "✓ Foundry provisioning complete!"
-    echo ""
-    echo "Foundry Resource Details:"
-    echo "  Resource: $foundry_resource"
-    echo "  Endpoint: $endpoint"
 }
 
 # Function to create resource group if it doesn't exist
@@ -181,8 +70,10 @@ create_acr() {
             --sku Basic \
             --admin-enabled true > /dev/null 2>&1
         echo "ACR created: $acr_name"
+        echo "ACR endpoint: $acr_name.azurecr.io"
     else
         echo "ACR already exists: $acr_name"
+        echo "ACR endpoint: $acr_name.azurecr.io"
     fi
 }
 
@@ -251,18 +142,29 @@ create_aks_cluster() {
 
         echo "✓ AKS cluster creation completed: $aks_cluster"
         echo "  Deployment time: ${minutes}m ${seconds}s"
+
+        # Assign Storage Account Contributor role to kubelet identity for Azure Files support
+        echo "Configuring storage permissions for Azure Files..."
+        local kubelet_id=$(az aks show --resource-group $rg --name $aks_cluster --query "identityProfile.kubeletidentity.clientId" -o tsv)
+        local node_rg=$(az aks show --resource-group $rg --name $aks_cluster --query "nodeResourceGroup" -o tsv)
+
+        az role assignment create \
+            --role "Storage Account Contributor" \
+            --assignee "$kubelet_id" \
+            --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$node_rg" > /dev/null 2>&1
+
+        echo "✓ Storage permissions configured"
     else
         echo "AKS cluster already exists: $aks_cluster"
     fi
 }
 
-# Function to deploy to AKS
-deploy_to_aks() {
-    echo "Deploying application to AKS..."
+# Function to get AKS credentials
+get_aks_credentials() {
+    echo "Getting AKS credentials for kubectl..."
     echo ""
 
     # Get AKS credentials
-    echo "Getting AKS credentials..."
     az aks get-credentials \
         --resource-group "$rg" \
         --name "$aks_cluster" \
@@ -274,154 +176,14 @@ deploy_to_aks() {
     fi
     echo "✓ AKS credentials configured"
     echo ""
-
-    # Get Foundry credentials
-    echo "Retrieving Foundry credentials..."
-    local endpoint=$(az cognitiveservices account show \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --query "properties.endpoint" -o tsv 2>/dev/null)
-
-    local key=$(az cognitiveservices account keys list \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --query "key1" -o tsv 2>/dev/null)
-
-    if [ -z "$endpoint" ] || [ -z "$key" ]; then
-        echo "Error: Could not retrieve Foundry credentials."
-        return 1
-    fi
-    echo "✓ Foundry credentials retrieved"
+    echo "You can now use kubectl to interact with your AKS cluster."
     echo ""
-
-    # Create or update the foundry-credentials secret
-    echo "Creating Foundry credentials secret in AKS..."
-    kubectl delete secret foundry-credentials -n default > /dev/null 2>&1
-    local secret_output=$(kubectl create secret generic foundry-credentials \
-        --from-literal=endpoint="$endpoint" \
-        --from-literal=api-key="$key" \
-        -n default 2>&1)
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to create Foundry credentials secret."
-        echo "Details: $secret_output"
-        return 1
-    fi
-    echo "✓ Foundry credentials secret created"
-    echo ""
-
-    # Update the deployment.yaml with the correct ACR endpoint
-    echo "Deploying Kubernetes manifests..."
-    sed "s|ACR_ENDPOINT|${acr_name}.azurecr.io|g" k8s/deployment.yaml | kubectl apply -f - -n default 2>&1 > /dev/null
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to apply deployment manifest."
-        return 1
-    fi
-
-    echo "✓ Deployment manifest updated with ACR endpoint: ${acr_name}.azurecr.io"
-
-    # Apply the service manifest
-    kubectl apply -f k8s/service.yaml -n default 2>&1 > /dev/null
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to apply service manifest."
-        return 1
-    fi
-
-    echo "✓ Service manifest applied"
-    echo ""
-
-    # Wait for LoadBalancer service to get external IP
-    echo "Waiting for LoadBalancer external IP (this may take a few minutes)..."
-    local max_attempts=60
-    local attempt=0
-    local external_ip=""
-
-    while [ $attempt -lt $max_attempts ]; do
-        external_ip=$(kubectl get svc aks-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' -n default 2>/dev/null)
-        if [ ! -z "$external_ip" ] && [[ "$external_ip" != "10."* ]]; then
-            break
-        fi
-        attempt=$((attempt + 1))
-        sleep 2
-    done
-
-    if [ -z "$external_ip" ]; then
-        echo "Error: Could not obtain external IP for the service."
-        echo "You can check the service status manually with: kubectl get svc aks-api-service"
-        return 1
-    fi
-
-    echo "✓ External IP obtained: $external_ip"
-    echo ""
-
-    # Update client/.env with the API endpoint
-    echo "Updating client/.env with API endpoint..."
-    cat > client/.env << EOF
-# API Endpoint for AKS-deployed service
-API_ENDPOINT=http://$external_ip
-EOF
-    echo "✓ client/.env updated"
-    echo ""
-    echo "=========================================="
-    echo "Deployment completed successfully!"
-    echo "=========================================="
-    echo "API Endpoint: http://$external_ip"
-    echo ""
-    echo "Next steps:"
-    echo "1. Run the client to test the API:"
-    echo "   python client/main.py"
-    echo "=========================================="
-}
-
-# Function to delete and purge Foundry resource
-delete_foundry_resource() {
-    echo "Deleting and purging Foundry resource: $foundry_resource"
-    echo ""
-    read -p "Are you sure you want to delete the Foundry resources? (yes/no): " confirm
-
-    if [ "$confirm" != "yes" ]; then
-        echo "Cancelled. Foundry resource was not deleted."
-        return 0
-    fi
-
-    echo ""
-    local exists=$(az cognitiveservices account show \
-        --name "$foundry_resource" \
-        --resource-group "$rg" 2>/dev/null)
-
-    if [ -z "$exists" ]; then
-        echo "Foundry resource does not exist: $foundry_resource"
-        return 0
-    fi
-
-    echo "Deleting Foundry resource..."
-    az cognitiveservices account delete \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --yes > /dev/null 2>&1
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to delete Foundry resource."
-        return 1
-    fi
-
-    echo "✓ Resource deleted"
-    echo ""
-    echo "Purging resource to free up the name..."
-    az cognitiveservices account purge \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --location "$location" > /dev/null 2>&1
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to purge Foundry resource."
-        return 1
-    fi
-
-    echo "✓ Resource purged"
-    echo "The Foundry resource has been deleted and purged."
+    echo "Example commands:"
+    echo "  kubectl get nodes"
+    echo "  kubectl get pods -n default"
+    echo "  kubectl apply -f k8s/configmap.yaml"
+    echo "  kubectl apply -f k8s/secrets.yaml"
+    echo "  kubectl apply -f k8s/pvc.yaml"
 }
 
 # Function to check deployment status
@@ -429,29 +191,14 @@ check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
 
-    # Check Foundry model deployment
-    echo "Foundry Model Deployment (gpt-4o-mini):"
-    foundry_deployment_status=$(az cognitiveservices account deployment show \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --deployment-name "gpt-4o-mini" \
-        --query "properties.provisioningState" -o tsv 2>/dev/null)
-
-    if [ ! -z "$foundry_deployment_status" ]; then
-        echo "  Status: $foundry_deployment_status"
-        if [ "$foundry_deployment_status" = "Succeeded" ]; then
-            echo "  ✓ Model deployed and ready"
-        fi
-    else
-        echo "  Status: Not found or not deployed"
-    fi
-
     # Check ACR
-    echo ""
     echo "Azure Container Registry ($acr_name):"
     acr_status=$(az acr show --resource-group $rg --name $acr_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ ! -z "$acr_status" ]; then
         echo "  Status: $acr_status"
+        if [ "$acr_status" = "Succeeded" ]; then
+            echo "  ✓ ACR is ready"
+        fi
     else
         echo "  Status: Not found or not ready"
     fi
@@ -468,27 +215,61 @@ check_deployment_status() {
     else
         echo "  Status: Not found or not ready"
     fi
+
+    # Check Kubernetes resources if AKS credentials are available
+    if kubectl cluster-info &> /dev/null; then
+        echo ""
+        echo "Kubernetes Resources:"
+
+        # Check ConfigMap
+        configmap_status=$(kubectl get configmap api-config -n default -o jsonpath='{.metadata.name}' 2>/dev/null)
+        if [ ! -z "$configmap_status" ]; then
+            echo "  ConfigMap: ✓ Created"
+        else
+            echo "  ConfigMap: Not created"
+        fi
+
+        # Check Secret
+        secret_status=$(kubectl get secret api-secrets -n default -o jsonpath='{.metadata.name}' 2>/dev/null)
+        if [ ! -z "$secret_status" ]; then
+            echo "  Secrets: ✓ Created"
+        else
+            echo "  Secrets: Not created"
+        fi
+
+        # Check PVC
+        pvc_status=$(kubectl get pvc api-logs-pvc -n default -o jsonpath='{.status.phase}' 2>/dev/null)
+        if [ ! -z "$pvc_status" ]; then
+            echo "  PVC: $pvc_status"
+        else
+            echo "  PVC: Not created"
+        fi
+
+        # Check Deployment
+        deployment_status=$(kubectl get deployment aks-config-api -n default -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)
+        if [ "$deployment_status" = "True" ]; then
+            echo "  Deployment: ✓ Available"
+        else
+            echo "  Deployment: Not available"
+        fi
+
+        # Check Service
+        service_ip=$(kubectl get svc aks-config-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+        if [ ! -z "$service_ip" ]; then
+            echo "  Service: ✓ Exposed at $service_ip"
+        else
+            echo "  Service: LoadBalancer IP pending or not created"
+        fi
+    fi
 }
 
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-8): " choice
+    read -p "Please select an option (1-6): " choice
 
     case $choice in
         1)
-            echo ""
-            provision_foundry_resources
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        2)
-            echo ""
-            delete_foundry_resource
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        3)
             echo ""
             create_resource_group
             echo ""
@@ -496,37 +277,37 @@ while true; do
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        4)
+        2)
             echo ""
             build_and_push_image
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        5)
+        3)
             echo ""
             create_aks_cluster
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        6)
+        4)
+            echo ""
+            get_aks_credentials
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        5)
             echo ""
             check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        7)
-            echo ""
-            deploy_to_aks
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        8)
+        6)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
-            echo "Invalid option. Please select 1-8."
+            echo "Invalid option. Please select 1-6."
             read -p "Press Enter to continue..."
             ;;
     esac

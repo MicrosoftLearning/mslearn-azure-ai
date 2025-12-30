@@ -1,87 +1,237 @@
 # Troubleshoot an app in AKS
 
-## Task 1: Prepare the AKS environment
+In this exercise, you practice diagnosing and fixing common issues with applications running on Azure Kubernetes Service. You deploy a mock API, intentionally break it in several ways, and use `kubectl` commands to identify and resolve each problem.
 
-In this task, you confirm that you are connected to the correct cluster and create a namespace for the exercise.
+**Estimated time:** 30-40 minutes
+
+## Task 1: Deploy the sample application (~5 minutes)
+
+In this task, you deploy a working application and verify it's healthy before introducing issues.
 
 1. Verify that `kubectl` points to the target AKS cluster.
-2. Create a namespace for AI workloads.
 
-Example commands:
+    ```bash
+    kubectl config current-context
+    ```
 
-```bash
-kubectl config current-context
-kubectl create namespace ai-workloads
-kubectl get namespaces
-```
+1. Create a namespace for the exercise.
 
-You should see the new namespace in the list.
+    ```bash
+    kubectl create namespace troubleshoot-lab
+    ```
 
-## Task 2: Deploy the sample AI application
+1. Deploy the sample API and Service.
 
-Next, you deploy a simple HTTP API that simulates an AI inference service. The application exposes an endpoint that returns a fixed response or echoes back input.
+    ```bash
+    kubectl apply -f api-deployment.yaml -n troubleshoot-lab
+    kubectl apply -f api-service.yaml -n troubleshoot-lab
+    ```
 
-1. Create a Deployment manifest file for the sample API.
-2. Apply the manifest to the `ai-workloads` namespace.
-3. Create a Service that exposes the Deployment inside the cluster.
+1. Verify that the pod is running and the Service has endpoints.
 
-Example commands:
+    ```bash
+    kubectl get pods -n troubleshoot-lab
+    kubectl get endpoints -n troubleshoot-lab
+    ```
 
-```bash
-kubectl apply -f inference-deployment.yaml -n ai-workloads
-kubectl apply -f inference-service.yaml -n ai-workloads
-kubectl get pods -n ai-workloads
-kubectl get service -n ai-workloads
-```
+1. Test connectivity with port-forward.
 
-You confirm that pods move to the Running state and the Service appears.
+    ```bash
+    kubectl port-forward service/api-service 8080:80 -n troubleshoot-lab
+    ```
 
-## Task 3: Monitor logs and metrics
+1. In a separate terminal, send a test request.
 
-With the application running, you monitor its behavior.
+    ```bash
+    curl http://localhost:8080/healthz
+    ```
 
-1. Use `kubectl logs` to observe startup messages and request handling.
-2. Send test requests to generate activity.
-3. Use `kubectl top` to inspect resource usage if metrics are available.
+You should receive a successful response. Stop the port-forward (Ctrl+C) before continuing.
 
-Example commands:
+## Task 2: Diagnose a label mismatch (~7 minutes)
 
-```bash
-kubectl logs <pod-name> -n ai-workloads
-kubectl logs -f <pod-name> -n ai-workloads
-kubectl top pods -n ai-workloads
-```
+A Service routes traffic to pods based on label selectors. When labels don't match, the Service has no endpoints and requests fail.
 
-You look for error messages or warnings in logs and note whether CPU or memory usage appears normal for the workload. If `kubectl top` reports that metrics are unavailable, your cluster might not have the metrics server or AKS monitoring features enabled, so you focus on logs and other signals instead.
+1. Edit the Deployment to change the pod label from `app: api` to `app: api-v2`.
 
-## Task 4: Troubleshoot a simulated issue
+    ```bash
+    kubectl edit deployment api-deployment -n troubleshoot-lab
+    ```
 
-Now you introduce a configuration issue and use troubleshooting techniques to find and fix it.
+1. Wait for the new pod to start, then check the Service endpoints.
 
-1. Update the Deployment manifest to include an incorrect environment variable or label.
-2. Reapply the manifest so the cluster picks up the change.
-3. Observe the impact on pods and Services.
+    ```bash
+    kubectl get pods --show-labels -n troubleshoot-lab
+    kubectl get endpoints api-service -n troubleshoot-lab
+    ```
 
-You might see pods enter `CrashLoopBackOff` or a Service with no endpoints. You then:
+    Notice the endpoints list is empty.
 
-- Use `kubectl describe pod` to inspect events and environment variables
-- Use `kubectl describe service` and `kubectl get endpoints` to check label selectors
-- Use `kubectl exec` to open a shell in a container and confirm configuration
+1. Compare the Service selector with the pod labels.
 
-After you identify the root cause, you correct the manifest and reapply it. You confirm that pods return to a healthy state and that the Service routes traffic again.
+    ```bash
+    kubectl describe service api-service -n troubleshoot-lab | grep Selector
+    kubectl get pods --show-labels -n troubleshoot-lab
+    ```
 
-## Task 5: Verify connectivity end-to-end
+1. Fix the issue by changing the pod label back to `app: api`, or update the Service selector to match `app: api-v2`.
 
-Finally, you verify that clients can reach the AI endpoint.
+1. Verify the endpoints are restored.
 
-1. Use `kubectl port-forward` to send requests from your workstation to the Service.
-2. Optionally, configure or inspect a LoadBalancer Service or ingress rule and test from outside the cluster.
+    ```bash
+    kubectl get endpoints api-service -n troubleshoot-lab
+    ```
 
-Example commands:
+## Task 3: Diagnose a CrashLoopBackOff (~8 minutes)
 
-```bash
-kubectl port-forward service/inference-api 8080:80 -n ai-workloads
-curl http://localhost:8080/api/inference
-```
+When a container fails to start, Kubernetes repeatedly restarts it, resulting in `CrashLoopBackOff` status. Reading logs reveals why the application crashed.
 
-You look for successful responses and correlate them with logs and metrics. At the end of the exercise, you have practiced a complete loop of deploying, monitoring, troubleshooting, and verifying an AI application on AKS.
+1. Edit the Deployment to remove or rename the required `API_KEY` environment variable.
+
+    ```bash
+    kubectl edit deployment api-deployment -n troubleshoot-lab
+    ```
+
+1. Watch the pod status.
+
+    ```bash
+    kubectl get pods -n troubleshoot-lab -w
+    ```
+
+    After a few moments, the pod enters `CrashLoopBackOff`.
+
+1. Check the pod logs for the error message.
+
+    ```bash
+    kubectl logs <pod-name> -n troubleshoot-lab
+    ```
+
+    You should see an error indicating the missing environment variable.
+
+1. Inspect the pod events for additional context.
+
+    ```bash
+    kubectl describe pod <pod-name> -n troubleshoot-lab
+    ```
+
+1. Fix the issue by restoring the `API_KEY` environment variable in the Deployment.
+
+1. Verify the pod returns to `Running` status.
+
+    ```bash
+    kubectl get pods -n troubleshoot-lab
+    ```
+
+## Task 4: Diagnose a port mismatch (~7 minutes)
+
+When the Service targetPort doesn't match the container's listening port, connections are refused even though the pod is running.
+
+1. Edit the Service to change `targetPort` from `8000` to `9000`.
+
+    ```bash
+    kubectl edit service api-service -n troubleshoot-lab
+    ```
+
+1. Attempt to connect via port-forward.
+
+    ```bash
+    kubectl port-forward service/api-service 8080:80 -n troubleshoot-lab
+    ```
+
+1. In a separate terminal, send a request.
+
+    ```bash
+    curl http://localhost:8080/healthz
+    ```
+
+    The connection is refused, even though the pod shows `Running`.
+
+1. Use `kubectl exec` to test the port from inside the cluster.
+
+    ```bash
+    kubectl exec -it <pod-name> -n troubleshoot-lab -- wget -qO- http://localhost:8000/healthz
+    ```
+
+    This works because you're connecting directly to the container's actual port.
+
+1. Fix the Service by setting `targetPort` back to `8000`.
+
+1. Test again with port-forward to confirm connectivity is restored.
+
+## Task 5: Diagnose a readiness probe failure (~8 minutes)
+
+When a readiness probe fails, the pod shows `Running` but `0/1` containers are ready. Kubernetes removes the pod from the Service endpoints, so no traffic is routed to it.
+
+1. Edit the Deployment to change the readiness probe path from `/healthz` to `/invalid-path`.
+
+    ```bash
+    kubectl edit deployment api-deployment -n troubleshoot-lab
+    ```
+
+1. Watch the pod status.
+
+    ```bash
+    kubectl get pods -n troubleshoot-lab
+    ```
+
+    The pod shows `Running` but `0/1` in the READY column.
+
+1. Check the pod events for probe failures.
+
+    ```bash
+    kubectl describe pod <pod-name> -n troubleshoot-lab
+    ```
+
+    Look for `Readiness probe failed` in the Events section.
+
+1. Verify the Service has no endpoints.
+
+    ```bash
+    kubectl get endpoints api-service -n troubleshoot-lab
+    ```
+
+1. Fix the readiness probe path back to `/healthz`.
+
+1. Verify the pod becomes ready and endpoints are restored.
+
+    ```bash
+    kubectl get pods -n troubleshoot-lab
+    kubectl get endpoints api-service -n troubleshoot-lab
+    ```
+
+## Task 6: Verify end-to-end connectivity (~5 minutes)
+
+After completing all troubleshooting scenarios, confirm the application is fully functional.
+
+1. Use port-forward to access the Service.
+
+    ```bash
+    kubectl port-forward service/api-service 8080:80 -n troubleshoot-lab
+    ```
+
+1. In a separate terminal, test all endpoints.
+
+    ```bash
+    curl http://localhost:8080/healthz
+    curl http://localhost:8080/readyz
+    curl http://localhost:8080/api/info
+    ```
+
+1. Check the pod logs to see the requests.
+
+    ```bash
+    kubectl logs <pod-name> -n troubleshoot-lab
+    ```
+
+## Summary
+
+In this exercise, you practiced four common troubleshooting scenarios:
+
+| Scenario | Symptom | Key Commands |
+|----------|---------|--------------|
+| Label mismatch | Service has no endpoints | `kubectl get endpoints`, `kubectl describe svc` |
+| CrashLoopBackOff | Pod repeatedly restarts | `kubectl logs`, `kubectl describe pod` |
+| Port mismatch | Connection refused, pod running | `kubectl exec`, compare Service and container ports |
+| Readiness probe failure | Pod running but 0/1 ready | `kubectl describe pod`, check Events section |
+
+These diagnostic techniques apply to any application running on Kubernetes, regardless of the workload type.
