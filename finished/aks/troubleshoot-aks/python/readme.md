@@ -1,9 +1,4 @@
-In this exercise, you deploy a sample AI-style application to Azure Kubernetes Service (AKS) and practice monitoring and troubleshooting techniques. You work through a realistic scenario where a model inference API runs in the cluster and must meet performance and reliability expectations.
-
-The steps focus on `kubectl` workflows that you can reuse with your own AI workloads. You validate pod health, inspect logs and metrics, troubleshoot a deliberate configuration issue, and verify connectivity to the application.
-
-> [!NOTE]
-> This exercise assumes that you have access to an AKS cluster, the `kubectl` CLI configured with the correct context, and permissions to create resources. Replace namespaces, image names, and resource names with values that match your environment.
+# Troubleshoot an app in AKS
 
 ## Task 1: Prepare the AKS environment
 
