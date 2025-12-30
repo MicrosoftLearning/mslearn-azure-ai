@@ -1,28 +1,22 @@
 ---
 lab:
     topic: Azure Kubernetes Service
-    title: 'Configure apps on Azure Kubernetes Service'
+    title: 'Troubleshoot apps on Azure Kubernetes Service'
     description: 'Learn how to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings. '
 ---
 
-# Configure apps on Azure Kubernetes Service
+# Troubleshoot apps on Azure Kubernetes Service
 
-In this exercise, you learn how to configure Kubernetes deployments with ConfigMaps for non-sensitive settings, Secrets for sensitive credentials, and PersistentVolumeClaims for persistent storage. You deploy a containerized API to Azure Kubernetes Service (AKS), configure it with various Kubernetes resources, and interact with it using a Python client application.
+In this exercise, you learn how to troubleshoot Kubernetes deployments...
 
 Tasks performed in this exercise:
 
 - Download the project starter files
 - Deploy resources to Azure (ACR, AKS cluster)
-- Build and push a container image to Azure Container Registry
-- Configure kubectl credentials for AKS cluster access
-- Apply updated YAML files to AKS to create the pod and expose the API with a LoadBalancer
-- Run the client app to test the API endpoints
-- View API logs stored on persistent volume
+- ...
 - Clean up Azure resources
 
 This exercise takes approximately **30-40** minutes to complete.
-
->**IMPORTANT:** The persistent storage implementation in this exercise is for demonstration purposes only. For logging, production applications should use a centralized logging solution like Azure Monitor or Application Insights instead of storing logs on persistent volumes. If persistent storage is required, implement log rotation policies to prevent storage from filling up, which can cause container failures and pod evictions.
 
 ## Before you start
 
