@@ -17,10 +17,10 @@ In this task, you confirm the application deployed by the setup script is runnin
 
     ```
     kubectl get pods -n aks-troubleshoot
-    kubectl get endpoints -n aks-troubleshoot
+    kubectl get endpointslices -n aks-troubleshoot
     ```
 
-    You should see one pod in `Running` status and one endpoint listed.
+    You should see one pod in `Running` status and one endpoint slice listed.
 
 1. Test connectivity with port-forward.
 
@@ -47,14 +47,14 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
 
-1. Wait for the new pod to start, then check the Service endpoints.
+1. Wait for the new pod to start, then check the Service endpoint slices.
 
     ```
     kubectl get pods --show-labels -n aks-troubleshoot
-    kubectl get endpoints api-service -n aks-troubleshoot
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
-    Notice the endpoints list is empty.
+    Notice the endpoint slice shows no addresses.
 
 1. Compare the Service selector with the pod labels.
 
@@ -67,10 +67,10 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 
 1. Fix the issue by changing the pod label back to `app: api`, or update the Service selector to match `app: api-v2`.
 
-1. Verify the endpoints are restored.
+1. Verify the endpoint slice addresses are restored.
 
     ```
-    kubectl get endpoints api-service -n aks-troubleshoot
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
 ## Task 3: Diagnose a CrashLoopBackOff (~8 minutes)
@@ -174,19 +174,19 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
 
     Look for `Readiness probe failed` in the Events section.
 
-1. Verify the Service has no endpoints.
+1. Verify the Service endpoint slice has no addresses.
 
     ```
-    kubectl get endpoints api-service -n aks-troubleshoot
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
 1. Fix the readiness probe path back to `/healthz`.
 
-1. Verify the pod becomes ready and endpoints are restored.
+1. Verify the pod becomes ready and endpoint slice addresses are restored.
 
     ```
     kubectl get pods -n aks-troubleshoot
-    kubectl get endpoints api-service -n aks-troubleshoot
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
 ## Task 6: Verify end-to-end connectivity (~5 minutes)
@@ -229,7 +229,7 @@ In this exercise, you practiced four common troubleshooting scenarios:
 
 | Scenario | Symptom | Key Commands |
 |----------|---------|--------------|
-| Label mismatch | Service has no endpoints | `kubectl get endpoints`, `kubectl describe svc` |
+| Label mismatch | Service has no endpoints | `kubectl get endpointslices`, `kubectl describe svc` |
 | CrashLoopBackOff | Pod repeatedly restarts | `kubectl logs`, `kubectl describe pod` |
 | Port mismatch | Connection refused, pod running | `kubectl exec`, compare Service and container ports |
 | Readiness probe failure | Pod running but 0/1 ready | `kubectl describe pod`, check Events section |

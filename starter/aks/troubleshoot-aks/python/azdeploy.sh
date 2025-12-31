@@ -20,13 +20,13 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 # Resource names with hash for uniqueness
 acr_name="acr${user_hash}"
 aks_cluster="aks-${user_hash}"
-api_image_name="aks-troubleshoot-api"
+api_image_name="aks-config-api"
 
 # Function to display menu
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    AKS Troubleshooting Exercise - Deployment Script"
+    echo "    AKS Configuration Exercise - Deployment Script"
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
@@ -37,9 +37,8 @@ show_menu() {
     echo "2. Build and push API image to ACR"
     echo "3. Create AKS cluster"
     echo "4. Get AKS credentials for kubectl"
-    echo "5. Deploy application to AKS"
-    echo "6. Check deployment status"
-    echo "7. Exit"
+    echo "5. Check deployment status"
+    echo "6. Exit"
     echo "====================================================================="
 }
 
@@ -140,6 +139,18 @@ create_aks_cluster() {
 
         echo "✓ AKS cluster creation completed: $aks_cluster"
         echo "  Deployment time: ${minutes}m ${seconds}s"
+
+        # Assign Storage Account Contributor role to kubelet identity for Azure Files support
+        echo "Configuring storage permissions for Azure Files..."
+        local kubelet_id=$(az aks show --resource-group $rg --name $aks_cluster --query "identityProfile.kubeletidentity.clientId" -o tsv)
+        local node_rg=$(az aks show --resource-group $rg --name $aks_cluster --query "nodeResourceGroup" -o tsv)
+
+        az role assignment create \
+            --role "Storage Account Contributor" \
+            --assignee "$kubelet_id" \
+            --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$node_rg" > /dev/null 2>&1
+
+        echo "✓ Storage permissions configured"
     else
         echo "AKS cluster already exists: $aks_cluster"
     fi
@@ -166,44 +177,10 @@ get_aks_credentials() {
     echo ""
     echo "Example commands:"
     echo "  kubectl get nodes"
-    echo "  kubectl get pods --all-namespaces"
-}
-
-# Function to deploy application to AKS
-deploy_to_aks() {
-    echo "Deploying application to AKS..."
-    echo ""
-
-    # Get ACR login server
-    acr_server=$(az acr show --resource-group $rg --name $acr_name --query loginServer -o tsv)
-
-    if [ -z "$acr_server" ]; then
-        echo "Error: Could not retrieve ACR login server."
-        return 1
-    fi
-
-    # Create namespace
-    echo "Creating namespace 'aks-troubleshoot'..."
-    kubectl create namespace aks-troubleshoot --dry-run=client -o yaml | kubectl apply -f -
-
-    # Update deployment manifest with actual ACR name and apply
-    echo "Deploying API..."
-    sed "s/\${ACR_NAME}/${acr_name}/g" k8s/api-deployment.yaml | kubectl apply -n aks-troubleshoot -f -
-
-    # Apply service
-    echo "Creating Service..."
-    kubectl apply -f k8s/api-service.yaml -n aks-troubleshoot
-
-    echo ""
-    echo "Waiting for deployment to be ready..."
-    kubectl rollout status deployment/api-deployment -n aks-troubleshoot --timeout=120s
-
-    echo ""
-    echo "✓ Application deployed successfully!"
-    echo ""
-    echo "To test the application:"
-    echo "  kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot"
-    echo "  curl http://localhost:8080/healthz"
+    echo "  kubectl get pods -n default"
+    echo "  kubectl apply -f k8s/configmap.yaml"
+    echo "  kubectl apply -f k8s/secrets.yaml"
+    echo "  kubectl apply -f k8s/pvc.yaml"
 }
 
 # Function to check deployment status
@@ -230,7 +207,7 @@ check_deployment_status() {
     if [ ! -z "$aks_status" ]; then
         echo "  Status: $aks_status"
         if [ "$aks_status" = "Succeeded" ]; then
-            echo "  ✓ AKS cluster is ready"
+            echo "  ✓ AKS cluster is ready for deployment"
         fi
     else
         echo "  Status: Not found or not ready"
@@ -239,46 +216,54 @@ check_deployment_status() {
     # Check Kubernetes resources if AKS credentials are available
     if kubectl cluster-info &> /dev/null; then
         echo ""
-        echo "Kubernetes Resources (aks-troubleshoot namespace):"
+        echo "Kubernetes Resources:"
 
-        # Check namespace
-        ns_status=$(kubectl get namespace aks-troubleshoot -o jsonpath='{.status.phase}' 2>/dev/null)
-        if [ ! -z "$ns_status" ]; then
-            echo "  Namespace: ✓ $ns_status"
+        # Check ConfigMap
+        configmap_status=$(kubectl get configmap api-config -n default -o jsonpath='{.metadata.name}' 2>/dev/null)
+        if [ ! -z "$configmap_status" ]; then
+            echo "  ConfigMap: ✓ Created"
         else
-            echo "  Namespace: Not created"
+            echo "  ConfigMap: Not created"
+        fi
+
+        # Check Secret
+        secret_status=$(kubectl get secret api-secrets -n default -o jsonpath='{.metadata.name}' 2>/dev/null)
+        if [ ! -z "$secret_status" ]; then
+            echo "  Secrets: ✓ Created"
+        else
+            echo "  Secrets: Not created"
+        fi
+
+        # Check PVC
+        pvc_status=$(kubectl get pvc api-logs-pvc -n default -o jsonpath='{.status.phase}' 2>/dev/null)
+        if [ ! -z "$pvc_status" ]; then
+            echo "  PVC: $pvc_status"
+        else
+            echo "  PVC: Not created"
         fi
 
         # Check Deployment
-        deployment_ready=$(kubectl get deployment api-deployment -n aks-troubleshoot -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
-        deployment_desired=$(kubectl get deployment api-deployment -n aks-troubleshoot -o jsonpath='{.spec.replicas}' 2>/dev/null)
-        if [ ! -z "$deployment_ready" ]; then
-            echo "  Deployment: ${deployment_ready}/${deployment_desired} replicas ready"
+        deployment_status=$(kubectl get deployment aks-config-api -n default -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)
+        if [ "$deployment_status" = "True" ]; then
+            echo "  Deployment: ✓ Available"
         else
-            echo "  Deployment: Not created"
+            echo "  Deployment: Not available"
         fi
 
-        # Check Pods
-        echo ""
-        echo "  Pods:"
-        kubectl get pods -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,READY:.status.containerStatuses[0].ready,STATUS:.status.phase" 2>/dev/null | sed 's/^/    /' || echo "    No pods found"
-
         # Check Service
-        echo ""
-        echo "  Service:"
-        kubectl get svc -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,TYPE:.spec.type,CLUSTER-IP:.spec.clusterIP,EXTERNAL-IP:.status.loadBalancer.ingress[0].ip,PORT:.spec.ports[0].port" 2>/dev/null | sed 's/^/    /' || echo "    No services found"
-
-        # Check Endpoints
-        echo ""
-        echo "  Endpoints:"
-        kubectl get endpoints -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,ENDPOINTS:.subsets[0].addresses[0].ip" 2>/dev/null | sed 's/^/    /' || echo "    No endpoints found"
+        service_ip=$(kubectl get svc aks-config-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+        if [ ! -z "$service_ip" ]; then
+            echo "  Service: ✓ Exposed at $service_ip"
+        else
+            echo "  Service: LoadBalancer IP pending or not created"
+        fi
     fi
 }
 
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-7): " choice
+    read -p "Please select an option (1-6): " choice
 
     case $choice in
         1)
@@ -309,23 +294,17 @@ while true; do
             ;;
         5)
             echo ""
-            deploy_to_aks
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        6)
-            echo ""
             check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        7)
+        6)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
-            echo "Invalid option. Please select 1-7."
+            echo "Invalid option. Please select 1-6."
             read -p "Press Enter to continue..."
             ;;
     esac

@@ -271,10 +271,10 @@ check_deployment_status() {
         echo "  Service:"
         kubectl get svc -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,TYPE:.spec.type,CLUSTER-IP:.spec.clusterIP,EXTERNAL-IP:.status.loadBalancer.ingress[0].ip,PORT:.spec.ports[0].port" 2>/dev/null | sed 's/^/    /' || echo "    No services found"
 
-        # Check Endpoints
+        # Check EndpointSlices
         echo ""
-        echo "  Endpoints:"
-        kubectl get endpoints -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,ENDPOINTS:.subsets[0].addresses[0].ip" 2>/dev/null | sed 's/^/    /' || echo "    No endpoints found"
+        echo "  EndpointSlices:"
+        kubectl get endpointslices -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,ENDPOINTS:.endpoints[0].addresses[0]" 2>/dev/null | sed 's/^/    /' || echo "    No endpoint slices found"
     fi
 }
 
