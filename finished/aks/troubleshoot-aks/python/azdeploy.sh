@@ -71,11 +71,20 @@ create_acr() {
             --sku Basic \
             --admin-enabled true > /dev/null 2>&1
         echo "ACR created: $acr_name"
-        echo "ACR endpoint: $acr_name.azurecr.io"
     else
         echo "ACR already exists: $acr_name"
-        echo "ACR endpoint: $acr_name.azurecr.io"
     fi
+    echo "ACR endpoint: $acr_name.azurecr.io"
+
+    # Update all deployment YAML files with the ACR image URL
+    echo "Updating deployment YAML files with ACR image..."
+    local image_url="${acr_name}.azurecr.io/${api_image_name}:latest"
+    for file in k8s/*-deployment.yaml; do
+        if [ -f "$file" ]; then
+            sed -i "s|image:.*|image: ${image_url}|g" "$file"
+        fi
+    done
+    echo "✓ Deployment YAML files updated"
 }
 
 # Function to build and push API image
@@ -177,21 +186,13 @@ deploy_to_aks() {
     echo "Deploying application to AKS..."
     echo ""
 
-    # Get ACR login server
-    acr_server=$(az acr show --resource-group $rg --name $acr_name --query loginServer -o tsv)
-
-    if [ -z "$acr_server" ]; then
-        echo "Error: Could not retrieve ACR login server."
-        return 1
-    fi
-
     # Create namespace
     echo "Creating namespace 'aks-troubleshoot'..."
     kubectl create namespace aks-troubleshoot --dry-run=client -o yaml | kubectl apply -f -
 
-    # Update deployment manifest with actual ACR name and apply
+    # Apply deployment and service
     echo "Deploying API..."
-    sed "s/\${ACR_NAME}/${acr_name}/g" k8s/api-deployment.yaml | kubectl apply -n aks-troubleshoot -f -
+    kubectl apply -f k8s/api-deployment.yaml -n aks-troubleshoot
 
     # Apply service
     echo "Creating Service..."

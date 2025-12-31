@@ -65,11 +65,13 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 
     Look for the `Selector` field in the Service description and compare it to the pod labels.
 
-1. Fix the issue by applying the correct deployment configuration.
+1. Fix the issue by editing the Deployment to change the pod label back to `app: api`.
 
     ```
-    kubectl apply -f k8s/api-deployment.yaml -n aks-troubleshoot
+    kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
+
+    In the editor, find the `labels` section under `spec.template.metadata` and `spec.selector.matchLabels`, change `app: api-v2` back to `app: api`. Save and exit the editor.
 
 1. Verify the endpoint slice addresses are restored.
 
@@ -109,11 +111,21 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
     kubectl describe pod <pod-name> -n aks-troubleshoot
     ```
 
-1. Fix the issue by applying the correct deployment configuration with the `API_KEY` environment variable.
+1. Fix the issue by editing the Deployment to add the `API_KEY` environment variable.
 
     ```
-    kubectl apply -f k8s/api-deployment.yaml -n aks-troubleshoot
+    kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
+
+    In the editor, add the following under `spec.template.spec.containers[0]`:
+
+    ```yaml
+    env:
+    - name: API_KEY
+      value: "demo-api-key-12345"
+    ```
+
+    Save and exit the editor.
 
 1. Verify the pod returns to `Running` status.
 
@@ -152,11 +164,13 @@ When the Service targetPort doesn't match the container's listening port, connec
 
     This works because you're connecting directly to the container's actual port.
 
-1. Fix the Service by applying the correct service configuration.
+1. Fix the Service by editing it to set `targetPort` back to `8000`.
 
     ```
-    kubectl apply -f k8s/api-service.yaml -n aks-troubleshoot
+    kubectl edit service api-service -n aks-troubleshoot
     ```
+
+    In the editor, find `targetPort: 9000` and change it to `targetPort: 8000`. Save and exit the editor.
 
 1. Test again with port-forward to confirm connectivity is restored.
 
@@ -192,11 +206,13 @@ When a readiness probe fails, the pod shows `Running` but `0/1` containers are r
     kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
-1. Fix the readiness probe by applying the correct deployment configuration.
+1. Fix the readiness probe by editing the Deployment to correct the path.
 
     ```
-    kubectl apply -f k8s/api-deployment.yaml -n aks-troubleshoot
+    kubectl edit deployment api-deployment -n aks-troubleshoot
     ```
+
+    In the editor, find the `readinessProbe` section and change `path: /invalid-path` to `path: /healthz`. Save and exit the editor.
 
 1. Verify the pod becomes ready and endpoint slice addresses are restored.
 

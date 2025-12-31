@@ -99,8 +99,6 @@ With the deployment script running, follow these steps to create the needed reso
 
 The deployment script created all Kubernetes resources in a **namespace** called **aks-troubleshoot**. Namespaces are a way to organize and isolate resources within a Kubernetes cluster. They allow you to group related resources together, apply resource quotas, and manage access control. When you don't specify a namespace, resources are created in the **default** namespace. For this exercise, all **kubectl** commands include **-n aks-troubleshoot** to target the correct namespace.
 
-In this section you use **kubectl** commands to verify the initial deployment is running and the Service has endpoints. Then you use **kubectl** to apply Deployment and Service updates that introduce errors. Finally, you diagnose and fix the errors.
-
 ### Verify the deployment
 
 In this section you...
@@ -138,20 +136,18 @@ In this section you...
 
 ### Diagnose a label mismatch
 
-A Service routes traffic to pods based on label selectors. When labels don't match, the Service has no endpoints and requests fail.
+A Service routes traffic to pods based on label selectors. When labels don't match, the Service has no endpoints and requests fail. The API was deployed with pods labeled **app: api** and a Service selector matching **app: api**. In this section you apply a Service configuration that changes the selector to **app: api-v2**, breaking the connection.
 
-1. Run the following command to open the Deployment configuration in an editor.
-
-    ```
-    kubectl edit deployment api-deployment -n aks-troubleshoot
-    ```
-
-1. In the editor, find the `labels` section under `spec.template.metadata` and change `app: api` to `app: api-v2`. Save and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
-
-1. Run the following command to watch the pod rollout. The command displays pod changes in real-time. Wait until the old pod terminates and the new pod shows **Running** status with labels showing **app=api-v2**, then press **ctrl+C** to exit.
+1. Run the following command to apply the Service configuration that creates a label mismatch error.
 
     ```
-    kubectl get pods --show-labels -n aks-troubleshoot --watch
+    kubectl apply -f k8s/label-mismatch-service.yaml -n aks-troubleshoot
+    ```
+
+1. Run the following command to verify the pod is still running. The pod shows **Running** status with **1/1** ready and labels showing **app=api**.
+
+    ```
+    kubectl get pods --show-labels -n aks-troubleshoot
     ```
 
 1. Run the following command to check the Service endpoint slices. The command should return an endpoint slice with **0** addresses, indicating no pods match the Service selector.
@@ -160,32 +156,29 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
-1. Run the following command to view the Service details. Look for the **Selector** field in the output, which should show **app=api**.
+1. Run the following command to view the Service details. Look for the **Selector** field in the output, which now shows **app=api-v2**.
 
     ```
     kubectl describe service api-service -n aks-troubleshoot
     ```
 
-1. Run the following command to open the Deployment configuration in an editor.
+    This confirms the label mismatch. The Service selector is **app=api-v2** but the pod label is **app=api**.
+
+1. Run the following command to open the Service configuration in an editor.
 
     ```
-    kubectl edit deployment api-deployment -n aks-troubleshoot
+    kubectl edit service api-service -n aks-troubleshoot
     ```
 
-1. In the editor, find the `labels` section under `spec.template.metadata` and change `app: api` to `app: api-v2`. Save and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
-
-
-1. Run the following command to fix the issue by editing the Deployment and changing the pod label back to `app: api`. Alternatively, you can update the Service selector to match `app: api-v2`.
-
-    ```
-    kubectl edit deployment api-deployment -n aks-troubleshoot
-    ```
+1. In the editor, find the **selector** section and change **app: api-v2** to `app: api`. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
 
 1. Run the following command to verify the endpoint slice addresses are restored. The command should return an endpoint slice with an IP address listed.
 
     ```
     kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
+
+Next you...
 
 
 ## Clean up resources
