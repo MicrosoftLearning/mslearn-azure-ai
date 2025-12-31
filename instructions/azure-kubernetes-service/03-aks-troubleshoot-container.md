@@ -172,7 +172,7 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 
 1. In the editor, find the **selector** section and change **app: api-v2** to `app: api`. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
 
-    >**Note:** The editor uses vi commands. Quick reference:
+    >**Note:** The editor uses vi commands. Quick reference:</br>
     >- Use arrow keys (**↑ ↓ ← →**) to navigate through the file
     >- Enter **i** for insert mode to type text
     >- Enter **Esc** to exit insert mode
