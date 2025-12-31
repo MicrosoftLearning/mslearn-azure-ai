@@ -2,12 +2,12 @@
 lab:
     topic: Azure Kubernetes Service
     title: 'Troubleshoot apps on Azure Kubernetes Service'
-    description: 'Learn how to troubleshoot Azure Kubernetes Service deployments... '
+    description: 'Learn how to diagnose and resolve common Kubernetes issues including label mismatches, CrashLoopBackOff errors, and readiness probe failures.'
 ---
 
 # Troubleshoot apps on Azure Kubernetes Service
 
-In this exercise, you learn how to troubleshoot Azure Kubernetes Service (AKS) deployments...
+In this exercise, you deploy a containerized API to Azure Kubernetes Service (AKS) and then diagnose and resolve common Kubernetes issues. You use **kubectl** commands to identify problems, inspect pod status, check logs, and view events. You then use **kubectl edit** to fix misconfigurations including Service selector mismatches, missing environment variables, and invalid readiness probe paths.
 
 Tasks performed in this exercise:
 
@@ -132,6 +132,7 @@ In this section you confirm the application deployed by the setup script is runn
     # PowerShell
     Invoke-RestMethod http://localhost:8080/healthz
     ```
+
 1. Switch back to the terminal where **port-forward** is running and enter **ctrl+c** to exit the command.
 
 You verified the deployment is working correctly, next you diagnose a label mismatch issue.
@@ -172,18 +173,18 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     kubectl edit service api-service -n aks-troubleshoot
     ```
 
-    **Note:** The editor uses vi commands. Quick reference:
+    **Note:** The editor uses vi commands. The editor opens in **normal mode** where you navigate and run commands. Press **i** to enter **insert mode** where you can type and edit text. Press **Esc** to return to normal mode, then type commands like **:wq** to save and exit. Following is a quick reference:
 
     | Action | Command |
     |--------|---------|
     | Navigate | Arrow keys (**↑ ↓ ← →**) |
-    | Insert mode | **i** |
-    | Exit insert mode | **Esc** |
-    | Delete character | **x** or **del** |
-    | Save and exit | **:wq** + **Enter** |
-    | Exit without saving | **:q!** + **Enter** |
+    | Enter insert mode | **i** |
+    | Return to normal mode | **Esc** |
+    | Delete character (normal mode) | **x** |
+    | Save and exit (normal mode) | **:wq** + **Enter** |
+    | Exit without saving (normal mode) | **:q!** + **Enter** |
 
-1. In the editor, find the **selector** section and change **app: api-v2** to **app: api**. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+1. In the editor, find the **selector** section. Press **i** to enter insert mode, then change **app: api-v2** to **app: api**. Press **Esc** to return to normal mode, then type **:wq** and press **Enter** to save and exit.
 
 1. Run the following command to verify the endpoint slice addresses are restored. The command should return an endpoint slice with an IP address listed.
 
@@ -327,27 +328,22 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 
 ## Troubleshooting
 
-If you encounter issues while completing this exercise, try the following troubleshooting steps:
+If you encounter issues while setting up this exercise, try the following troubleshooting steps:
 
 **Check deployment status with the deployment script**
-- Run the deployment script and select option **5. Check deployment status** to verify the state of all deployed resources.
-- This command checks:
-  - ACR provisioning state and readiness
-  - AKS cluster provisioning state
-  - Kubernetes resources (ConfigMap, Secrets, PVC, Deployment availability, Service LoadBalancer IP)
+- Run the deployment script and select option **6. Check deployment status** to verify the state of all deployed resources.
+- This command checks ACR provisioning state, AKS cluster provisioning state, and Kubernetes resource availability.
 - Use this output to identify which component may be causing issues.
 
-**Verify YAML file completeness**
-- Ensure all YAML content was added correctly to *configmap.yaml*, *secrets.yaml*, and *pvc.yaml* and that indentation is correct.
-- Confirm the ACR endpoint was properly updated in *deployment.yaml* (replace **\<YOUR_ACR_ENDPOINT>** with your actual ACR endpoint).
-- If you make changes to any YAML file after initial deployment, reapply the file with **kubectl apply -f k8s/\<filename>.yaml**.
-- After updating ConfigMap or Secret files, perform a rolling restart to reload the configuration: **kubectl rollout restart deployment aks-config-api**.
+**ACR image pull errors**
+- If pods show **ImagePullBackOff** or **ErrImagePull** status, verify the ACR resource was created and the image was pushed successfully.
+- Run the deployment script option **2. Build and push API image to ACR** again if needed.
+- Confirm the AKS cluster has permission to pull from ACR by checking the deployment script output for successful role assignment.
 
-**Verify client configuration**
-- Ensure you've created a *.env* file in the *client* folder with **API_ENDPOINT** set to the LoadBalancer's external IP (for example, **http://20.xxx.xxx.xxx**).
-- Verify you can reach the API endpoint by running **curl http://\<external-ip>/healthz** from the terminal.
+**kubectl connection issues**
+- If kubectl commands fail with connection errors, run the deployment script option **4. Get AKS credentials for kubectl** to refresh credentials.
+- Verify the AKS cluster is running by checking the Azure portal or running **az aks show --resource-group \<rg-name> --name \<aks-name> --query provisioningState**.
 
-**Check Python environment and dependencies**
-- Confirm the virtual environment is activated before running the client app.
-- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
-- Ensure you're running the client from the *client* directory.
+**Resetting the exercise**
+- If you need to start the troubleshooting scenarios over, run the deployment script option **5. Deploy applications to AKS** to redeploy the original working configuration.
+- This reapplies the base deployment and service files, resetting any changes made during the exercise.
