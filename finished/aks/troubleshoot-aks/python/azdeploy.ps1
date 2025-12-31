@@ -301,14 +301,14 @@ function Check-DeploymentStatus {
             Write-Host "    No services found"
         }
 
-        # Check Endpoints
+        # Check EndpointSlices
         Write-Host ""
-        Write-Host "  Endpoints:"
-        $endpoints = kubectl get endpoints -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,ENDPOINTS:.subsets[0].addresses[0].ip" 2>$null
+        Write-Host "  EndpointSlices:"
+        $endpointslices = kubectl get endpointslices -n aks-troubleshoot -o custom-columns="NAME:.metadata.name,ENDPOINTS:.endpoints[0].addresses[0]" 2>$null
         if ($LASTEXITCODE -eq 0) {
-            $endpoints -split "`n" | ForEach-Object { Write-Host "    $_" }
+            $endpointslices -split "`n" | ForEach-Object { Write-Host "    $_" }
         } else {
-            Write-Host "    No endpoints found"
+            Write-Host "    No endpoint slices found"
         }
     }
 

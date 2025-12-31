@@ -7,7 +7,7 @@ lab:
 
 # Troubleshoot apps on Azure Kubernetes Service
 
-In this exercise, you learn how to troubleshoot Kubernetes deployments...
+In this exercise, you learn how to troubleshoot Azure Kubernetes Service (AKS) deployments...
 
 Tasks performed in this exercise:
 
@@ -35,7 +35,7 @@ In this section you download the starter files for the console app and use a scr
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
-    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/aks-configure-python.zip
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/aks-troubleshoot-python.zip
     ```
 
 1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
@@ -81,246 +81,63 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the model is deployed, enter **1** to launch **Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
 
-    When the operation is complete it will return the ACR endpoint. Copy the information, you need it later in the exercise.
-
 1. After the ACR resource has been created, enter **2** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
 
 1. After the image has been built and pushed to ACR, enter **3** to launch the **Create AKS cluster** option. This creates the AKS resource configured with a managed identity, gives the service permission to pull images from the ACR resource, and assigns the needed RBAC role to write to the persistent storage. This operation can take 5-10 minutes to complete.
 
 1. After the AKS cluster deployment has completed, enter **4** to launch the **Get AKS credentials for kubectl** option. This uses the **az aks get-credentials** command to retrieve credentials and configure **kubectl**.
 
-1. After the credentials have been configured, enter **5** to launch the **Check deployment stats** option. This option reports if each of the resources have been successfully deployed.
+1. After the credentials have been set, enter **5** to launch the **Deploy applications to AKS** option. This deploys an API to the AKS cluster.
+
+1. After the app has been deployed, enter **6** to launch the **Check deployment stats** option. This option reports if each of the resources have been successfully deployed.
 
     If all of the services return a **successful** message, enter **6** to exit the deployment script.
 
-Next, you complete the YAML files necessary to deploy the API to AKS.
+>**Note:** Leave the terminal open, all of the steps in the exercise are performed in the terminal.
 
-## Complete the YAML deployment files and deploy to AKS
+## Troubleshoot the deployment
 
-In this section you complete YAML files, located in the *k8s* folder, needed to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings.
+The deployment script created all Kubernetes resources in a **namespace** called **aks-troubleshoot**. Namespaces are a way to organize and isolate resources within a Kubernetes cluster. They allow you to group related resources together, apply resource quotas, and manage access control. When you don't specify a namespace, resources are created in the **default** namespace. For this exercise, all **kubectl** commands include **-n aks-troubleshoot** to target the correct namespace.
 
-### Complete the ConfigMap YAML file
+In this section you use **kubectl** commands to verify the initial deployment is running and the Service has endpoints. Then you use **kubectl** to:
 
-ConfigMaps store non-sensitive configuration data as key-value pairs that can be consumed by pods. In this section, you create a ConfigMap to store application settings like the student name, API version, and log path.
+- Create common errors in the deployment
+- Identify the errors using commands
+- Resolve the errors using commands
 
-1. Open the *k8s/configmap.yaml* file and add the following code to the file. You can update the value for **STUDENT_NAME** with your name if you want to.
+### Verify the deployment
 
-    ```yml
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: api-config
-      labels:
-        app: aks-config-api # Label for the AKS configuration API
-    data:
-      # Store non-sensitive configuration values
-      STUDENT_NAME: "YourNameHere"
-      API_VERSION: "1.0.0"
-      LOG_PATH: "/var/log/api" # Path for API logs
-    ```
+In this section you...
 
-1. Review the comments in the code, then save your changes.
-
-### Complete the Secrets YAML file
-
-Secrets store sensitive information like passwords, tokens, and keys in a base64-encoded format. In this section, you create a Secret to store sensitive credentials that the API will access at runtime.
-
-1. Open the *k8s/secrets.yaml* file and add the following code to the file.
-
-    ```yml
-    apiVersion: v1
-    kind: Secret
-    metadata:
-      name: api-secrets
-      labels:
-        app: aks-config-api
-    type: Opaque
-    stringData:
-      # Store sensitive credentials as base64-encoded values
-      secret-endpoint: "SecretEndpointValue"
-      secret-access-key: "SecretAccessKey123456"
-    ```
-
-1. Take a few minutes to review the comments in the code, then save your changes.
-
-### Complete the PVC YAML file
-
-A PersistentVolumeClaim (PVC) requests storage resources from Azure that can be mounted to pods. In this section, you create a PVC that uses Azure Disk storage to persist API log files across pod restarts.
-
-1. Open the *k8s/pvc.yaml* file and add the following code to the file.
-
-    ```yml
-    apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-      name: api-logs-pvc
-      labels:
-        app: aks-config-api # Label for the AKS configuration API
-    spec:
-      accessModes:
-        - ReadWriteOnce  # Allow single pod to mount volume for read/write
-      resources:
-        requests:
-          storage: 1Gi  # Request minimum Azure Disk size
-      storageClassName: managed-csi  # Use Azure Disk CSI driver (default)
-      volumeMode: Filesystem  # Default mode
-    ```
-
-1. Take a few minutes to review the comments in the code, then save your changes.
-
-### Update the Deployment YAML file
-
-The deployment manifest is already partially configured with environment variables, volume mounts, and probes. You just need to update the container image reference with your specific ACR endpoint.
-
-1. Open the *k8s/deployment.yaml* file and locate the **image: \<YOUR_ACR_ENDPOINT>/aks-config-api:latest** line.
-
-1. Replace **\<YOUR_ACR_ENDPOINT>** with the value you recorded earlier in the exercise.
-
-1. Take a few minutes to review the comments in the code, then save your changes.
-
-
-## Apply the manifests to AKS
-
-In this section you apply the manifests to AKS. The following steps are performed in the VS Code terminal. Ensure you are in the root of the project before running the commands.
-
-1. Run the following command to apply the ConfigMap.
+1. Run the following command to verify the pod is running in the namespace. You should see one pod with **Running** status and **1/1** in the READY column.
 
     ```
-    kubectl apply -f k8s/configmap.yaml
+    kubectl get pods -n aks-troubleshoot
     ```
 
-1. Run the following command to apply the Secrets.
+1. Run the following command to verify the Service has endpoints. You should see one endpoint slice listed with an IP address.
 
     ```
-    kubectl apply -f k8s/secrets.yaml
+    kubectl get endpointslices -n aks-troubleshoot
     ```
 
-1. Run the following command to apply the PersistentVolumeClaim.
+1. Run the following command to test connectivity using port-forward. This command creates a tunnel from your local machine to the Service running in the cluster, allowing you to access it at **http://localhost:8080**.
 
     ```
-    kubectl apply -f k8s/pvc.yaml
+    kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
-1. Run the following command to apply the Deployment.
+1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code. Run the following command to test the connection. You should receive a JSON response with **"status": "healthy"**.
 
-    ```
-    kubectl apply -f k8s/deployment.yaml
-    ```
-
-1. Run the following command to create the Service.
-
-    ```
-    kubectl apply -f k8s/service.yaml
-    ```
-
-1. After you create the Service it can take a few minutes for the deployment to complete. The following command will monitor the service and update the external IP address of the pod when it's available. Note the external IP address, you need it later in the exercise. Enter **ctrl + c** to exit the command after the IP address appears.
-
-    ```
-    kubectl get svc aks-config-api-service -w
-    ```
-
-## Run the client app
-
-In this section, you configure the Python environment and then perform operations on the API using the client app
-
-### Configure the Python environment
-
-In this section, you create the Python environment and install the dependencies.
-
-1. Ensure you are in the *client* folder of the project in the terminal.
-
-1. Run the following command in the VS Code terminal to create the Python environment.
-
-    ```
-    python -m venv .venv
-    ```
-
-1. Run the following command in the VS Code terminal to activate the Python environment.
-
-    **Bash**
     ```bash
-    source .venv/Scripts/activate
+    # Bash
+    curl http://localhost:8080/healthz
     ```
 
-    **PowerShell**
     ```powershell
-    .venv\Scripts\Activate.ps1
+    # PowerShell
+    Invoke-RestMethod http://localhost:8080/healthz
     ```
-
-    >**Note:** You may need to modify the commands for your environment. The *Scripts* folder may be *bin* depending on your operating system.
-
-1. Run the following command in the VS Code terminal to install the dependencies.
-
-    ```
-    pip install -r requirements.txt
-    ```
-
-1. Create a *.env* file in the client directory and add the following code. Replace **\<API_IP_address>** with the value you copied earlier in the exercise.
-
-    ```
-    # API endpoint - update this with the external IP from the LoadBalancer service
-    # Get the IP with: kubectl get services
-    API_ENDPOINT=http://<API_IP_address>
-    ```
-### Perform operations with the app
-
-With the Python environment configured and dependencies installed, you can now run the client application to test the deployed API. The API logs all operations to the persistent volume, and the client provides a menu-driven interface to interact with various endpoints.
-
-1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
-
-    ```
-    python main.py
-    ```
-
-1. Enter **1** to start the **Check API Health (Liveness)** option. This verifies that the API container is running and responds to health checks, which is the same endpoint used by the Kubernetes liveness probe. Note the information it returns contains the non-sensitive student name set in ConfigMap.
-
-    ```
-    [*] Checking API health...
-    ✓ API is healthy
-      Service: aks-config-api
-      Version: 1.0.0
-      Student: YourNameHere
-    ```
-1. Enter **2** to start the **Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
-
-1. Enter **3** to start the **View Secrets Information** option. This functionality exists only so you can confirm your secrets were set in the pod and is for demonstration purposes only. In the output you can view information about the secrets, the output is masked.
-
-    ```
-    Secret Details:
-
-      secret_endpoint:
-        Loaded: True
-        Value: SecretEndp...
-        Length: 19 characters
-
-      secret_access_key:
-        Loaded: True
-        Value: ***3456
-        Length: 21 characters
-    ```
-
-1. Enter **5** to start the **List All Products** option. This displays the mock data included in the API.
-
-1. Now that the API has logged operations for several different endpoints, it's time to view the logs. Enter **6** to start the **View Log Summary** option and see a summary of the different operations. Note the total number of requests, and the requests to the **/readyz** and **/healthz** endpoints. Those two operations are executing automatically based on the schedule set in the *deployment.yaml* file.
-
-    ```
-    ✓ Log summary retrieved
-
-    Log file: /var/log/api/api-requests-2025-12-21.log
-    Total requests: 220
-    Student: YourNameHere
-
-    First request: 2025-12-21T02:19:48.953308
-    Last request: 2025-12-21T02:46:08.952772
-
-    Requests by endpoint:
-      /readyz: 160
-      /healthz: 56
-      /secrets: 1
-      /products: 1
-    ```
-
-1. You can continue to generate log information and when you're finished enter **7** to exit the app.
 
 ## Clean up resources
 
