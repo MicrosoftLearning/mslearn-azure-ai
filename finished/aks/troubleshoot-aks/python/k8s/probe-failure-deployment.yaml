@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: # Updated by deployment script
+        image: acr42d29b3b.azurecr.io/aks-troubleshoot-api:latest
         imagePullPolicy: Always
         ports:
         - name: http
