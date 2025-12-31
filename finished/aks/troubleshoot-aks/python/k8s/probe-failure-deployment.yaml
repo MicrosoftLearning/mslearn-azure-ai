@@ -27,7 +27,8 @@ spec:
           value: "demo-api-key-12345"
         readinessProbe:
           httpGet:
-            path: /healthz
+            # ERROR: Invalid path causes readiness probe to fail
+            path: /invalid-path
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 10

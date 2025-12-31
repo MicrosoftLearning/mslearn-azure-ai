@@ -2,7 +2,7 @@
 lab:
     topic: Azure Kubernetes Service
     title: 'Troubleshoot apps on Azure Kubernetes Service'
-    description: 'Learn how to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings. '
+    description: 'Learn how to troubleshoot Azure Kubernetes Service deployments... '
 ---
 
 # Troubleshoot apps on Azure Kubernetes Service
@@ -99,26 +99,20 @@ With the deployment script running, follow these steps to create the needed reso
 
 The deployment script created all Kubernetes resources in a **namespace** called **aks-troubleshoot**. Namespaces are a way to organize and isolate resources within a Kubernetes cluster. They allow you to group related resources together, apply resource quotas, and manage access control. When you don't specify a namespace, resources are created in the **default** namespace. For this exercise, all **kubectl** commands include **-n aks-troubleshoot** to target the correct namespace.
 
-In this section you use **kubectl** commands to verify the initial deployment is running and the Service has endpoints. Then you use **kubectl** to:
-
-- Create common errors in the deployment
-- Identify the errors using commands
-- Resolve the errors using commands
-
 ### Verify the deployment
 
 In this section you...
 
-1. Run the following command to verify the pod is running in the namespace. You should see one pod with **Running** status and **1/1** in the READY column.
+1. Run the following command to verify the pod is running in the namespace. The command should return one pod with **Running** status and **1/1** in the READY column.
 
     ```
     kubectl get pods -n aks-troubleshoot
     ```
 
-1. Run the following command to verify the Service has endpoints. You should see one endpoint slice listed with an IP address.
+1. Run the following command to verify the Service has endpoints. The command should return one endpoint slice listed with an IP address.
 
     ```
-    kubectl get endpointslices -n aks-troubleshoot
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
 1. Run the following command to test connectivity using port-forward. This command creates a tunnel from your local machine to the Service running in the cluster, allowing you to access it at **http://localhost:8080**.
@@ -127,7 +121,7 @@ In this section you...
     kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
-1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code. Run the following command to test the connection. You should receive a JSON response with **"status": "healthy"**.
+1. In the menu bar select **Terminal > New Terminal** to open a second terminal window in VS Code. Run the following command to test the connection. You should receive a JSON response with **"status": "healthy"**.
 
     ```bash
     # Bash
@@ -138,6 +132,56 @@ In this section you...
     # PowerShell
     Invoke-RestMethod http://localhost:8080/healthz
     ```
+1. Switch back to the terminal where **port-forward** is running and enter **ctrl+c** to exit the command.
+
+### Diagnose a label mismatch
+
+A Service routes traffic to pods based on label selectors. When labels don't match, the Service has no endpoints and requests fail. The API was deployed with pods labeled **app: api** and a Service selector matching **app: api**. In this section you apply a Service configuration that changes the selector to **app: api-v2**, breaking the connection.
+
+1. Run the following command to apply the Service configuration that creates a label mismatch error.
+
+    ```
+    kubectl apply -f k8s/label-mismatch-service.yaml -n aks-troubleshoot
+    ```
+
+1. Run the following command to verify the pod is still running. The pod shows **Running** status with **1/1** ready and labels showing **app=api**.
+
+    ```
+    kubectl get pods --show-labels -n aks-troubleshoot
+    ```
+
+1. Run the following command to check the Service endpoint slices. The command should return an endpoint slice with **\<unset>** in the ENDPOINTS column, indicating no pods match the Service selector.
+
+    ```
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
+    ```
+
+1. Run the following command to view the Service details. Look for the **Selector** field in the output, which now shows **app=api-v2**.
+
+    ```
+    kubectl describe service api-service -n aks-troubleshoot
+    ```
+
+    This confirms the label mismatch. The Service selector is **app=api-v2** but the pod label is **app=api**.
+
+1. Run the following command to open the Service configuration in an editor.
+
+    ```
+    kubectl edit service api-service -n aks-troubleshoot
+    ```
+
+1. In the editor, find the **selector** section and change **app: api-v2** to `app: api`. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+
+    >Note: Use the arrow keys (**↑ ↓ ← →**) to navigate through the editor. Use the **del** key to delete text.
+
+1. Run the following command to verify the endpoint slice addresses are restored. The command should return an endpoint slice with an IP address listed.
+
+    ```
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
+    ```
+
+Next you...
+
 
 ## Clean up resources
 
