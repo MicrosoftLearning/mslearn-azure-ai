@@ -127,7 +127,7 @@ In this section you...
     kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
     ```
 
-1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code. Run the following command to test the connection. You should receive a JSON response with **"status": "healthy"**.
+1. In the menu bar select **Terminal > New Terminal** to open a second terminal window in VS Code. Run the following command to test the connection. You should receive a JSON response with **"status": "healthy"**.
 
     ```bash
     # Bash
@@ -169,6 +169,15 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     ```
     kubectl describe service api-service -n aks-troubleshoot
     ```
+
+1. Run the following command to open the Deployment configuration in an editor.
+
+    ```
+    kubectl edit deployment api-deployment -n aks-troubleshoot
+    ```
+
+1. In the editor, find the `labels` section under `spec.template.metadata` and change `app: api` to `app: api-v2`. Save and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+
 
 1. Run the following command to fix the issue by editing the Deployment and changing the pod label back to `app: api`. Alternatively, you can update the Service selector to match `app: api-v2`.
 
