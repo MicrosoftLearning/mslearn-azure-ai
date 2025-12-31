@@ -172,13 +172,16 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
 
 1. In the editor, find the **selector** section and change **app: api-v2** to `app: api`. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
 
-    >**Note:** The editor uses vi commands. Quick reference:</br>
-    >- Use arrow keys (**↑ ↓ ← →**) to navigate through the file
-    >- Enter **i** for insert mode to type text
-    >- Enter **Esc** to exit insert mode
-    >- Enter **x** or **del** to delete character under cursor
-    >- Enter **:wq** + **Enter** to save and exit
-    >- Enter **:q!** + **Enter** to exit without saving
+    >**Note:** The editor uses vi commands. Quick reference:
+    >
+    >| Action | Command |
+    >|--------|---------|
+    >| Navigate | Arrow keys (**↑ ↓ ← →**) |
+    >| Insert mode | **i** |
+    >| Exit insert mode | **Esc** |
+    >| Delete character | **x** or **del** |
+    >| Save and exit | **:wq** + **Enter** |
+    >| Exit without saving | **:q!** + **Enter** |
 
 1. Run the following command to verify the endpoint slice addresses are restored. The command should return an endpoint slice with an IP address listed.
 
