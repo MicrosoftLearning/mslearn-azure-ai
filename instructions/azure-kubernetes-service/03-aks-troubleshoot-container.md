@@ -112,7 +112,7 @@ In this section you...
 1. Run the following command to verify the Service has endpoints. The command should return one endpoint slice listed with an IP address.
 
     ```
-    kubectl get endpointslices -n aks-troubleshoot
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
 1. Run the following command to test connectivity using port-forward. This command creates a tunnel from your local machine to the Service running in the cluster, allowing you to access it at **http://localhost:8080**.
@@ -150,7 +150,7 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     kubectl get pods --show-labels -n aks-troubleshoot
     ```
 
-1. Run the following command to check the Service endpoint slices. The command should return an endpoint slice with **0** addresses, indicating no pods match the Service selector.
+1. Run the following command to check the Service endpoint slices. The command should return an endpoint slice with **\<unset>** in the ENDPOINTS column, indicating no pods match the Service selector.
 
     ```
     kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
@@ -171,6 +171,8 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     ```
 
 1. In the editor, find the **selector** section and change **app: api-v2** to `app: api`. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+
+    >Note: Use the arrow keys (**↑ ↓ ← →**) to navigate through the editor. Use the **del** key to delete text.
 
 1. Run the following command to verify the endpoint slice addresses are restored. The command should return an endpoint slice with an IP address listed.
 
