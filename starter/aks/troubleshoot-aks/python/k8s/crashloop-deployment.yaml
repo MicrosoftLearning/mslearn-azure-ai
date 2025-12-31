@@ -22,9 +22,10 @@ spec:
         - name: http
           containerPort: 8000
           protocol: TCP
-        env:
-        - name: API_KEY
-          value: "demo-api-key-12345"
+        # ERROR: API_KEY environment variable removed, causing application crash
+        # env:
+        # - name: API_KEY
+        #   value: "demo-api-key-12345"
         readinessProbe:
           httpGet:
             path: /healthz

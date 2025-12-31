@@ -13,7 +13,7 @@ Tasks performed in this exercise:
 
 - Download the project starter files
 - Deploy resources to Azure (ACR, AKS cluster)
-- ...
+- Diagnose and resolve some common issues
 - Clean up Azure resources
 
 This exercise takes approximately **30-40** minutes to complete.
@@ -91,7 +91,7 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the app has been deployed, enter **6** to launch the **Check deployment stats** option. This option reports if each of the resources have been successfully deployed.
 
-    If all of the services return a **successful** message, enter **6** to exit the deployment script.
+    If all of the services return a **successful** message, enter **7** to exit the deployment script.
 
 >**Note:** Leave the terminal open, all of the steps in the exercise are performed in the terminal.
 
@@ -101,7 +101,7 @@ The deployment script created all Kubernetes resources in a **namespace** called
 
 ### Verify the deployment
 
-In this section you...
+In this section you confirm the application deployed by the setup script is running correctly before introducing errors.
 
 1. Run the following command to verify the pod is running in the namespace. The command should return one pod with **Running** status and **1/1** in the READY column.
 
@@ -133,6 +133,8 @@ In this section you...
     Invoke-RestMethod http://localhost:8080/healthz
     ```
 1. Switch back to the terminal where **port-forward** is running and enter **ctrl+c** to exit the command.
+
+You verified the deployment is working correctly, next you diagnose a label mismatch issue.
 
 ### Diagnose a label mismatch
 
@@ -189,7 +191,7 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
-You fixed the label mismatch issue, next you...
+You fixed the label mismatch issue, next you diagnose a CrashLoopBackOff.
 
 ### Diagnose a CrashLoopBackOff
 
@@ -237,7 +239,7 @@ When a container fails to start, Kubernetes repeatedly restarts it, resulting in
     kubectl get pods -n aks-troubleshoot -w
     ```
 
-You solved the CrashLoopBackOff issue, next you....
+You solved the CrashLoopBackOff issue, next you diagnose a readiness probe failure.
 
 ### Diagnose a readiness probe failure
 
@@ -275,7 +277,41 @@ When a readiness probe fails, the pod shows **Running** but **0/1** containers a
     kubectl get pods -n aks-troubleshoot
     ```
 
-You diagnosed and solved a readiness probe error, next you ....
+You diagnosed and solved a readiness probe error, next you verify end-to-end connectivity.
+
+### Verify end-to-end connectivity
+
+After completing all troubleshooting scenarios, you confirm the application is fully functional.
+
+1. Run the following command to use port-forward to access the Service.
+
+    ```
+    kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot
+    ```
+
+1. In the menu bar select **Terminal > New Terminal** to open a second terminal window in VS Code. Run the following commands to test all endpoints.
+
+    ```bash
+    # Bash
+    curl http://localhost:8080/healthz
+    curl http://localhost:8080/readyz
+    curl http://localhost:8080/api/info
+    ```
+
+    ```powershell
+    # PowerShell
+    Invoke-RestMethod http://localhost:8080/healthz
+    Invoke-RestMethod http://localhost:8080/readyz
+    Invoke-RestMethod http://localhost:8080/api/info
+    ```
+
+1. Run the following command to check the pod logs to see the requests.
+
+    ```
+    kubectl logs -l app=api -n aks-troubleshoot
+    ```
+
+You verified the application is fully functional, next you clean up resources.
 
 ## Clean up resources
 

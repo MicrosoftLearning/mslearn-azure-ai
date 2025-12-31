@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  labels:
+    app: api
+spec:
+  type: ClusterIP
+  selector:
+    # ERROR: Selector changed to 'api-v2' but pods have label 'app: api'
+    app: api-v2
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
