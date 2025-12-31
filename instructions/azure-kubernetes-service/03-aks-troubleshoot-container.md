@@ -109,13 +109,13 @@ In this section you use **kubectl** commands to verify the initial deployment is
 
 In this section you...
 
-1. Run the following command to verify the pod is running in the namespace. You should see one pod with **Running** status and **1/1** in the READY column.
+1. Run the following command to verify the pod is running in the namespace. The command should return one pod with **Running** status and **1/1** in the READY column.
 
     ```
     kubectl get pods -n aks-troubleshoot
     ```
 
-1. Run the following command to verify the Service has endpoints. You should see one endpoint slice listed with an IP address.
+1. Run the following command to verify the Service has endpoints. The command should return one endpoint slice listed with an IP address.
 
     ```
     kubectl get endpointslices -n aks-troubleshoot
