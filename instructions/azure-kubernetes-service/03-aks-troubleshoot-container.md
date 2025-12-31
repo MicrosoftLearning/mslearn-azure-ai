@@ -138,6 +138,50 @@ In this section you...
     # PowerShell
     Invoke-RestMethod http://localhost:8080/healthz
     ```
+1. Switch back to the terminal where **port-forward** is running and enter **ctrl+c** to exit the command.
+
+### Diagnose a label mismatch
+
+A Service routes traffic to pods based on label selectors. When labels don't match, the Service has no endpoints and requests fail.
+
+1. Run the following command to open the Deployment configuration in an editor.
+
+    ```
+    kubectl edit deployment api-deployment -n aks-troubleshoot
+    ```
+
+1. In the editor, find the `labels` section under `spec.template.metadata` and change `app: api` to `app: api-v2`. Save and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+
+1. Run the following command to watch the pod rollout. The command displays pod changes in real-time. Wait until the old pod terminates and the new pod shows **Running** status with labels showing **app=api-v2**, then press **ctrl+C** to exit.
+
+    ```
+    kubectl get pods --show-labels -n aks-troubleshoot --watch
+    ```
+
+1. Run the following command to check the Service endpoint slices. The command should return an endpoint slice with **0** addresses, indicating no pods match the Service selector.
+
+    ```
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
+    ```
+
+1. Run the following command to view the Service details. Look for the **Selector** field in the output, which should show **app=api**.
+
+    ```
+    kubectl describe service api-service -n aks-troubleshoot
+    ```
+
+1. Run the following command to fix the issue by editing the Deployment and changing the pod label back to `app: api`. Alternatively, you can update the Service selector to match `app: api-v2`.
+
+    ```
+    kubectl edit deployment api-deployment -n aks-troubleshoot
+    ```
+
+1. Run the following command to verify the endpoint slice addresses are restored. The command should return an endpoint slice with an IP address listed.
+
+    ```
+    kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
+    ```
+
 
 ## Clean up resources
 
