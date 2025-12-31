@@ -2,7 +2,7 @@
 lab:
     topic: Azure Kubernetes Service
     title: 'Troubleshoot apps on Azure Kubernetes Service'
-    description: 'Learn how to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings. '
+    description: 'Learn how to troubleshoot Azure Kubernetes Service deployments... '
 ---
 
 # Troubleshoot apps on Azure Kubernetes Service
