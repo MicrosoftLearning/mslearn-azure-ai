@@ -99,11 +99,7 @@ With the deployment script running, follow these steps to create the needed reso
 
 The deployment script created all Kubernetes resources in a **namespace** called **aks-troubleshoot**. Namespaces are a way to organize and isolate resources within a Kubernetes cluster. They allow you to group related resources together, apply resource quotas, and manage access control. When you don't specify a namespace, resources are created in the **default** namespace. For this exercise, all **kubectl** commands include **-n aks-troubleshoot** to target the correct namespace.
 
-In this section you use **kubectl** commands to verify the initial deployment is running and the Service has endpoints. Then you use **kubectl** to:
-
-- Create common errors in the deployment
-- Identify the errors using commands
-- Resolve the errors using commands
+In this section you use **kubectl** commands to verify the initial deployment is running and the Service has endpoints. Then you use **kubectl** to apply Deployment and Service updates that introduce errors. Finally, you diagnose and fix the errors.
 
 ### Verify the deployment
 
