@@ -170,18 +170,18 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     kubectl edit service api-service -n aks-troubleshoot
     ```
 
-1. In the editor, find the **selector** section and change **app: api-v2** to `app: api`. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+    **Note:** The editor uses vi commands. Quick reference:
 
-    >**Note:** The editor uses vi commands. Quick reference:
-    > &nbsp;
-    >| Action | Command |
-    >|--------|---------|
-    >| Navigate | Arrow keys (**↑ ↓ ← →**) |
-    >| Insert mode | **i** |
-    >| Exit insert mode | **Esc** |
-    >| Delete character | **x** or **del** |
-    >| Save and exit | **:wq** + **Enter** |
-    >| Exit without saving | **:q!** + **Enter** |
+    | Action | Command |
+    |--------|---------|
+    | Navigate | Arrow keys (**↑ ↓ ← →**) |
+    | Insert mode | **i** |
+    | Exit insert mode | **Esc** |
+    | Delete character | **x** or **del** |
+    | Save and exit | **:wq** + **Enter** |
+    | Exit without saving | **:q!** + **Enter** |
+
+1. In the editor, find the **selector** section and change **app: api-v2** to **app: api**. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
 
 1. Run the following command to verify the endpoint slice addresses are restored. The command should return an endpoint slice with an IP address listed.
 
@@ -189,8 +189,93 @@ A Service routes traffic to pods based on label selectors. When labels don't mat
     kubectl get endpointslices -l kubernetes.io/service-name=api-service -n aks-troubleshoot
     ```
 
-Next you...
+You fixed the label mismatch issue, next you...
 
+### Diagnose a CrashLoopBackOff
+
+When a container fails to start, Kubernetes repeatedly restarts it, resulting in **CrashLoopBackOff** status. Reading logs reveals why the application crashed.
+
+1. Run the following command to apply the deployment configuration that removes the required **API_KEY** environment variable.
+
+    ```
+    kubectl apply -f k8s/crashloop-deployment.yaml -n aks-troubleshoot
+    ```
+
+1. Run the following command to watch the pod status. After a few moments, the pod enters **CrashLoopBackOff**. Enter **ctrl-c** to exit the command.
+
+    ```
+    kubectl get pods -n aks-troubleshoot -w
+    ```
+
+1. Run the following command to check the pod logs for the error message. You should see an error indicating the missing environment variable.
+
+    ```
+    kubectl logs -l app=api -n aks-troubleshoot
+    ```
+
+1. Fix the issue by editing the Deployment to add the **API_KEY** environment variable.
+
+    ```
+    kubectl edit deployment api-deployment -n aks-troubleshoot
+    ```
+
+    In the editor, find the **containers** section under **spec.template.spec**. Locate the **name: api** line and add the **env** block directly below it, matching the indentation of **name**:
+
+    ```yaml
+        name: api
+        env:
+        - name: API_KEY
+          value: "demo-api-key-12345"
+        ports:
+    ```
+
+    Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+
+1. Run the following command to watch the pod status. After a few moments, the pod enters **Running**. Enter **ctrl-c** to exit the command.
+
+    ```
+    kubectl get pods -n aks-troubleshoot -w
+    ```
+
+You solved the CrashLoopBackOff issue, next you....
+
+### Diagnose a readiness probe failure
+
+When a readiness probe fails, the pod shows **Running** but **0/1** containers are ready. Kubernetes won't add the pod to Service endpoints until it passes the readiness check. With a rolling update strategy, the old working pod continues serving traffic while the new pod remains stuck in a not-ready state.
+
+1. Run the following command to apply the deployment configuration that introduces a readiness probe failure. This applies an invalid path for the readiness check.
+
+    ```
+    kubectl apply -f k8s/probe-failure-deployment.yaml -n aks-troubleshoot
+    ```
+
+1. Run the following command to check the pod status. You should see two pods: the new pod shows **Running** but **0/1** in the READY column, while the old pod remains **1/1** ready. The rolling update is blocked because the new pod never becomes ready.
+
+    ```
+    kubectl get pods -n aks-troubleshoot
+    ```
+
+1. Run the following command to check for probe failure events. The command returns all **Unhealthy** events, which include both readiness and liveness probe failures. Look for a message indicating the readiness probe failed with a 404 status code.
+
+    ```
+    kubectl get events -n aks-troubleshoot --field-selector reason=Unhealthy
+    ```
+
+1. Run the following command to fix the readiness probe by editing the Deployment to correct the path.
+
+    ```
+    kubectl edit deployment api-deployment -n aks-troubleshoot
+    ```
+
+    In the editor, find the **readinessProbe** section and change **path: /invalid-path** to **path: /healthz**. Save the changes and exit the editor by selecting **Esc**, typing **:wq**, and then selecting **Enter**.
+
+1. Run the following command to verify the new pod becomes ready and the old pod terminates. You should see only one pod with **Running** status and **1/1** in the READY column.
+
+    ```
+    kubectl get pods -n aks-troubleshoot
+    ```
+
+You diagnosed and solved a readiness probe error, next you ....
 
 ## Clean up resources
 
