@@ -83,7 +83,7 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the ACR resource has been created, enter **2** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
 
-1. After the image has been built and pushed to ACR, enter **3** to launch the **Create AKS cluster** option. This creates the AKS resource configured with a managed identity, gives the service permission to pull images from the ACR resource, and assigns the needed RBAC role to write to the persistent storage. This operation can take 5-10 minutes to complete.
+1. After the image has been built and pushed to ACR, enter **3** to launch the **Create AKS cluster** option. This creates the AKS resource configured with a managed identity, and gives the service permission to pull images from the ACR resource.
 
 1. After the AKS cluster deployment has completed, enter **4** to launch the **Get AKS credentials for kubectl** option. This uses the **az aks get-credentials** command to retrieve credentials and configure **kubectl**.
 
@@ -98,6 +98,8 @@ With the deployment script running, follow these steps to create the needed reso
 ## Troubleshoot the deployment
 
 The deployment script created all Kubernetes resources in a **namespace** called **aks-troubleshoot**. Namespaces are a way to organize and isolate resources within a Kubernetes cluster. They allow you to group related resources together, apply resource quotas, and manage access control. When you don't specify a namespace, resources are created in the **default** namespace. For this exercise, all **kubectl** commands include **-n aks-troubleshoot** to target the correct namespace.
+
+After you verify the deployment, you work through three troubleshooting scenarios. In each scenario, you apply a manifest file that introduces a specific error into the deployment. Then you use **kubectl** commands to diagnose the problem and edit the configuration to resolve it.
 
 ### Verify the deployment
 
