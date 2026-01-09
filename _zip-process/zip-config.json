@@ -30,6 +30,11 @@
       "source": "starter/aks/troubleshoot-aks/python",
       "output": "downloads/python",
       "name": "aks-troubleshoot-python.zip"
+    },
+    {
+      "source": "starter/container-hosting/acr/python",
+      "output": "downloads/python",
+      "name": "acr-tasks-python.zip"
     }
   ]
 }
