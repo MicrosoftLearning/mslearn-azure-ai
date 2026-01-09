@@ -1,0 +1,1 @@
+Contains final projects for container hosting. Includes ACR, App Service, and ACI.
