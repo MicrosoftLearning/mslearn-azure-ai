@@ -38,17 +38,11 @@ az acr show --name $ACR_NAME --query loginServer --output tsv
 
 The output shows your registry's login server in the format `<registry-name>.azurecr.io`.
 
-## Create application files
+## Review the application files
 
-Create a simple Python API application to containerize. This application simulates an AI inference endpoint with health check and prediction routes.
+The exercise files include a simple Python API application to containerize. This application simulates an AI inference endpoint with health check and prediction routes.
 
-Create a directory for your application files:
-
-```bash
-mkdir acr-demo && cd acr-demo
-```
-
-Create the Python application file named `app.py`:
+Review the Python application file in `api/app.py`:
 
 ```python
 from flask import Flask, jsonify
@@ -86,7 +80,7 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
 ```
 
-Create a `Dockerfile` that packages the application:
+Review the `api/Dockerfile` that packages the application:
 
 ```dockerfile
 FROM python:3.11-slim
@@ -120,7 +114,7 @@ Use a quick task to build the image in Azure without requiring Docker on your lo
 az acr build \
   --registry $ACR_NAME \
   --image inference-api:v1.0.0 \
-  .
+  ./api
 ```
 
 Watch the output as ACR Tasks:
@@ -197,14 +191,14 @@ This command imports the Flask application and confirms it loads without errors.
 
 Demonstrate versioning by building a new version of the image with an updated tag and version number.
 
-Update the Dockerfile to use a new version:
+Build the image again with a new version tag:
 
 ```azurecli
 az acr build \
   --registry $ACR_NAME \
   --image inference-api:v1.1.0 \
   --build-arg APP_VERSION=1.1.0 \
-  .
+  ./api
 ```
 
 > [!NOTE]
