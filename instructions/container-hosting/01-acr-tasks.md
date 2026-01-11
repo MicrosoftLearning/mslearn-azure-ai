@@ -86,15 +86,7 @@ In this section you download the project starter files and use a script to deplo
     ```
 
 
-### Deploy resources to Azure
-
-With the deployment script running, follow these steps to create the needed resources in Azure.
-
-1. Enter **1** to launch the **1. Provision gpt-4o-mini model in Microsoft Foundry** option. This option creates the resource group if it doesn't already exist, creates the resource in MIcrosoft Foundry, and deploys the **gpt-4o-mini** model to the resource.
-
-
-
-Next, you complete the YAML files necessary to deploy the API to AKS.
+Next, you ...
 
 ## Complete the YAML deployment files and deploy to AKS
 
