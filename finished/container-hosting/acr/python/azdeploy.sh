@@ -59,23 +59,28 @@ else
 fi
 echo ""
 
-# Export environment variables for exercise commands
+# Write environment variables to file for sourcing
+env_file="$(dirname "$0")/.env"
+cat > "$env_file" << EOF
 export RESOURCE_GROUP="$rg"
 export ACR_NAME="$acr_name"
 export LOCATION="$location"
+EOF
 
 echo "====================================================================="
 echo "  Deployment Complete!"
 echo "====================================================================="
 echo ""
-echo "The following environment variables have been exported for the exercise:"
+echo "Environment variables have been saved to: $env_file"
 echo ""
-echo "  RESOURCE_GROUP=$RESOURCE_GROUP"
-echo "  ACR_NAME=$ACR_NAME"
-echo "  LOCATION=$LOCATION"
+echo "  RESOURCE_GROUP=$rg"
+echo "  ACR_NAME=$acr_name"
+echo "  LOCATION=$location"
 echo ""
-echo "You can now run the Azure CLI commands from the exercise."
+echo "To load these variables into your current shell, run:"
 echo ""
-echo "To verify, run: az acr show --name \$ACR_NAME --query loginServer --output tsv"
+echo "  source $env_file"
+echo ""
+echo "Then verify with: az acr show --name \$ACR_NAME --query loginServer --output tsv"
 echo ""
 echo "====================================================================="

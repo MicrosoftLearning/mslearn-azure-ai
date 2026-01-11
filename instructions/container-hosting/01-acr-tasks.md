@@ -28,12 +28,12 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure services
 
-In this section you download the starter files for the console app and use a script to deploy the necessary services to your Azure subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the project starter files and use a script to deploy the necessary services to your Azure subscription. The Azure Container Registry deployment takes a few minutes to complete.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
-    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/aks-deploy-python.zip
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/acr-tasks-python.zip
     ```
 
 1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
@@ -47,8 +47,6 @@ In this section you download the starter files for the console app and use a scr
     "<your-azure-region>" # Azure region for the resources
     ```
 
-    > **Note:** It is recommended to use one of the following three Azure regions for deployment: **eastus2**, **swedencentral**, or **australiaeast**. These regions support the deployment of the AI inference model used in the exercise.
-
 1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code.
 
 1. Run the following command to login to your Azure account. Answer the prompts to select your Azure account and subscription for the exercise.
@@ -57,13 +55,13 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
-1. Run the following command to ensure your subscription has the necessary resource provider to install AKS.
+1. Run the following command to ensure your subscription has the necessary resource provider to install Azure Container Registry (ACR).
 
     ```
-    az provider register --namespace Microsoft.ContainerService
+    az provider register --namespace Microsoft.ContainerRegistry
     ```
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script. The deployment script will deploy ACR and create a *.env* file with environment variables needed for exercise.
 
     **Bash**
     ```bash
@@ -75,23 +73,26 @@ In this section you download the starter files for the console app and use a scr
     ./azdeploy.ps1
     ```
 
+1. Run the appropriate command to create the environment variables from the *.env* file.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env
+    ```
+
+
 ### Deploy resources to Azure
 
 With the deployment script running, follow these steps to create the needed resources in Azure.
 
 1. Enter **1** to launch the **1. Provision gpt-4o-mini model in Microsoft Foundry** option. This option creates the resource group if it doesn't already exist, creates the resource in MIcrosoft Foundry, and deploys the **gpt-4o-mini** model to the resource.
 
-    > **Important:** If there are errors during the model deployment, enter **2** to launch the **2. Delete/Purge Foundry deployment** option. This will delete the deployment and purge the resource name. Exit the menu, and change the region in the deployment script to one of the other recommended regions. Then restart the deployment script and run the model provisioning option again.
 
-1. After the model is deployed, enter **3** to launch **3. Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
-
-1. After the ACR resource has been created, enter **4** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
-
-1. After the image has been built and pushed to ACR, enter **5** to launch the **5. Create AKS cluster** option. This creates the AKS resource configured with a managed identity and gives the service permission to pull images from the ACR resource. This operation can take 5-10 minutes to complete.
-
-1. After the AKS resources has been deployed, enter **6** to launch the **6. Check deployment stats** option. This option reports if each of the three resources have been successfully deployed.
-
-    If all of the services return a **successful** message, enter **8** to exit the deployment script.
 
 Next, you complete the YAML files necessary to deploy the API to AKS.
 

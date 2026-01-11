@@ -64,23 +64,28 @@ else {
 }
 Write-Host ""
 
-# Set environment variables for exercise commands
-$env:RESOURCE_GROUP = $rg
-$env:ACR_NAME = $acrName
-$env:LOCATION = $location
+# Write environment variables to file for sourcing
+$envFile = Join-Path $PSScriptRoot ".env.ps1"
+@"
+`$env:RESOURCE_GROUP = "$rg"
+`$env:ACR_NAME = "$acrName"
+`$env:LOCATION = "$location"
+"@ | Out-File -FilePath $envFile -Encoding UTF8
 
 Write-Host "====================================================================="
 Write-Host "  Deployment Complete!"
 Write-Host "====================================================================="
 Write-Host ""
-Write-Host "The following environment variables have been set for the exercise:"
+Write-Host "Environment variables have been saved to: $envFile"
 Write-Host ""
-Write-Host "  RESOURCE_GROUP=$env:RESOURCE_GROUP"
-Write-Host "  ACR_NAME=$env:ACR_NAME"
-Write-Host "  LOCATION=$env:LOCATION"
+Write-Host "  RESOURCE_GROUP=$rg"
+Write-Host "  ACR_NAME=$acrName"
+Write-Host "  LOCATION=$location"
 Write-Host ""
-Write-Host "You can now run the Azure CLI commands from the exercise."
+Write-Host "To load these variables into your current shell, run:"
 Write-Host ""
-Write-Host 'To verify, run: az acr show --name $env:ACR_NAME --query loginServer --output tsv'
+Write-Host "  . .\.env.ps1"
+Write-Host ""
+Write-Host 'Then verify with: az acr show --name $env:ACR_NAME --query loginServer --output tsv'
 Write-Host ""
 Write-Host "====================================================================="
