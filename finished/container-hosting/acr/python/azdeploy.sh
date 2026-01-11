@@ -5,7 +5,7 @@
 # rg="<your-resource-group-name>"  # Resource Group name
 # location="<your-azure-region>"   # Azure region for the resources
 
-rg="rg-exercise"        # Resource Group name
+rg="rg-exercises"        # Resource Group name
 location="eastus"       # Azure region for the resources
 
 # ============================================================================
@@ -76,11 +76,5 @@ echo ""
 echo "  RESOURCE_GROUP=$rg"
 echo "  ACR_NAME=$acr_name"
 echo "  LOCATION=$location"
-echo ""
-echo "To load these variables into your current shell, run:"
-echo ""
-echo "  source $env_file"
-echo ""
-echo "Then verify with: az acr show --name \$ACR_NAME --query loginServer --output tsv"
 echo ""
 echo "====================================================================="

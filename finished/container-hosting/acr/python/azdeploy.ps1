@@ -3,7 +3,7 @@
 # $rg = "<your-resource-group-name>"  # Resource Group name
 # $location = "<your-azure-region>"   # Azure region for the resources
 
-$rg = "rg-exercise"        # Resource Group name
+$rg = "rg-exercises"        # Resource Group name
 $location = "eastus"       # Azure region for the resources
 
 # ============================================================================
@@ -81,11 +81,5 @@ Write-Host ""
 Write-Host "  RESOURCE_GROUP=$rg"
 Write-Host "  ACR_NAME=$acrName"
 Write-Host "  LOCATION=$location"
-Write-Host ""
-Write-Host "To load these variables into your current shell, run:"
-Write-Host ""
-Write-Host "  . .\.env.ps1"
-Write-Host ""
-Write-Host 'Then verify with: az acr show --name $env:ACR_NAME --query loginServer --output tsv'
 Write-Host ""
 Write-Host "====================================================================="
