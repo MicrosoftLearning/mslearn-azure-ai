@@ -62,7 +62,7 @@ In this section you download the project starter files and use a script to deplo
     az provider register --namespace Microsoft.ContainerRegistry
     ```
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script. The deployment script will deploy ACR and create a *.env* file with environment variables needed for exercise.
+1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script. The deployment script will deploy ACR and create a file with environment variables needed for exercise.
 
     **Bash**
     ```bash
@@ -74,7 +74,7 @@ In this section you download the project starter files and use a script to deplo
     ./azdeploy.ps1
     ```
 
-1. Run the appropriate command to create the environment variables from the *.env* file.
+1. Run the appropriate command to load the environment variables into your terminal session.
 
     **Bash**
     ```bash
@@ -83,7 +83,7 @@ In this section you download the project starter files and use a script to deplo
 
     **PowerShell**
     ```powershell
-    . .\.env
+    . .\.env.ps1
     ```
 
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
