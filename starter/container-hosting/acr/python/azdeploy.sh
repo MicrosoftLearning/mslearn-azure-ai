@@ -2,11 +2,8 @@
 
 # Change the values of these variables as needed
 
-# rg="<your-resource-group-name>"  # Resource Group name
-# location="<your-azure-region>"   # Azure region for the resources
-
-rg="rg-exercise"        # Resource Group name
-location="eastus"       # Azure region for the resources
+rg="<your-resource-group-name>"  # Resource Group name
+location="<your-azure-region>"   # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -59,23 +56,22 @@ else
 fi
 echo ""
 
-# Export environment variables for exercise commands
+# Write environment variables to file for sourcing
+env_file="$(dirname "$0")/.env"
+cat > "$env_file" << EOF
 export RESOURCE_GROUP="$rg"
 export ACR_NAME="$acr_name"
 export LOCATION="$location"
+EOF
 
 echo "====================================================================="
 echo "  Deployment Complete!"
 echo "====================================================================="
 echo ""
-echo "The following environment variables have been exported for the exercise:"
+echo "Environment variables have been saved to: $env_file"
 echo ""
-echo "  RESOURCE_GROUP=$RESOURCE_GROUP"
-echo "  ACR_NAME=$ACR_NAME"
-echo "  LOCATION=$LOCATION"
-echo ""
-echo "You can now run the Azure CLI commands from the exercise."
-echo ""
-echo "To verify, run: az acr show --name \$ACR_NAME --query loginServer --output tsv"
+echo "  RESOURCE_GROUP=$rg"
+echo "  ACR_NAME=$acr_name"
+echo "  LOCATION=$location"
 echo ""
 echo "====================================================================="

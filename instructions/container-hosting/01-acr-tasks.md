@@ -7,15 +7,16 @@ lab:
 
 # Build and run a container image with ACR Tasks
 
-In this exercise, you deploy Azure resources...
+In this exercise, you use Azure Container Registry (ACR) Tasks to build and manage container images entirely in the cloud, without requiring a local Docker installation.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
-- Deploy resources to Azure
-- ???
+- Deploy Azure Container Registry
+- Build and verify container images using ACR Tasks
+- Manage image versions and protect production images
 
-This exercise takes approximately **30-40** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 ## Before you start
 
@@ -85,173 +86,222 @@ In this section you download the project starter files and use a script to deplo
     . .\.env
     ```
 
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
 
-Next, you ...
+## Build the image with ACR Tasks
 
-## Complete the YAML deployment files and deploy to AKS
+In this section you Use a quick task to build the image in Azure without requiring Docker on your local machine. The **az acr build** command uploads your source files, builds the image in the cloud, and pushes it to your registry.
 
-In this section you complete both the *deployment.yaml* and *service.yaml* files. The deployment manifest defines how the API container is deployed and managed in AKS, while the service manifest exposes the API to external traffic through a load balancer.
-
-1. Open the *k8s/deployment.yaml* file to begin completing the file.
-
-1. Locate the **# BEGIN: Container specification** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
-
-    ```yml
-    containers:  # List of containers to run in the pod
-    - name: api
-      image: ACR_ENDPOINT/aks-api:latest  # Container image from ACR
-      imagePullPolicy: Always  # Always pull the latest image from registry
-      ports:  # Ports exposed by the container
-      - name: http
-        containerPort: 8000
-        protocol: TCP
-    ```
-
-    This section defines the container specification, including which container image to use from ACR, the pull policy, and which port the container exposes for HTTP traffic.
-
-1. Locate the **# BEGIN: Liveness Probe Configuration** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
-
-    ```yml
-    livenessProbe:  # Detects if container is alive or needs restart
-      httpGet:
-        path: /healthz  # Health check endpoint path
-        port: http
-      initialDelaySeconds: 10  # Seconds to wait before first check
-      periodSeconds: 30
-      timeoutSeconds: 5
-      failureThreshold: 3  # Consecutive failures before restarting container
-    ```
-
-    This section configures the liveness probe, which periodically checks if the container is healthy by making HTTP requests to the **/healthz** endpoint. If the probe fails three consecutive times, Kubernetes automatically restarts the container.
-
-1. Locate the **# BEGIN: Resource Limits Configuration** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
-
-    ```yml
-    resources:  # CPU and memory resource specifications
-      requests:  # Minimum resources guaranteed to the container
-        memory: "256Mi"
-        cpu: "250m"
-      limits:  # Maximum resources the container can use
-        memory: "512Mi"
-        cpu: "500m"
-    ```
-
-    This section defines the CPU and memory resources for the container. Requests specify the minimum resources guaranteed, while limits set the maximum resources the container can consume. This helps Kubernetes schedule pods efficiently and prevents resource starvation.
-
-1. Save your changes and take a few minutes to review the completed *deployment.yaml* file.
-
-Next, you update the *service.yaml* file.
-
-1. Open the *k8s/service.yaml* to complete the file.
-
-1. Add the following YAML to the manifest. Ensure YAML indentation is correct.
-
-    ```yml
-    apiVersion: v1
-    kind: Service  # Service: exposes pods on a network and provides load balancing
-    metadata:
-      name: aks-api-service  # Unique name for the service
-      labels:
-        app: aks-api # Matches deployment and pod labels
-      annotations:
-        service.beta.kubernetes.io/azure-load-balancer-internal: "false"  # Use public load balancer
-    spec:  # Service specification
-      type: LoadBalancer  # Exposes service externally
-      selector:  # Selects which pods to route traffic to based on labels
-        app: aks-api
-        version: v1
-      ports:  # Port mappings between service and pods
-      - name: http
-        port: 80  # Service port exposed externally
-        targetPort: http  # Pod container port to forward traffic to
-        protocol: TCP
-      sessionAffinity: None  # Client requests not pinned to specific pods
-    ```
-
-    This manifest creates a LoadBalancer Service that exposes your API pods externally through an Azure Load Balancer. It routes incoming traffic on port 80 to the container's port 8000, using label selectors to identify which pods should receive traffic.
-
-1. Save your changes and take a few minutes to review the file.
-
-### Apply the manifests to AKS
-
-In this section you use the deployment script to apply the manifests to AKS.
-
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Run the following command to build, and push it to your registry. The build completes entirely in Azure. No local Docker installation is required.
 
     **Bash**
-    ```bash
-    bash azdeploy.sh
+    ```azurecli
+    az acr build \
+        --registry $ACR_NAME \
+        --image inference-api:v1.0.0 \
+        ./api
+    ```
+
+   **PowerShell**
+    ```azurecli
+    az acr build `
+        --registry $env:ACR_NAME `
+        --image inference-api:v1.0.0 `
+        ./api
+    ```
+
+1. Watch the output as ACR Tasks:
+
+    - Packs and uploads your source context to Azure
+    - Queues and starts the build task
+    - Streams the Docker build output showing each layer
+    - Pushes the completed image to your registry
+    - Reports the image digest and task status
+
+
+## Verify the image in the registry
+
+In this section you confirm the image exists in your registry by listing repositories and tags.
+
+1. Run the following command to list all repositories in the registry.
+
+    **Bash**
+    ```azurecli
+    az acr repository list --name $ACR_NAME --output table
     ```
 
     **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
+    ```azurecli
+    az acr repository list --name $env:ACR_NAME --output table
     ```
 
-1. Enter **7** to launch the **7. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, creates a Kubernetes secret with your Foundry credentials, updates the deployment manifest with your ACR endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **8** to exit the deployment script.
+    The output shows the **inference-api** repository you created.
 
-1. Run the following commands in the terminal to verify the deployment. Expect **kubectl get deploy,svc** to show the Deployment **READY** as **1/1** (or your replica count) and the Service **EXTERNAL-IP** to have a public IP (not **\<pending>**). The rollout command should print **deployment "aks-api" successfully rolled out** when the update is complete.
-
-    ```
-    kubectl get deploy,svc
-    kubectl rollout status deploy/aks-api
-    ```
-
-## Run the client app
-
-In this section, you configure the Python environment and then perform operations on the API using the client app
-
-### Configure the Python environment
-
-In this section, you create the Python environment and install the dependencies.
-
-1. Ensure you are in the *client* folder of the project in the terminal.
-
-1. Run the following command in the VS Code terminal to create the Python environment.
-
-    ```
-    python -m venv .venv
-    ```
-
-1. Run the following command in the VS Code terminal to activate the Python environment.
+1. Run the following command to list tags for the **inference-api** repository.
 
     **Bash**
-    ```bash
-    source .venv/Scripts/activate
+    ```azurecli
+    az acr repository show-tags \
+        --name $ACR_NAME \
+        --repository inference-api \
+        --output table
     ```
 
     **PowerShell**
-    ```powershell
-    .venv\Scripts\Activate.ps1
+    ```azurecli
+    az acr repository show-tags `
+        --name $env:ACR_NAME `
+        --repository inference-api `
+        --output table
     ```
 
-    >**Note:** You may need to modify the commands for your environment. The *Scripts* folder may be *bin* depending on your operating system.
+    The output shows the **v1.0.0** tag you assigned during the build.
 
-1. Run the following command in the VS Code terminal to install the dependencies.
+1. Run the following command to view detailed manifest information, including the digest.
 
-    ```
-    pip install -r requirements.txt
-    ```
-
-### Perform operations with the app
-
-Now it's time to run the client application to perform various operations on the API. The app provides a menu-driven interface.
-
-1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
-
-    ```
-    python main.py
+    **Bash**
+    ```azurecli
+    az acr repository show-manifests \
+        --name $ACR_NAME \
+        --repository inference-api \
+        --output table
     ```
 
-1. Enter **1** to start the **1. Check API Health (Liveness)** option. This verifies that the API container is running and responds to health checks, which is the same endpoint used by the Kubernetes liveness probe.
+    **PowerShell**
+    ```azurecli
+    az acr repository show-manifests \
+        --name $env:ACR_NAME \
+        --repository inference-api \
+        --output table
+    ```
 
-1. Enter **2** to start the **2. Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
+    Note the digest value. This SHA-256 hash uniquely identifies your image regardless of tags.
 
-1. Enter **3** to start the **3. Send Inference Request** option. This sends a single prompt to the API and receives a complete response from the deployed model. Single inference requests are useful for batch processing, automated tasks, or when you need the entire response at once for further processing.
+## Run the image with ACR Tasks
 
-1. Enter **4** to start the **4. Start Chat Session (Streaming)** option. This starts an interactive chat session where responses from the model are streamed in real-time as they're generated.
+In this section you use the **az acr run** command to execute a command inside your built image and verify it works correctly.
 
-When you're finished enter **5** to exit the app.
+1. Run the following command to verify the Flask application loads correctly in the container.
+
+    **Bash**
+    ```azurecli
+    az acr run \
+      --registry $ACR_NAME \
+      --cmd "$ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(\"Application loaded successfully\")'" \
+      /dev/null
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az acr run `
+      --registry $env:ACR_NAME `
+      --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(`"Application loaded successfully`")'" `
+      /dev/null
+    ```
+
+    The output includes Docker pull progress as it downloads the image. Look for **Application loaded successfully** near the end of the output. This confirms the container runs correctly and the Flask application imports without errors.
+
+## Build with a different tag
+
+In this section you build a new version of the image with a different tag to see how the registry maintains multiple versions.
+
+1. Run the following command to build the image again with a new version tag.
+
+    **Bash**
+    ```azurecli
+    az acr build \
+        --registry $ACR_NAME \
+        --image inference-api:v1.1.0 \
+        ./api
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az acr build `
+        --registry $env:ACR_NAME `
+        --image inference-api:v1.1.0 `
+        ./api
+    ```
+
+1. Run the following command to list all tags and see both versions.
+
+    **Bash**
+    ```azurecli
+    az acr repository show-tags \
+        --name $ACR_NAME \
+        --repository inference-api \
+        --output table
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az acr repository show-tags `
+        --name $env:ACR_NAME `
+        --repository inference-api `
+        --output table
+    ```
+
+    Both **v1.0.0** and **v1.1.0** appear in the output, demonstrating how the registry maintains multiple versions.
+
+## View build history and lock a production image
+
+In this section you review the ACR task run history and lock an image to protect it from accidental changes.
+
+1. Run the following command to review the ACR task run history to see all builds you've performed.
+
+    **Bash**
+    ```azurecli
+    az acr task list-runs \
+        --registry $ACR_NAME \
+        --output table
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az acr task list-runs `
+        --registry $env:ACR_NAME `
+        --output table
+    ```
+
+    The output shows each build task with its run ID, status, trigger type, and duration. This history helps you track builds and diagnose issues.
+
+1. Run the following command to lock your v1.0.0 image to prevent accidental deletion or modification.
+
+    **Bash**
+    ```azurecli
+    az acr repository update \
+        --name $ACR_NAME \
+        --image inference-api:v1.0.0 \
+        --write-enabled false
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az acr repository update `
+        --name $env:ACR_NAME `
+        --image inference-api:v1.0.0 `
+        --write-enabled false
+    ```
+
+1. Run the following command to verify the lock is in place.
+
+    **Bash**
+    ```azurecli
+    az acr repository show \
+        --name $ACR_NAME \
+        --image inference-api:v1.0.0 \
+        --output table
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az acr repository show `
+        --name $env:ACR_NAME `
+        --image inference-api:v1.0.0 `
+        --output table
+    ```
+
+    The **writeEnabled** field shows **False**, indicating the image is protected.
 
 ## Clean up resources
 
@@ -269,30 +319,18 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 
 If you encounter issues while completing this exercise, try the following troubleshooting steps:
 
-**Verify Azure resource deployment**
+**Verify Azure authentication and environment variables**
+- Run **az account show** to confirm you're logged in to the correct Azure subscription.
+- Verify your environment variables are set by running **echo $ACR_NAME** (Bash) or **$env:ACR_NAME** (PowerShell).
+- If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
+
+**Verify ACR deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
-- Confirm that the Microsoft Foundry resource shows a **Provisioning State** of **Succeeded** and the **gpt-4o-mini** model is deployed.
-- Verify the Azure Container Registry (ACR) exists and contains the **aks-api** image.
-- Check that the AKS cluster is in a **Succeeded** state and the nodes are running.
+- Confirm that the Azure Container Registry exists and shows a **Provisioning State** of **Succeeded**.
+- Run **az acr list --output table** to verify your registry is accessible.
 
-**Verify AKS deployment status**
-- Run **kubectl get pods** to check if the API pods are running. Look for **Running** status.
-- Run **kubectl get svc** to verify the LoadBalancer service has an external IP assigned (not **\<pending>**).
-- Run **kubectl describe pod \<pod-name>** to see detailed pod status and events if issues occur.
-- Check pod logs with **kubectl logs \<pod-name>** to see container startup errors or runtime issues.
-
-**Verify YAML file completeness**
-- Ensure all YAML sections were added correctly to *deployment.yaml* and *service.yaml* between the appropriate comment markers.
-- Verify YAML indentation is correct (use spaces, not tabs) as incorrect indentation will cause deployment failures.
-- Confirm the ACR endpoint was properly substituted in the deployment manifest by the deployment script.
-
-**Verify client configuration**
-- Check that the *.env* file exists in the *client* folder and contains a valid **API_ENDPOINT** value.
-- Ensure the API endpoint uses the correct external IP from the LoadBalancer service.
-- Verify you can reach the API endpoint by running **curl http://\<external-ip>/healthz** from the terminal.
-
-**Check Python environment and dependencies**
-- Confirm the virtual environment is activated before running the client app.
-- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
-- Ensure you're running the client from the *client* directory.
+**Troubleshoot build failures**
+- Check the build output for error messages - common issues include missing Dockerfile or incorrect file paths.
+- Verify you're running commands from the project root directory (where the *api* folder is located).
+- Run **az acr task list-runs --registry $ACR_NAME --output table** to see the status of recent builds.
 
