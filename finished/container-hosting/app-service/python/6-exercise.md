@@ -1,67 +1,17 @@
 In this exercise, you deploy a document processing service to Azure App Service. You configure the container runtime settings, application settings, and diagnostic logging. Then you verify the deployment and use diagnostic tools to inspect the running application.
 
-## Prerequisites
+## Deployment script
 
-To complete this exercise, you need:
+The deployment script should create:
 
-- An Azure subscription with permissions to create resources
-- Azure CLI installed and signed in to your subscription
+- Azure Container Registry resource and deploy container to ACR
+- Create the App Service Plan
 
+These should each be menu options in the deployment script. The deployment script will also create the resource group. Do not change anything in the deployment script. The names of all resources, apps, etc., should use the hash and not use $RANDOM.
 
-## Create the resource group
+The script should create a .env file with the necessary environment variables needed for the steps below. An example can be found in:
 
-Create a resource group to contain all resources for this exercise:
-
-```azurecli
-az group create \
-    --name rg-docprocessor \
-    --location eastus
-```
-
-## Create the container registry
-
-Create an Azure Container Registry to store the container image:
-
-```azurecli
-az acr create \
-    --resource-group rg-docprocessor \
-    --name acrdocprocessor$RANDOM \
-    --sku Basic
-```
-
-Note the registry name from the output. You'll use it in subsequent commands. Store it in a variable for convenience:
-
-```azurecli
-ACR_NAME=$(az acr list --resource-group rg-docprocessor --query "[0].name" --output tsv)
-echo "Registry name: $ACR_NAME"
-```
-
-## Build and push the container image
-
-For this exercise, use a sample container image that simulates a document processing service. The image provides a simple HTTP API that accepts requests and returns processing results.
-
-Import a sample Python web application image to your registry:
-
-```azurecli
-az acr import \
-    --name $ACR_NAME \
-    --source mcr.microsoft.com/azuredocs/containerapps-helloworld:latest \
-    --image docprocessor:v1
-```
-
-This command imports a sample container image into your registry. In a production scenario, you would build your own image from a Dockerfile and push it to the registry.
-
-## Create the App Service plan
-
-Create an App Service plan that supports Linux containers:
-
-```azurecli
-az appservice plan create \
-    --resource-group rg-docprocessor \
-    --name plan-docprocessor \
-    --is-linux \
-    --sku B1
-```
+/finished/container-hosting/acr/python/azdeploy.sh
 
 The B1 SKU provides a basic tier that supports always-on and custom containers. Production workloads typically use Standard (S1) or Premium tiers for better performance and features.
 
@@ -71,19 +21,12 @@ Create a Web App for Containers configured to pull from your container registry:
 
 ```azurecli
 az webapp create \
-    --resource-group rg-docprocessor \
-    --plan plan-docprocessor \
-    --name app-docprocessor-$RANDOM \
+    --resource-group $RESOURCE_GROUP \
+    --plan $APP_PLAN \
+    --name $APP_NAME \
     --container-image-name $ACR_NAME.azurecr.io/docprocessor:v1
 
 At this point, the app might not be able to start successfully because the web app doesn't yet have permission to pull from your private registry. In the next section, you enable a managed identity and grant it the AcrPull role.
-```
-
-Store the web app name for later use:
-
-```azurecli
-APP_NAME=$(az webapp list --resource-group rg-docprocessor --query "[0].name" --output tsv)
-echo "Web app name: $APP_NAME"
 ```
 
 ## Configure managed identity for ACR access
@@ -92,7 +35,7 @@ Enable system-assigned managed identity on the web app:
 
 ```azurecli
 az webapp identity assign \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME
 ```
 
@@ -100,13 +43,13 @@ Get the principal ID and grant ACR pull permissions:
 
 ```azurecli
 PRINCIPAL_ID=$(az webapp identity show \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --query principalId \
     --output tsv)
 
 ACR_ID=$(az acr show \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $ACR_NAME \
     --query id \
     --output tsv)
@@ -121,7 +64,7 @@ Configure the web app to use managed identity for registry authentication:
 
 ```azurecli
 az webapp config set \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --acr-use-identity true \
     --acr-identity [system]
@@ -131,7 +74,7 @@ Update the container settings to use the registry with managed identity:
 
 ```azurecli
 az webapp config container set \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --container-image-name $ACR_NAME.azurecr.io/docprocessor:v1 \
     --container-registry-url https://$ACR_NAME.azurecr.io
@@ -143,7 +86,7 @@ Configure app settings for the document processing service:
 
 ```azurecli
 az webapp config appsettings set \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --settings \
         ENVIRONMENT=production \
@@ -160,7 +103,7 @@ Configure the container port. The sample image listens on port 80, which is the 
 
 ```azurecli
 az webapp config appsettings set \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --settings WEBSITES_PORT=80
 ```
@@ -169,7 +112,7 @@ Enable persistent storage for processed documents:
 
 ```azurecli
 az webapp config appsettings set \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --settings WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
 ```
@@ -178,7 +121,7 @@ Enable always-on to reduce cold start latency:
 
 ```azurecli
 az webapp config set \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --always-on true
 ```
@@ -189,7 +132,7 @@ Enable logging to capture container output:
 
 ```azurecli
 az webapp log config \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --docker-container-logging filesystem
 ```
@@ -200,7 +143,7 @@ Get the web app URL and verify the application responds:
 
 ```azurecli
 APP_URL=$(az webapp show \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --query defaultHostName \
     --output tsv)
@@ -216,13 +159,42 @@ curl https://$APP_URL
 
 The application should return a response indicating it's running. The first request may take longer as App Service pulls the container image and starts the application.
 
+## Test document processing
+
+Submit a document to the processing endpoint:
+
+```bash
+curl -X POST https://$APP_URL/process \
+    -H "Content-Type: application/json" \
+    -d '{
+        "content": "Azure App Service provides a fully managed platform for building, deploying, and scaling web applications. It supports multiple programming languages and frameworks.",
+        "filename": "azure-overview.txt"
+    }'
+```
+
+The API returns mock analysis results including extracted entities, key phrases, and sentiment analysis. Notice that the response includes the configuration values you set earlier (`max_size_mb`, `timeout_seconds`) and indicates whether the result was saved to persistent storage.
+
+List all processed documents to verify persistent storage is working:
+
+```bash
+curl https://$APP_URL/documents
+```
+
+If persistent storage is enabled correctly, you should see the document you just processed in the list. Process a few more documents to see them accumulate:
+
+```bash
+curl -X POST https://$APP_URL/process \
+    -H "Content-Type: application/json" \
+    -d '{"content": "Containers provide a consistent environment for applications.", "filename": "containers.txt"}'
+```
+
 ## Stream container logs
 
 View real-time logs from the container:
 
 ```azurecli
 az webapp log tail \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME
 ```
 
@@ -250,7 +222,7 @@ Verify the configured settings from the CLI:
 
 ```azurecli
 az webapp config appsettings list \
-    --resource-group rg-docprocessor \
+    --resource-group $RESOURCE_GROUP \
     --name $APP_NAME \
     --output table
 ```
@@ -263,7 +235,7 @@ When you're finished exploring, delete the resource group to remove all resource
 
 ```azurecli
 az group delete \
-    --name rg-docprocessor \
+    --name $RESOURCE_GROUP \
     --yes \
     --no-wait
 ```
