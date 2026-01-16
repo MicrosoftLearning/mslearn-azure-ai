@@ -149,9 +149,7 @@ In this section you create the web app with CLI commands. You then configure the
 
 ### Assign the AcrPull role to the web app
 
-In this section, you grant the web app permission to pull images from your private registry.
-
-Managed identities are Microsoft Entra-backed identities that Azure creates and manages for you. When you enable a system-assigned identity on the web app, App Service can request tokens as that identity.
+In this section, you grant the web app permission to pull images from your private registry. Managed identities are Microsoft Entra-backed identities that Azure creates and manages for you. When you enable a system-assigned identity on the web app, App Service can request tokens as that identity.
 
 To enable the web app use that identity to pull images, you assign the built-in **AcrPull** role scoped to your registry. This follows least-privilege access: the web app can download images, but it cannot push or administer the registry.
 
@@ -256,7 +254,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
 
 ## Configure runtime settings and enable container logging
 
-In this section you configure runtime settings and enable logging to make the container easier to run and troubleshoot.
+In this section you configure runtime settings and enable logging to make the container run more reliably, and help troubleshoot issues.
 
 1. Run the following command to configure the container port. The sample image listens on port 80 (the default), so this step demonstrates the setting without changing behavior.
 
