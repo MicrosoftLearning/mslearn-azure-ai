@@ -356,38 +356,25 @@ In this section you verify the web app is running and responding.
     Write-Host "Application URL: https://$APP_URL"
     ```
 
-1. Open the URL in a browser, or run the following command to verify the application responds.
-
-    **Bash**
-    ```bash
-    curl https://$APP_URL
-    ```
-
-    **PowerShell**
-    ```powershell
-    Invoke-RestMethod -Uri "https://$APP_URL"
-    ```
-
-    The application should return a response indicating it is running. The first request may take longer as App Service pulls the container image and starts the application.
+1. Open the URL in a browser to verify the application responds. Leave the browser open, you use it later in the exercise. The application should return a response indicating it is running. The first request may take longer as App Service pulls the container image and starts the application.
 
 ## Test document processing
 
 In this section you send a request to the API so you can confirm the app is working and that results are being written to persistent storage.
 
-1. Run the following command to submit the *azure-overview.txt* file included in the project to the processing endpoint.
+1. Run the following command to submit the *document.txt* file included in the project to the processing endpoint.
 
     **Bash**
     ```bash
     curl -X POST "https://$APP_URL/process" \
         -H "Content-Type: text/plain" \
-        --data-binary @azure-overview.txt
+        --data-binary @document.txt
     ```
 
     **PowerShell**
     ```powershell
-    $body = Get-Content -Raw -Path "azure-overview.txt"
-
-    Invoke-RestMethod -Method Post -Uri "https://$APP_URL/process" -ContentType "text/plain" -Body $body
+    $body = Get-Content -Raw -Path "document.txt"
+    Invoke-RestMethod -Method Post -Uri "https://$APP_URL/process" -ContentType "text/plain" -Body $body | ConvertTo-Json -Depth 10
     ```
 
     The API returns mock analysis results including extracted entities, key phrases, and sentiment analysis. Notice that the response indicates whether the result was saved to persistent storage.
@@ -401,7 +388,7 @@ In this section you send a request to the API so you can confirm the app is work
 
     **PowerShell**
     ```powershell
-    Invoke-RestMethod -Uri "https://$APP_URL/documents"
+    Invoke-RestMethod -Uri "https://$APP_URL/documents" | ConvertTo-Json -Depth 10
     ```
 
     If persistent storage is enabled correctly, you should see the document you just processed in the list.
@@ -426,9 +413,7 @@ In this section you stream container logs to help troubleshoot startup and reque
         --name $env:APP_NAME
     ```
 
-1. Generate some requests to the application by refreshing the browser or re-running the `/process` request.
-
-    You should see log entries appear in the stream. Press Ctrl+C to stop streaming.
+1. Generate more requests to the application by refreshing the browser. You should see log entries appear in the stream. Press Ctrl+C to stop streaming.
 
 ## Inspect the diagnostic console
 
@@ -446,11 +431,13 @@ In this section you open the SCM (Kudu) site to inspect configuration views and 
     Write-Host "Kudu URL: https://$($env:APP_NAME).scm.azurewebsites.net"
     ```
 
-1. Open this URL in a browser. Navigate to:
+1. Open this URL in a browser. In the menu at the top of the page, navigate to:
 
-    1. **Environment** to view environment variables and verify your app settings are present
-    1. **Debug console > Bash** to browse the mounted file system (such as `/home`)
-    1. In the file browser, navigate to `/home/LogFiles/` to view log files
+    1. **Environment** to view environment variables and verify your app settings are present.
+    1. **Bash** to open a browser-based shell and file explorer.
+    1. In the file explorer, navigate to **/home/LogFiles/** to view log files. Enter `ls` to list the files in the folder.
+
+    >**Tip:** You can also use **Log stream** in the top menu to view logs in the browser, or use the **SSH** option to connect to the app container.
 
     The SCM site is separate from your app container, so it doesn't provide a complete view of the container's file system or running processes.
 
@@ -477,7 +464,6 @@ In this section you confirm the app settings you configured are present.
     ```
 
     Confirm that your settings appear in the list along with system-provided settings.
-
 
 ## Clean up resources
 
