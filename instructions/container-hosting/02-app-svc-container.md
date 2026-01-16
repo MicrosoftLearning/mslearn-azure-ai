@@ -23,8 +23,9 @@ To complete the exercise, you need:
 
 - An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
-- [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](/cli/azure/install-azure-cli?view=azure-cli-latest).
+- Optional: [Python 3.12](https://www.python.org/downloads/) or greater.
+
 
 ## Download project starter files and deploy Azure services
 
@@ -105,6 +106,7 @@ In this section you create the web app with CLI commands. You then configure the
 
 1. Run the following command to create a Web App for Containers configured to pull from your container registry.
 
+    **Bash**
     ```azurecli
     az webapp create \
         --resource-group $RESOURCE_GROUP \
@@ -113,56 +115,262 @@ In this section you create the web app with CLI commands. You then configure the
         --container-image-name $ACR_NAME.azurecr.io/docprocessor:v1
     ```
 
-    At this point, the app might not be able to start successfully because the web app doesn't yet have permission to pull from your private registry.
+    **PowerShell**
+    ```azurecli
+    az webapp create `
+        --resource-group $env:RESOURCE_GROUP `
+        --plan $env:APP_PLAN `
+        --name $env:APP_NAME `
+        --container-image-name "$($env:ACR_NAME).azurecr.io/docprocessor:v1"
+    ```
+
+    By default, your Azure Container Registry is private. App Service needs a way to authenticate to ACR before it can pull the image.
+
+    You configure that authentication using a system-assigned managed identity (recommended) instead of storing registry credentials in your app settings.
 
 1. Run the following command to enable a system-assigned managed identity on the web app.
 
+    **Bash**
     ```azurecli
     az webapp identity assign \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME
     ```
 
-Get the principal ID and grant ACR pull permissions:
+    **PowerShell**
+    ```azurecli
+    az webapp identity assign `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME
+    ```
 
-```azurecli
-PRINCIPAL_ID=$(az webapp identity show \
-    --resource-group $RESOURCE_GROUP \
-    --name $APP_NAME \
-    --query principalId \
-    --output tsv)
+### Assign the AcrPull role to the web app
 
-ACR_ID=$(az acr show \
-    --resource-group $RESOURCE_GROUP \
-    --name $ACR_NAME \
-    --query id \
-    --output tsv)
+In this section, you grant the web app permission to pull images from your private registry.
 
-az role assignment create \
-    --assignee $PRINCIPAL_ID \
-    --scope $ACR_ID \
-    --role AcrPull
-```
+Managed identities are Microsoft Entra-backed identities that Azure creates and manages for you. When you enable a system-assigned identity on the web app, App Service can request tokens as that identity.
 
-Configure the web app to use managed identity for registry authentication:
+To enable the web app use that identity to pull images, you assign the built-in **AcrPull** role scoped to your registry. This follows least-privilege access: the web app can download images, but it cannot push or administer the registry.
 
-```azurecli
-az webapp config set \
-    --resource-group $RESOURCE_GROUP \
-    --name $APP_NAME \
-    --acr-use-identity true \
-    --acr-identity [system]
-```
+1. Run the following command to retrieve the principal ID of the web app.
 
-Update the container settings to use the registry with managed identity:
+    **Bash**
+    ```azurecli
+    PRINCIPAL_ID=$(az webapp identity show \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --query principalId \
+        --output tsv)
+    ```
 
-```azurecli
-az webapp config container set \
-    --resource-group $RESOURCE_GROUP \
-    --name $APP_NAME \
-    --container-image-name $ACR_NAME.azurecr.io/docprocessor:v1 \
-    --container-registry-url https://$ACR_NAME.azurecr.io
-```
+    **PowerShell**
+    ```azurecli
+    $PRINCIPAL_ID = az webapp identity show `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --query principalId `
+        --output tsv
+    ```
+1. Run the following command to retrieve the ID of the ACR.
+
+    **Bash**
+    ```azurecli
+    ACR_ID=$(az acr show \
+        --resource-group $RESOURCE_GROUP \
+        --name $ACR_NAME \
+        --query id \
+        --output tsv)
+    ```
+
+    **PowerShell**
+    ```azurecli
+    $ACR_ID = az acr show `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:ACR_NAME `
+        --query id `
+        --output tsv
+    ```
+
+1. Run the following command to assign the AcrPull role to the web app.
+
+    **Bash**
+    ```azurecli
+    az role assignment create \
+        --assignee $PRINCIPAL_ID \
+        --scope $ACR_ID \
+        --role AcrPull
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az role assignment create `
+        --assignee $PRINCIPAL_ID `
+        --scope $ACR_ID `
+        --role AcrPull
+    ```
+
+    >**Note:** Role assignments can take a minute or two to propagate. If the app still can’t pull the image immediately after this step, wait briefly and try again.
+
+1. Run the following command to configure the web app to use managed identity for registry authentication. This setting tells App Service to use the web app’s managed identity (instead of registry admin credentials) when accessing the container registry.
+
+    **Bash**
+    ```azurecli
+    az webapp config set \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --acr-use-identity true \
+        --acr-identity [system]
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az webapp config set `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --acr-use-identity true `
+        --acr-identity [system]
+    ```
+
+1. Run the following command to update the container settings to use the registry with managed identity. This step explicitly sets the image and registry URL that the web app should use. If you later update the image tag, this is where you point the web app to the new version.
+
+    **Bash**
+    ```azurecli
+    az webapp config container set \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --container-image-name $ACR_NAME.azurecr.io/docprocessor:v1 \
+        --container-registry-url https://$ACR_NAME.azurecr.io
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az webapp config container set `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --container-image-name "$($env:ACR_NAME).azurecr.io/docprocessor:v1" `
+        --container-registry-url "https://$($env:ACR_NAME).azurecr.io"
+    ```
+
+## Configure runtime settings and enable container logging
+
+In this section you configure runtime settings and enable logging to make the container easier to run and troubleshoot.
+
+1. Run the following command to configure the container port. The sample image listens on port 80 (the default), so this step demonstrates the setting without changing behavior.
+
+    **Bash**
+    ```azurecli
+    az webapp config appsettings set \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --settings WEBSITES_PORT=80
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az webapp config appsettings set `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --settings WEBSITES_PORT=80
+    ```
+
+1. Run the following command to enable persistent storage for processed documents. This setting enables the App Service storage mount (for example, the **/home** path in Linux containers).
+
+    **Bash**
+    ```azurecli
+    az webapp config appsettings set \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --settings WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az webapp config appsettings set `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --settings WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
+    ```
+
+1. Run the following command to enable always-on. Always-on helps reduce cold start latency by keeping the app warm.
+
+    **Bash**
+    ```azurecli
+    az webapp config set \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --always-on true
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az webapp config set `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --always-on true
+    ```
+
+1. Run the following command to enable container logging. This captures stdout/stderr from your container so you can view logs from the CLI.
+
+    **Bash**
+    ```azurecli
+    az webapp log config \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --docker-container-logging filesystem
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az webapp log config `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --docker-container-logging filesystem
+    ```
+
+## Verify the deployment
+
+In this section you verify the web app is running and responding.
+
+1. Run the following command to retrieve the web app host name.
+
+    **Bash**
+    ```azurecli
+    APP_URL=$(az webapp show \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --query defaultHostName \
+        --output tsv)
+
+    echo "Application URL: https://$APP_URL"
+    ```
+
+    **PowerShell**
+    ```azurecli
+    $APP_URL = az webapp show `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --query defaultHostName `
+        --output tsv
+
+    Write-Host "Application URL: https://$APP_URL"
+    ```
+
+1. Open the URL in a browser, or run the following command to verify the application responds.
+
+    **Bash**
+    ```bash
+    curl https://$APP_URL
+    ```
+
+    **PowerShell**
+    ```powershell
+    curl.exe "https://$APP_URL"
+    ```
+
+    The application should return a response indicating it is running. The first request may take longer as App Service pulls the container image and starts the application.
+
+
+
 
 ## Clean up resources
 
