@@ -107,7 +107,7 @@ In this section you create the web app with CLI commands. You then configure the
 1. Run the following command to create a Web App for Containers configured to pull from your container registry.
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp create \
         --resource-group $RESOURCE_GROUP \
         --plan $APP_PLAN \
@@ -116,7 +116,7 @@ In this section you create the web app with CLI commands. You then configure the
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp create `
         --resource-group $env:RESOURCE_GROUP `
         --plan $env:APP_PLAN `
@@ -131,14 +131,14 @@ In this section you create the web app with CLI commands. You then configure the
 1. Run the following command to enable a system-assigned managed identity on the web app.
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp identity assign \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp identity assign `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME
@@ -155,7 +155,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
 1. Run the following command to retrieve the principal ID of the web app.
 
     **Bash**
-    ```azurecli
+    ```bash
     PRINCIPAL_ID=$(az webapp identity show \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -164,7 +164,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     $PRINCIPAL_ID = az webapp identity show `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `
@@ -174,7 +174,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
 1. Run the following command to retrieve the ID of the ACR.
 
     **Bash**
-    ```azurecli
+    ```bash
     ACR_ID=$(az acr show \
         --resource-group $RESOURCE_GROUP \
         --name $ACR_NAME \
@@ -183,7 +183,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     $ACR_ID = az acr show `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:ACR_NAME `
@@ -194,7 +194,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
 1. Run the following command to assign the AcrPull role to the web app.
 
     **Bash**
-    ```azurecli
+    ```bash
     az role assignment create \
         --assignee $PRINCIPAL_ID \
         --scope $ACR_ID \
@@ -202,7 +202,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az role assignment create `
         --assignee $PRINCIPAL_ID `
         --scope $ACR_ID `
@@ -214,7 +214,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
 1. Run the following command to configure the web app to use managed identity for registry authentication. This setting tells App Service to use the web app’s managed identity (instead of registry admin credentials) when accessing the container registry.
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp config set \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -223,7 +223,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp config set `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `
@@ -234,7 +234,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
 1. Run the following command to update the container settings to use the registry with managed identity. This step explicitly sets the image and registry URL that the web app should use. If you later update the image tag, this is where you point the web app to the new version.
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp config container set \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -243,7 +243,7 @@ To enable the web app use that identity to pull images, you assign the built-in 
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp config container set `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `
@@ -258,7 +258,7 @@ In this section you configure runtime settings and enable logging to make the co
 1. Run the following command to configure the container port. The sample image listens on port 80 (the default), so this step demonstrates the setting without changing behavior.
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp config appsettings set \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -266,7 +266,7 @@ In this section you configure runtime settings and enable logging to make the co
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp config appsettings set `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `
@@ -276,7 +276,7 @@ In this section you configure runtime settings and enable logging to make the co
 1. Run the following command to enable persistent storage for processed documents. This setting enables the App Service storage mount (for example, the **/home** path in Linux containers).
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp config appsettings set \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -284,7 +284,7 @@ In this section you configure runtime settings and enable logging to make the co
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp config appsettings set `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `
@@ -294,7 +294,7 @@ In this section you configure runtime settings and enable logging to make the co
 1. Run the following command to enable always-on. Always-on helps reduce cold start latency by keeping the app warm.
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp config set \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -302,7 +302,7 @@ In this section you configure runtime settings and enable logging to make the co
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp config set `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `
@@ -312,7 +312,7 @@ In this section you configure runtime settings and enable logging to make the co
 1. Run the following command to enable container logging. This captures stdout/stderr from your container so you can view logs from the CLI.
 
     **Bash**
-    ```azurecli
+    ```bash
     az webapp log config \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -320,7 +320,7 @@ In this section you configure runtime settings and enable logging to make the co
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az webapp log config `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `
@@ -334,7 +334,7 @@ In this section you verify the web app is running and responding.
 1. Run the following command to retrieve the web app host name.
 
     **Bash**
-    ```azurecli
+    ```bash
     APP_URL=$(az webapp show \
         --resource-group $RESOURCE_GROUP \
         --name $APP_NAME \
@@ -345,7 +345,7 @@ In this section you verify the web app is running and responding.
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     $APP_URL = az webapp show `
         --resource-group $env:RESOURCE_GROUP `
         --name $env:APP_NAME `

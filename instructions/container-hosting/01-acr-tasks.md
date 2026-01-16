@@ -95,7 +95,7 @@ In this section you Use a quick task to build the image in Azure without requiri
 1. Run the following command to build, and push it to your registry. The build completes entirely in Azure. No local Docker installation is required.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr build \
         --registry $ACR_NAME \
         --image inference-api:v1.0.0 \
@@ -103,7 +103,7 @@ In this section you Use a quick task to build the image in Azure without requiri
     ```
 
    **PowerShell**
-    ```azurecli
+    ```powershell
     az acr build `
         --registry $env:ACR_NAME `
         --image inference-api:v1.0.0 `
@@ -126,12 +126,12 @@ In this section you confirm the image exists in your registry by listing reposit
 1. Run the following command to list all repositories in the registry.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr repository list --name $ACR_NAME --output table
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr repository list --name $env:ACR_NAME --output table
     ```
 
@@ -140,7 +140,7 @@ In this section you confirm the image exists in your registry by listing reposit
 1. Run the following command to list tags for the **inference-api** repository.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr repository show-tags \
         --name $ACR_NAME \
         --repository inference-api \
@@ -148,7 +148,7 @@ In this section you confirm the image exists in your registry by listing reposit
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr repository show-tags `
         --name $env:ACR_NAME `
         --repository inference-api `
@@ -160,7 +160,7 @@ In this section you confirm the image exists in your registry by listing reposit
 1. Run the following command to view detailed manifest information, including the digest.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr repository show-manifests \
         --name $ACR_NAME \
         --repository inference-api \
@@ -168,7 +168,7 @@ In this section you confirm the image exists in your registry by listing reposit
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr repository show-manifests \
         --name $env:ACR_NAME \
         --repository inference-api \
@@ -184,19 +184,19 @@ In this section you use the **az acr run** command to execute a command inside y
 1. Run the following command to verify the Flask application loads correctly in the container.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr run \
-      --registry $ACR_NAME \
-      --cmd "$ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(\"Application loaded successfully\")'" \
-      /dev/null
+        --registry $ACR_NAME \
+        --cmd "$ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(\"Application loaded successfully\")'" \
+        /dev/null
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr run `
-      --registry $env:ACR_NAME `
-      --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(`"Application loaded successfully`")'" `
-      /dev/null
+        --registry $env:ACR_NAME `
+        --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(`"Application loaded successfully`")'" `
+        /dev/null
     ```
 
     The output includes Docker pull progress as it downloads the image. Look for **Application loaded successfully** near the end of the output. This confirms the container runs correctly and the Flask application imports without errors.
@@ -208,7 +208,7 @@ In this section you build a new version of the image with a different tag to see
 1. Run the following command to build the image again with a new version tag.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr build \
         --registry $ACR_NAME \
         --image inference-api:v1.1.0 \
@@ -216,7 +216,7 @@ In this section you build a new version of the image with a different tag to see
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr build `
         --registry $env:ACR_NAME `
         --image inference-api:v1.1.0 `
@@ -226,7 +226,7 @@ In this section you build a new version of the image with a different tag to see
 1. Run the following command to list all tags and see both versions.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr repository show-tags \
         --name $ACR_NAME \
         --repository inference-api \
@@ -234,7 +234,7 @@ In this section you build a new version of the image with a different tag to see
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr repository show-tags `
         --name $env:ACR_NAME `
         --repository inference-api `
@@ -250,14 +250,14 @@ In this section you review the ACR task run history and lock an image to protect
 1. Run the following command to review the ACR task run history to see all builds you've performed.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr task list-runs \
         --registry $ACR_NAME \
         --output table
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr task list-runs `
         --registry $env:ACR_NAME `
         --output table
@@ -268,7 +268,7 @@ In this section you review the ACR task run history and lock an image to protect
 1. Run the following command to lock your v1.0.0 image to prevent accidental deletion or modification.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr repository update \
         --name $ACR_NAME \
         --image inference-api:v1.0.0 \
@@ -276,7 +276,7 @@ In this section you review the ACR task run history and lock an image to protect
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr repository update `
         --name $env:ACR_NAME `
         --image inference-api:v1.0.0 `
@@ -286,7 +286,7 @@ In this section you review the ACR task run history and lock an image to protect
 1. Run the following command to verify the lock is in place.
 
     **Bash**
-    ```azurecli
+    ```bash
     az acr repository show \
         --name $ACR_NAME \
         --image inference-api:v1.0.0 \
@@ -294,7 +294,7 @@ In this section you review the ACR task run history and lock an image to protect
     ```
 
     **PowerShell**
-    ```azurecli
+    ```powershell
     az acr repository show `
         --name $env:ACR_NAME `
         --image inference-api:v1.0.0 `
