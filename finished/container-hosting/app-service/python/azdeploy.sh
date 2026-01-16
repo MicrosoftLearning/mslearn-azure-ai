@@ -36,7 +36,6 @@ show_menu() {
     echo "Location: $location"
     echo "ACR Name: $acr_name"
     echo "App Service Plan: $app_plan"
-    echo "Web App Name: $app_name"
     echo "====================================================================="
     echo "1. Create Azure Container Registry and build container image"
     echo "2. Create App Service Plan"
@@ -100,9 +99,6 @@ create_acr_and_build_image() {
         echo "Error: Failed to build/push image"
         return 1
     fi
-
-    # Write environment variables to file
-    write_env_file
 }
 
 # Function to create App Service Plan
