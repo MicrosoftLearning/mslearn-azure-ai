@@ -2,26 +2,29 @@
 lab:
     topic: Container hosting
     title: 'Deploy a container to Azure App Service'
-    description: '(In development) Learn how to ....'
+    description: 'Learn how to deploy a container image from Azure Container Registry (ACR) to Azure App Service using a managed identity for secure image pulls, then verify and troubleshoot the running container.'
 ---
 
 # Deploy a container to Azure App Service
 
-In this exercise, you ...
+In this exercise, you deploy a Linux container image from Azure Container Registry (ACR) to Azure App Service. You configure the web app to use a system-assigned managed identity and the **AcrPull** role so App Service can pull images from your private registry without storing registry credentials in app settings.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
-- Create resources in Azure
-- ...
+- Deploy Azure Container Registry and build a container image using ACR Tasks
+- Deploy an App Service plan for Linux containers
+- Create and configure a Web App for Containers to pull from ACR using managed identity
+- Configure runtime settings and enable container logging
+- Verify the deployment and test the document processing endpoint
 
-This exercise takes approximately **30** minutes to complete.
+This exercise takes approximately **30-40** minutes to complete.
 
 ## Before you start
 
 To complete the exercise, you need:
 
-- An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- An Azure subscription with the permissions to deploy the necessary Azure services. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - The latest version of the [Azure CLI](/cli/azure/install-azure-cli?view=azure-cli-latest).
 - Optional: [Python 3.12](https://www.python.org/downloads/) or greater.
@@ -29,12 +32,12 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure services
 
-In this section you download the project starter files and use a script to deploy the necessary services to your Azure subscription.
+In this section you download the project starter files and use a script to deploy the necessary services to your Azure subscription. The Azure Container Registry and App Service plan deployment takes a few minutes to complete.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
-    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/appsvc-container-python.zip
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/app-svc-container-python.zip
     ```
 
 1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
@@ -364,12 +367,118 @@ In this section you verify the web app is running and responding.
 
     **PowerShell**
     ```powershell
-    curl.exe "https://$APP_URL"
+    Invoke-RestMethod -Uri "https://$APP_URL"
     ```
 
     The application should return a response indicating it is running. The first request may take longer as App Service pulls the container image and starts the application.
 
+## Test document processing
 
+In this section you send a request to the API so you can confirm the app is working and that results are being written to persistent storage.
+
+1. Run the following command to submit the *azure-overview.txt* file included in the project to the processing endpoint.
+
+    **Bash**
+    ```bash
+    curl -X POST "https://$APP_URL/process" \
+        -H "Content-Type: text/plain" \
+        --data-binary @azure-overview.txt
+    ```
+
+    **PowerShell**
+    ```powershell
+    $body = Get-Content -Raw -Path "azure-overview.txt"
+
+    Invoke-RestMethod -Method Post -Uri "https://$APP_URL/process" -ContentType "text/plain" -Body $body
+    ```
+
+    The API returns mock analysis results including extracted entities, key phrases, and sentiment analysis. Notice that the response indicates whether the result was saved to persistent storage.
+
+1. Run the following command to list all processed documents.
+
+    **Bash**
+    ```bash
+    curl https://$APP_URL/documents
+    ```
+
+    **PowerShell**
+    ```powershell
+    Invoke-RestMethod -Uri "https://$APP_URL/documents"
+    ```
+
+    If persistent storage is enabled correctly, you should see the document you just processed in the list.
+
+## Stream container logs
+
+In this section you stream container logs to help troubleshoot startup and request processing.
+
+1. Run the following command to view real-time logs from the container.
+
+    **Bash**
+    ```bash
+    az webapp log tail \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME
+    ```
+
+    **PowerShell**
+    ```powershell
+    az webapp log tail `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME
+    ```
+
+1. Generate some requests to the application by refreshing the browser or re-running the `/process` request.
+
+    You should see log entries appear in the stream. Press Ctrl+C to stop streaming.
+
+## Inspect the diagnostic console
+
+In this section you open the SCM (Kudu) site to inspect configuration views and common log locations.
+
+1. Run the following command to print the SCM (Kudu) URL.
+
+    **Bash**
+    ```bash
+    echo "Kudu URL: https://$APP_NAME.scm.azurewebsites.net"
+    ```
+
+    **PowerShell**
+    ```powershell
+    Write-Host "Kudu URL: https://$($env:APP_NAME).scm.azurewebsites.net"
+    ```
+
+1. Open this URL in a browser. Navigate to:
+
+    1. **Environment** to view environment variables and verify your app settings are present
+    1. **Debug console > Bash** to browse the mounted file system (such as `/home`)
+    1. In the file browser, navigate to `/home/LogFiles/` to view log files
+
+    The SCM site is separate from your app container, so it doesn't provide a complete view of the container's file system or running processes.
+
+## View application settings
+
+In this section you confirm the app settings you configured are present.
+
+1. Run the following command to list application settings.
+
+    **Bash**
+    ```bash
+    az webapp config appsettings list \
+        --resource-group $RESOURCE_GROUP \
+        --name $APP_NAME \
+        --output table
+    ```
+
+    **PowerShell**
+    ```powershell
+    az webapp config appsettings list `
+        --resource-group $env:RESOURCE_GROUP `
+        --name $env:APP_NAME `
+        --output table
+    ```
+
+    Confirm that your settings appear in the list along with system-provided settings.
 
 
 ## Clean up resources
@@ -389,17 +498,41 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 If you encounter issues while completing this exercise, try the following troubleshooting steps:
 
 **Verify Azure authentication and environment variables**
+
 - Run **az account show** to confirm you're logged in to the correct Azure subscription.
 - Verify your environment variables are set by running **echo $ACR_NAME** (Bash) or **$env:ACR_NAME** (PowerShell).
 - If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
 
 **Verify ACR deployment**
+
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
 - Confirm that the Azure Container Registry exists and shows a **Provisioning State** of **Succeeded**.
 - Run **az acr list --output table** to verify your registry is accessible.
 
 **Troubleshoot build failures**
-- Check the build output for error messages - common issues include missing Dockerfile or incorrect file paths.
-- Verify you're running commands from the project root directory (where the *api* folder is located).
-- Run **az acr task list-runs --registry $ACR_NAME --output table** to see the status of recent builds.
+
+- The deployment script suppresses verbose **az acr build** output. To troubleshoot failures, check the status and logs of the most recent ACR Task run.
+- Verify you're running the deployment script from the project root directory (where the *api* folder is located).
+- List recent ACR Task runs:
+    - **Bash:** **az acr task list-runs --registry $ACR_NAME --output table**
+    - **PowerShell:** **az acr task list-runs --registry $env:ACR_NAME --output table**
+- View logs for a specific run (replace **<run-id>** with a value from the previous command):
+    - **Bash:** **az acr task logs --registry $ACR_NAME --run-id <run-id>**
+    - **PowerShell:** **az acr task logs --registry $env:ACR_NAME --run-id <run-id>**
+
+**Troubleshoot container pull failures (ImagePullBackOff / unauthorized / 403)**
+- Confirm the web app has a system-assigned managed identity enabled by running **az webapp identity show**.
+- Confirm the web app has the **AcrPull** role assignment scoped to the registry. Role assignments can take a minute or two to propagate after creation.
+- Re-run the container configuration step to ensure the image name and registry URL are correct.
+
+**Troubleshoot container startup and application errors**
+- Ensure container logging is enabled, then stream logs:
+    - **Bash:** **az webapp log tail --resource-group $RESOURCE_GROUP --name $APP_NAME**
+    - **PowerShell:** **az webapp log tail --resource-group $env:RESOURCE_GROUP --name $env:APP_NAME**
+- If the app returns a 502/503 shortly after deployment, wait a minute and try again. The first start can take longer while App Service pulls and starts the container.
+
+**Verify persistent storage is enabled**
+
+- Confirm the **WEBSITES_ENABLE_APP_SERVICE_STORAGE** setting is present and set to **true**.
+- Call the **/documents** endpoint after submitting a document to confirm results are being written to persistent storage.
 
