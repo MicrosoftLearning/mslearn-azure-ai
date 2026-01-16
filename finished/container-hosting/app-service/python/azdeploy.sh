@@ -22,26 +22,25 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
 acr_name="acr${user_hash}"
-aks_cluster="aks-${user_hash}"
-api_image_name="aks-config-api"
+app_plan="plan-docprocessor-${user_hash}"
+app_name="app-docprocessor-${user_hash}"
+container_image="docprocessor:v1"
 
 # Function to display menu
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    AKS Configuration Exercise - Deployment Script"
+    echo "    App Service Container Exercise - Deployment Script"
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
     echo "ACR Name: $acr_name"
-    echo "AKS Cluster: $aks_cluster"
+    echo "App Service Plan: $app_plan"
     echo "====================================================================="
-    echo "1. Create Azure Container Registry (ACR)"
-    echo "2. Build and push API image to ACR"
-    echo "3. Create AKS cluster"
-    echo "4. Get AKS credentials for kubectl"
-    echo "5. Check deployment status"
-    echo "6. Exit"
+    echo "1. Create Azure Container Registry and build container image"
+    echo "2. Create App Service Plan"
+    echo "3. Check deployment status"
+    echo "4. Exit"
     echo "====================================================================="
 }
 
@@ -52,138 +51,96 @@ create_resource_group() {
     local exists=$(az group exists --name $rg)
     if [ "$exists" = "false" ]; then
         az group create --name $rg --location $location > /dev/null 2>&1
-        echo "Resource group created: $rg"
+        echo "✓ Resource group created: $rg"
     else
-        echo "Resource group already exists: $rg"
+        echo "✓ Resource group already exists: $rg"
     fi
 }
 
-# Function to create Azure Container Registry
-create_acr() {
+# Function to create Azure Container Registry and build image
+create_acr_and_build_image() {
     echo "Creating Azure Container Registry '$acr_name'..."
 
-    local exists=$(az acr show --resource-group $rg --name $acr_name 2>/dev/null)
-    if [ -z "$exists" ]; then
+    local acr_exists=$(az acr show --resource-group $rg --name $acr_name 2>/dev/null)
+    if [ -z "$acr_exists" ]; then
         az acr create \
             --resource-group $rg \
             --name $acr_name \
             --sku Basic \
-            --admin-enabled true > /dev/null 2>&1
-        echo "ACR created: $acr_name"
-        echo "ACR endpoint: $acr_name.azurecr.io"
+            --admin-enabled false > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ ACR created: $acr_name"
+            echo "  Login server: $acr_name.azurecr.io"
+        else
+            echo "Error: Failed to create ACR"
+            return 1
+        fi
     else
-        echo "ACR already exists: $acr_name"
-        echo "ACR endpoint: $acr_name.azurecr.io"
+        echo "✓ ACR already exists: $acr_name"
+        echo "  Login server: $acr_name.azurecr.io"
     fi
-}
 
-# Function to build and push API image
-build_and_push_image() {
-    echo "Building and pushing API image to ACR..."
-
-    # Get ACR login server
-    acr_server=$(az acr show --resource-group $rg --name $acr_name --query loginServer -o tsv)
-
-    if [ -z "$acr_server" ]; then
-        echo "Error: Could not retrieve ACR login server."
-        return 1
-    fi
+    echo ""
+    echo "Building and pushing container image to ACR..."
+    echo "This may take a few minutes..."
 
     # Build image using ACR Tasks
     az acr build \
         --resource-group $rg \
         --registry $acr_name \
-        --image ${api_image_name}:latest \
+        --image $container_image \
         --file api/Dockerfile \
         api/ > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
-        echo "Image built and pushed: ${acr_server}/${api_image_name}:latest"
+        echo "✓ Image built and pushed: $acr_name.azurecr.io/$container_image"
     else
-        echo "Error building/pushing image."
+        echo "Error: Failed to build/push image"
         return 1
     fi
 }
 
-# Function to create AKS cluster
-create_aks_cluster() {
-    echo "Creating AKS cluster '$aks_cluster'..."
-    echo "This may take 5-10 minutes to complete. Please wait..."
-    echo ""
+# Function to create App Service Plan
+create_app_service_plan() {
+    echo "Creating App Service Plan '$app_plan'..."
 
-    local exists=$(az aks show --resource-group $rg --name $aks_cluster 2>/dev/null)
-    if [ -z "$exists" ]; then
-        local start_time=$(date +%s)
-
-        az aks create \
+    local plan_exists=$(az appservice plan show --resource-group $rg --name $app_plan 2>/dev/null)
+    if [ -z "$plan_exists" ]; then
+        az appservice plan create \
             --resource-group $rg \
-            --name $aks_cluster \
-            --node-count 1 \
-            --vm-set-type VirtualMachineScaleSets \
-            --load-balancer-sku standard \
-            --enable-managed-identity \
-            --network-plugin azure \
-            --generate-ssh-keys \
-            --attach-acr $acr_name > /dev/null 2>&1
+            --name $app_plan \
+            --sku B1 \
+            --is-linux > /dev/null 2>&1
 
-        if [ $? -ne 0 ]; then
-            echo "Error: Failed to create AKS cluster."
+        if [ $? -eq 0 ]; then
+            echo "✓ App Service Plan created: $app_plan"
+            echo "  SKU: B1 (Basic tier - supports always-on and custom containers)"
+        else
+            echo "Error: Failed to create App Service Plan"
             return 1
         fi
-
-        # Verify cluster is fully provisioned and nodes are Running
-        echo "Waiting for cluster to be fully operational..."
-        az aks wait --resource-group $rg --name $aks_cluster --updated > /dev/null 2>&1
-
-        local end_time=$(date +%s)
-        local duration=$((end_time - start_time))
-        local minutes=$((duration / 60))
-        local seconds=$((duration % 60))
-
-        echo "✓ AKS cluster creation completed: $aks_cluster"
-        echo "  Deployment time: ${minutes}m ${seconds}s"
-
-        # Assign Storage Account Contributor role to kubelet identity for Azure Files support
-        echo "Configuring storage permissions for Azure Files..."
-        local kubelet_id=$(az aks show --resource-group $rg --name $aks_cluster --query "identityProfile.kubeletidentity.clientId" -o tsv)
-        local node_rg=$(az aks show --resource-group $rg --name $aks_cluster --query "nodeResourceGroup" -o tsv)
-
-        az role assignment create \
-            --role "Storage Account Contributor" \
-            --assignee "$kubelet_id" \
-            --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$node_rg" > /dev/null 2>&1
-
-        echo "✓ Storage permissions configured"
     else
-        echo "AKS cluster already exists: $aks_cluster"
+        echo "✓ App Service Plan already exists: $app_plan"
     fi
+
+    # Write environment variables to file
+    write_env_file
 }
 
-# Function to get AKS credentials
-get_aks_credentials() {
-    echo "Getting AKS credentials for kubectl..."
+# Function to write environment variables to file
+write_env_file() {
+    local env_file="$(dirname "$0")/.env"
+    cat > "$env_file" << EOF
+export RESOURCE_GROUP="$rg"
+export ACR_NAME="$acr_name"
+export APP_PLAN="$app_plan"
+export APP_NAME="$app_name"
+export LOCATION="$location"
+EOF
     echo ""
-
-    # Get AKS credentials
-    az aks get-credentials \
-        --resource-group "$rg" \
-        --name "$aks_cluster" \
-        --overwrite-existing > /dev/null 2>&1
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to get AKS credentials."
-        return 1
-    fi
-    echo "✓ AKS credentials configured"
-    echo ""
-    echo "You can now use kubectl to interact with your AKS cluster."
-    echo ""
-    echo "Example commands:"
-    echo "  kubectl get nodes"
-    echo "  kubectl get pods -n default"
-    echo "  kubectl apply -f k8s/configmap.yaml"
-    echo "  kubectl apply -f k8s/secrets.yaml"
-    echo "  kubectl apply -f k8s/pvc.yaml"
+    echo "Environment variables saved to: $env_file"
+    echo "Run 'source .env' to load them into your shell."
 }
 
 # Function to check deployment status
@@ -193,121 +150,103 @@ check_deployment_status() {
 
     # Check ACR
     echo "Azure Container Registry ($acr_name):"
-    acr_status=$(az acr show --resource-group $rg --name $acr_name --query "provisioningState" -o tsv 2>/dev/null)
+    local acr_status=$(az acr show --resource-group $rg --name $acr_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ ! -z "$acr_status" ]; then
         echo "  Status: $acr_status"
         if [ "$acr_status" = "Succeeded" ]; then
             echo "  ✓ ACR is ready"
+            # Check if image exists
+            local image_exists=$(az acr repository show --name $acr_name --image $container_image 2>/dev/null)
+            if [ ! -z "$image_exists" ]; then
+                echo "  ✓ Container image: $container_image"
+            else
+                echo "  Container image not found"
+            fi
         fi
     else
-        echo "  Status: Not found or not ready"
+        echo "  Status: Not created"
     fi
 
-    # Check AKS
+    # Check App Service Plan
     echo ""
-    echo "AKS Cluster ($aks_cluster):"
-    aks_status=$(az aks show --resource-group $rg --name $aks_cluster --query "provisioningState" -o tsv 2>/dev/null)
-    if [ ! -z "$aks_status" ]; then
-        echo "  Status: $aks_status"
-        if [ "$aks_status" = "Succeeded" ]; then
-            echo "  ✓ AKS cluster is ready for deployment"
+    echo "App Service Plan ($app_plan):"
+    local plan_status=$(az appservice plan show --resource-group $rg --name $app_plan --query "provisioningState" -o tsv 2>/dev/null)
+    if [ ! -z "$plan_status" ]; then
+        echo "  Status: $plan_status"
+        local plan_sku=$(az appservice plan show --resource-group $rg --name $app_plan --query "sku.name" -o tsv 2>/dev/null)
+        echo "  SKU: $plan_sku"
+        if [ "$plan_status" = "Succeeded" ]; then
+            echo "  ✓ App Service Plan is ready"
         fi
     else
-        echo "  Status: Not found or not ready"
+        echo "  Status: Not created"
     fi
 
-    # Check Kubernetes resources if AKS credentials are available
-    if kubectl cluster-info &> /dev/null; then
-        echo ""
-        echo "Kubernetes Resources:"
+    # Check Web App
+    echo ""
+    echo "Web App ($app_name):"
+    local app_state=$(az webapp show --resource-group $rg --name $app_name --query "state" -o tsv 2>/dev/null)
+    if [ ! -z "$app_state" ]; then
+        echo "  State: $app_state"
+        echo "  URL: https://$app_name.azurewebsites.net"
 
-        # Check ConfigMap
-        configmap_status=$(kubectl get configmap api-config -n default -o jsonpath='{.metadata.name}' 2>/dev/null)
-        if [ ! -z "$configmap_status" ]; then
-            echo "  ConfigMap: ✓ Created"
+        # Check managed identity
+        local identity=$(az webapp identity show --resource-group $rg --name $app_name --query "principalId" -o tsv 2>/dev/null)
+        if [ ! -z "$identity" ]; then
+            echo "  ✓ Managed identity configured"
         else
-            echo "  ConfigMap: Not created"
+            echo "  Managed identity: Not configured"
         fi
-
-        # Check Secret
-        secret_status=$(kubectl get secret api-secrets -n default -o jsonpath='{.metadata.name}' 2>/dev/null)
-        if [ ! -z "$secret_status" ]; then
-            echo "  Secrets: ✓ Created"
-        else
-            echo "  Secrets: Not created"
-        fi
-
-        # Check PVC
-        pvc_status=$(kubectl get pvc api-logs-pvc -n default -o jsonpath='{.status.phase}' 2>/dev/null)
-        if [ ! -z "$pvc_status" ]; then
-            echo "  PVC: $pvc_status"
-        else
-            echo "  PVC: Not created"
-        fi
-
-        # Check Deployment
-        deployment_status=$(kubectl get deployment aks-config-api -n default -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)
-        if [ "$deployment_status" = "True" ]; then
-            echo "  Deployment: ✓ Available"
-        else
-            echo "  Deployment: Not available"
-        fi
-
-        # Check Service
-        service_ip=$(kubectl get svc aks-config-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-        if [ ! -z "$service_ip" ]; then
-            echo "  Service: ✓ Exposed at $service_ip"
-        else
-            echo "  Service: LoadBalancer IP pending or not created"
-        fi
+    else
+        echo "  Status: Not created (student task)"
     fi
+
+    echo ""
+    echo "====================================================================="
+    echo "Environment Variables (.env file):"
+    echo "  RESOURCE_GROUP=$rg"
+    echo "  ACR_NAME=$acr_name"
+    echo "  APP_PLAN=$app_plan"
+    echo "  APP_NAME=$app_name"
+    echo "  LOCATION=$location"
+    echo "====================================================================="
 }
 
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-6): " choice
+    read -p "Please select an option (1-4): " choice
 
     case $choice in
         1)
             echo ""
             create_resource_group
             echo ""
-            create_acr
+            create_acr_and_build_image
             echo ""
             read -p "Press Enter to continue..."
             ;;
         2)
             echo ""
-            build_and_push_image
+            create_resource_group
+            echo ""
+            create_app_service_plan
             echo ""
             read -p "Press Enter to continue..."
             ;;
         3)
             echo ""
-            create_aks_cluster
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        4)
-            echo ""
-            get_aks_credentials
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        5)
-            echo ""
             check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        6)
+        4)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
-            echo "Invalid option. Please select 1-6."
+            echo "Invalid option. Please select 1-4."
             read -p "Press Enter to continue..."
             ;;
     esac
