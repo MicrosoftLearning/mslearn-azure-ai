@@ -180,13 +180,7 @@ List all processed documents to verify persistent storage is working:
 curl https://$APP_URL/documents
 ```
 
-If persistent storage is enabled correctly, you should see the document you just processed in the list. Process a few more documents to see them accumulate:
-
-```bash
-curl -X POST https://$APP_URL/process \
-    -H "Content-Type: application/json" \
-    -d '{"content": "Containers provide a consistent environment for applications.", "filename": "containers.txt"}'
-```
+If persistent storage is enabled correctly, you should see the document you just processed in the list.
 
 ## Stream container logs
 
