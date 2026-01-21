@@ -21,68 +21,39 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
-resource_group="${rg}"
-aca_env="aca-env-exercise-${user_hash}"
 acr_name="acr${user_hash}"
-container_image="ai-api:v1"
+app_plan="plan-docprocessor-${user_hash}"
+app_name="app-docprocessor-${user_hash}"
+container_image="docprocessor:v1"
 
 # Function to display menu
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    Azure Container Apps Exercise - Deployment Script"
+    echo "    App Service Container Exercise - Deployment Script"
     echo "====================================================================="
-    echo "Resource Group: $resource_group"
+    echo "Resource Group: $rg"
     echo "Location: $location"
-    echo "Container Apps Environment: $aca_env"
     echo "ACR Name: $acr_name"
+    echo "App Service Plan: $app_plan"
     echo "====================================================================="
-    echo "1. Create resource group + Container Apps environment"
-    echo "2. Create Azure Container Registry and build container image"
-    echo "3. Check setup status"
+    echo "1. Create Azure Container Registry and build container image"
+    echo "2. Create App Service Plan"
+    echo "3. Check deployment status"
     echo "4. Exit"
     echo "====================================================================="
 }
 
 # Function to create resource group if it doesn't exist
 create_resource_group() {
-    echo "Checking/creating resource group '$resource_group'..."
+    echo "Checking/creating resource group '$rg'..."
 
-    local exists=$(az group exists --name $resource_group)
+    local exists=$(az group exists --name $rg)
     if [ "$exists" = "false" ]; then
-        az group create --name $resource_group --location $location > /dev/null 2>&1
-        echo "✓ Resource group created: $resource_group"
+        az group create --name $rg --location $location > /dev/null 2>&1
+        echo "✓ Resource group created: $rg"
     else
-        echo "✓ Resource group already exists: $resource_group"
-    fi
-}
-
-install_containerapp_extension_and_register_providers() {
-    echo "Ensuring Azure CLI and Container Apps extension are available..."
-    az upgrade > /dev/null 2>&1 || true
-    az extension add --name containerapp --upgrade > /dev/null 2>&1
-
-    echo "Registering required resource providers (idempotent)..."
-    az provider register --namespace Microsoft.App > /dev/null 2>&1
-    az provider register --namespace Microsoft.OperationalInsights > /dev/null 2>&1
-}
-
-create_containerapps_environment() {
-    echo "Creating Container Apps environment '$aca_env' (if needed)..."
-    az containerapp env show --name "$aca_env" --resource-group "$resource_group" > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        az containerapp env create \
-            --name "$aca_env" \
-            --resource-group "$resource_group" \
-            --location "$location" > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo "✓ Container Apps environment created: $aca_env"
-        else
-            echo "Error: Failed to create Container Apps environment"
-            return 1
-        fi
-    else
-        echo "✓ Container Apps environment already exists: $aca_env"
+        echo "✓ Resource group already exists: $rg"
     fi
 }
 
@@ -90,10 +61,10 @@ create_containerapps_environment() {
 create_acr_and_build_image() {
     echo "Creating Azure Container Registry '$acr_name'..."
 
-    local acr_exists=$(az acr show --resource-group $resource_group --name $acr_name 2>/dev/null)
+    local acr_exists=$(az acr show --resource-group $rg --name $acr_name 2>/dev/null)
     if [ -z "$acr_exists" ]; then
         az acr create \
-            --resource-group $resource_group \
+            --resource-group $rg \
             --name $acr_name \
             --sku Basic \
             --admin-enabled false > /dev/null 2>&1
@@ -116,7 +87,7 @@ create_acr_and_build_image() {
 
     # Build image using ACR Tasks
     az acr build \
-        --resource-group $resource_group \
+        --resource-group $rg \
         --registry $acr_name \
         --image $container_image \
         --file api/Dockerfile \
@@ -130,51 +101,56 @@ create_acr_and_build_image() {
     fi
 }
 
+# Function to create App Service Plan
+create_app_service_plan() {
+    echo "Creating App Service Plan '$app_plan'..."
+
+    local plan_exists=$(az appservice plan show --resource-group $rg --name $app_plan 2>/dev/null)
+    if [ -z "$plan_exists" ]; then
+        az appservice plan create \
+            --resource-group $rg \
+            --name $app_plan \
+            --sku B1 \
+            --is-linux > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ App Service Plan created: $app_plan"
+            echo "  SKU: B1 (Basic tier - supports always-on and custom containers)"
+        else
+            echo "Error: Failed to create App Service Plan"
+            return 1
+        fi
+    else
+        echo "✓ App Service Plan already exists: $app_plan"
+    fi
+
+    # Write environment variables to file
+    write_env_file
+}
+
 # Function to write environment variables to file
 write_env_file() {
     local env_file="$(dirname "$0")/.env"
-
-    local acr_server
-    acr_server=$(az acr show -n "$acr_name" --query loginServer -o tsv 2>/dev/null)
-
     cat > "$env_file" << EOF
-export RESOURCE_GROUP="$resource_group"
-export LOCATION="$location"
-export ACA_ENVIRONMENT="$aca_env"
+export RESOURCE_GROUP="$rg"
 export ACR_NAME="$acr_name"
-export ACR_SERVER="$acr_server"
-export CONTAINER_IMAGE="$container_image"
+export APP_PLAN="$app_plan"
+export APP_NAME="$app_name"
+export LOCATION="$location"
 EOF
     echo ""
     echo "Environment variables saved to: $env_file"
     echo "Run 'source .env' to load them into your shell."
-
-    echo ""
-    echo "Next (student steps in the exercise):"
-    echo "  - Deploy the Container App using: az containerapp create ..."
-    echo "  - Configure secrets using: az containerapp secret set / az containerapp update"
 }
 
 # Function to check deployment status
 check_deployment_status() {
-    echo "Checking setup status..."
+    echo "Checking deployment status..."
     echo ""
-
-    # Container Apps env
-    echo "Container Apps Environment ($aca_env):"
-    local env_status=$(az containerapp env show --resource-group $resource_group --name $aca_env --query "provisioningState" -o tsv 2>/dev/null)
-    if [ ! -z "$env_status" ]; then
-        echo "  Status: $env_status"
-        if [ "$env_status" = "Succeeded" ]; then
-            echo "  ✓ Environment is ready"
-        fi
-    else
-        echo "  Status: Not created"
-    fi
 
     # Check ACR
     echo "Azure Container Registry ($acr_name):"
-    local acr_status=$(az acr show --resource-group $resource_group --name $acr_name --query "provisioningState" -o tsv 2>/dev/null)
+    local acr_status=$(az acr show --resource-group $rg --name $acr_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ ! -z "$acr_status" ]; then
         echo "  Status: $acr_status"
         if [ "$acr_status" = "Succeeded" ]; then
@@ -193,7 +169,47 @@ check_deployment_status() {
 
     # Check App Service Plan
     echo ""
-    echo "Tip: run 'source .env' after option 2 to load variables."
+    echo "App Service Plan ($app_plan):"
+    local plan_status=$(az appservice plan show --resource-group $rg --name $app_plan --query "provisioningState" -o tsv 2>/dev/null)
+    if [ ! -z "$plan_status" ]; then
+        echo "  Status: $plan_status"
+        local plan_sku=$(az appservice plan show --resource-group $rg --name $app_plan --query "sku.name" -o tsv 2>/dev/null)
+        echo "  SKU: $plan_sku"
+        if [ "$plan_status" = "Succeeded" ]; then
+            echo "  ✓ App Service Plan is ready"
+        fi
+    else
+        echo "  Status: Not created"
+    fi
+
+    # Check Web App
+    echo ""
+    echo "Web App ($app_name):"
+    local app_state=$(az webapp show --resource-group $rg --name $app_name --query "state" -o tsv 2>/dev/null)
+    if [ ! -z "$app_state" ]; then
+        echo "  State: $app_state"
+        echo "  URL: https://$app_name.azurewebsites.net"
+
+        # Check managed identity
+        local identity=$(az webapp identity show --resource-group $rg --name $app_name --query "principalId" -o tsv 2>/dev/null)
+        if [ ! -z "$identity" ]; then
+            echo "  ✓ Managed identity configured"
+        else
+            echo "  Managed identity: Not configured"
+        fi
+    else
+        echo "  Status: Not created (student task)"
+    fi
+
+    echo ""
+    echo "====================================================================="
+    echo "Environment Variables (.env file):"
+    echo "  RESOURCE_GROUP=$rg"
+    echo "  ACR_NAME=$acr_name"
+    echo "  APP_PLAN=$app_plan"
+    echo "  APP_NAME=$app_name"
+    echo "  LOCATION=$location"
+    echo "====================================================================="
 }
 
 # Main menu loop
@@ -207,19 +223,14 @@ while true; do
             create_resource_group
             echo ""
             create_acr_and_build_image
-                    install_containerapp_extension_and_register_providers
-                    create_containerapps_environment
             echo ""
             read -p "Press Enter to continue..."
             ;;
         2)
             echo ""
             create_resource_group
-                    install_containerapp_extension_and_register_providers
-                    create_containerapps_environment
             echo ""
             create_app_service_plan
-                    write_env_file
             echo ""
             read -p "Press Enter to continue..."
             ;;
