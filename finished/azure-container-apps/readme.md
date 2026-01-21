@@ -1,0 +1,1 @@
+Contains finished project files for Azure Container Apps exercises.
