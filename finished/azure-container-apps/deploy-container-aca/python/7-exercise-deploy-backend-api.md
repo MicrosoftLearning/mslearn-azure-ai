@@ -36,52 +36,18 @@ You need a resource group and a Container Apps environment to host the API. You 
 
 ## Create a minimal containerized API
 
-You need a container image to deploy. To keep the exercise self-contained, you create a small HTTP API and a Dockerfile locally. This image acts like an AI backend API that reads configuration from environment variables.
+You need a container image to deploy. This repo already includes a small containerized backend API in the `api/` folder. The API simulates an AI document-processing service and reads configuration from environment variables and secrets.
 
-1. Create a folder and add an application file.
+The API supports:
 
-    ```bash
-    mkdir ai-api && cd ai-api
+- `GET /health` for health checks
+- `POST /process` to simulate processing a document
+- `GET /` to return service configuration (including whether the secret is configured)
 
-    cat > server.py <<'EOF'
-    import os
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+Environment variables used by the API:
 
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == '/health':
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(b'OK')
-                return
-
-            model = os.getenv('MODEL_NAME', 'not-set')
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(f"model={model}".encode('utf-8'))
-
-    if __name__ == '__main__':
-        port = int(os.getenv('PORT', '8000'))
-        server = HTTPServer(('0.0.0.0', port), Handler)
-        server.serve_forever()
-    EOF
-    ```
-
-1. Create a Dockerfile.
-
-    ```bash
-    cat > Dockerfile <<'EOF'
-    FROM python:3.12-slim
-
-    WORKDIR /app
-    COPY server.py /app/server.py
-
-    ENV PORT=8000
-    EXPOSE 8000
-
-    CMD ["python", "/app/server.py"]
-    EOF
-    ```
+- `MODEL_NAME` (for example: `document-processor`)
+- `EMBEDDINGS_API_KEY` (a secret reference in Container Apps)
 
 ## Build and push the image to Azure Container Registry
 
@@ -105,7 +71,8 @@ To practice private registry authentication, you build the image in Azure Contai
     az acr build \
     --registry "$ACR_NAME" \
     --image ai-api:v1 \
-    .
+    --file api/Dockerfile \
+    api/
     ```
 
 ## Deploy the container app and configure secrets
