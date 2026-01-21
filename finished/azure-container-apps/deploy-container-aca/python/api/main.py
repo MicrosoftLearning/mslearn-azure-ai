@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
 
@@ -84,7 +84,7 @@ def process_document():
     logger.info("Document processing request received")
 
     doc_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow().isoformat() + "Z"
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     if request.is_json:
         data = request.get_json(silent=True) or {}
@@ -190,7 +190,7 @@ def list_documents():
                     {
                         "document_id": filename.replace(".json", ""),
                         "size_bytes": stat.st_size,
-                        "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat() + "Z",
+                        "created_at": datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
                     }
                 )
         return jsonify({"documents": files, "count": len(files)})

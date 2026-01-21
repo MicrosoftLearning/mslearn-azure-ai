@@ -22,23 +22,23 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
 acr_name="acr${user_hash}"
-app_plan="plan-docprocessor-${user_hash}"
-app_name="app-docprocessor-${user_hash}"
-container_image="docprocessor:v1"
+aca_env="aca-env-${user_hash}"
+container_app_name="ai-api"
+container_image="ai-api:v1"
 
 # Function to display menu
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    App Service Container Exercise - Deployment Script"
+    echo "    Azure Container Apps Exercise - Deployment Script"
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
+    echo "Container Apps Environment: $aca_env"
     echo "ACR Name: $acr_name"
-    echo "App Service Plan: $app_plan"
     echo "====================================================================="
     echo "1. Create Azure Container Registry and build container image"
-    echo "2. Create App Service Plan"
+    echo "2. Create Container Apps environment"
     echo "3. Check deployment status"
     echo "4. Exit"
     echo "====================================================================="
@@ -101,27 +101,24 @@ create_acr_and_build_image() {
     fi
 }
 
-# Function to create App Service Plan
-create_app_service_plan() {
-    echo "Creating App Service Plan '$app_plan'..."
-
-    local plan_exists=$(az appservice plan show --resource-group $rg --name $app_plan 2>/dev/null)
-    if [ -z "$plan_exists" ]; then
-        az appservice plan create \
-            --resource-group $rg \
-            --name $app_plan \
-            --sku B1 \
-            --is-linux > /dev/null 2>&1
+# Function to create Container Apps environment
+create_containerapps_environment() {
+    echo "Creating Container Apps environment '$aca_env' (if needed)..."
+    az containerapp env show --name "$aca_env" --resource-group "$rg" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        az containerapp env create \
+            --name "$aca_env" \
+            --resource-group "$rg" \
+            --location "$location" > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ App Service Plan created: $app_plan"
-            echo "  SKU: B1 (Basic tier - supports always-on and custom containers)"
+            echo "✓ Container Apps environment created: $aca_env"
         else
-            echo "Error: Failed to create App Service Plan"
+            echo "Error: Failed to create Container Apps environment"
             return 1
         fi
     else
-        echo "✓ App Service Plan already exists: $app_plan"
+        echo "✓ Container Apps environment already exists: $aca_env"
     fi
 
     # Write environment variables to file
@@ -131,11 +128,17 @@ create_app_service_plan() {
 # Function to write environment variables to file
 write_env_file() {
     local env_file="$(dirname "$0")/.env"
+
     cat > "$env_file" << EOF
 export RESOURCE_GROUP="$rg"
 export ACR_NAME="$acr_name"
-export APP_PLAN="$app_plan"
-export APP_NAME="$app_name"
+export ACR_SERVER="$acr_name.azurecr.io"
+export ACA_ENVIRONMENT="$aca_env"
+export CONTAINER_APP_NAME="$container_app_name"
+export CONTAINER_IMAGE="$container_image"
+export TARGET_PORT="8000"
+export MODEL_NAME="document-processor"
+export EMBEDDINGS_API_KEY="demo-key-12345"
 export LOCATION="$location"
 EOF
     echo ""
@@ -147,6 +150,18 @@ EOF
 check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
+
+    # Check Container Apps environment
+    echo "Container Apps Environment ($aca_env):"
+    local env_status=$(az containerapp env show --resource-group "$rg" --name "$aca_env" --query "provisioningState" -o tsv 2>/dev/null)
+    if [ ! -z "$env_status" ]; then
+        echo "  Status: $env_status"
+        if [ "$env_status" = "Succeeded" ]; then
+            echo "  ✓ Container Apps environment is ready"
+        fi
+    else
+        echo "  Status: Not created"
+    fi
 
     # Check ACR
     echo "Azure Container Registry ($acr_name):"
@@ -166,50 +181,6 @@ check_deployment_status() {
     else
         echo "  Status: Not created"
     fi
-
-    # Check App Service Plan
-    echo ""
-    echo "App Service Plan ($app_plan):"
-    local plan_status=$(az appservice plan show --resource-group $rg --name $app_plan --query "provisioningState" -o tsv 2>/dev/null)
-    if [ ! -z "$plan_status" ]; then
-        echo "  Status: $plan_status"
-        local plan_sku=$(az appservice plan show --resource-group $rg --name $app_plan --query "sku.name" -o tsv 2>/dev/null)
-        echo "  SKU: $plan_sku"
-        if [ "$plan_status" = "Succeeded" ]; then
-            echo "  ✓ App Service Plan is ready"
-        fi
-    else
-        echo "  Status: Not created"
-    fi
-
-    # Check Web App
-    echo ""
-    echo "Web App ($app_name):"
-    local app_state=$(az webapp show --resource-group $rg --name $app_name --query "state" -o tsv 2>/dev/null)
-    if [ ! -z "$app_state" ]; then
-        echo "  State: $app_state"
-        echo "  URL: https://$app_name.azurewebsites.net"
-
-        # Check managed identity
-        local identity=$(az webapp identity show --resource-group $rg --name $app_name --query "principalId" -o tsv 2>/dev/null)
-        if [ ! -z "$identity" ]; then
-            echo "  ✓ Managed identity configured"
-        else
-            echo "  Managed identity: Not configured"
-        fi
-    else
-        echo "  Status: Not created (student task)"
-    fi
-
-    echo ""
-    echo "====================================================================="
-    echo "Environment Variables (.env file):"
-    echo "  RESOURCE_GROUP=$rg"
-    echo "  ACR_NAME=$acr_name"
-    echo "  APP_PLAN=$app_plan"
-    echo "  APP_NAME=$app_name"
-    echo "  LOCATION=$location"
-    echo "====================================================================="
 }
 
 # Main menu loop
@@ -230,7 +201,7 @@ while true; do
             echo ""
             create_resource_group
             echo ""
-            create_app_service_plan
+            create_containerapps_environment
             echo ""
             read -p "Press Enter to continue..."
             ;;
