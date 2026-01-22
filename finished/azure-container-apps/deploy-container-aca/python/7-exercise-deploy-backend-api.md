@@ -54,14 +54,32 @@ You deploy the API as a container app with external ingress. Because the image i
     ```azurecli
     az containerapp secret set -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
         --secrets embeddings-api-key=$EMBEDDINGS_API_KEY
+    ```
 
-    az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+1. Reference the secret from an environment variable. This command creates a new revision, which restarts the app so the secret change takes effect.
+
+    ```azurecli
+        az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
         --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
+    ```
+
+1. List revisions to confirm a new revision was created.
+
+    ```azurecli
+    az containerapp revision list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP -o table
+    ```
+
+    The revision name ends with a suffix like `--0000002`, indicating this is the second revision. Container Apps creates a new revision whenever you change environment variables or secrets, which restarts the app with the updated configuration. Old inactive revisions may be pruned over time.
+
+1. Verify the secret is configured by calling the root endpoint.
+
+    ```bash
+    curl -s "https://$FQDN/"
     ```
 
 ## Verify the deployment
 
-You should validate that the app starts, that ingress works, and that a revision is active. You also use logs to confirm the app is behaving as expected.
+You should validate that the app starts and that ingress works. You also use logs to confirm the app is behaving as expected.
 
 1. Get the app FQDN.
 
@@ -86,24 +104,14 @@ You should validate that the app starts, that ingress works, and that a revision
         -d @document.txt
     ```
 
-1. Review logs for startup and runtime signals.
+1. Review logs for startup and runtime signals. This command shows recent console output only. For historical logs and advanced troubleshooting, logs persist in the Log Analytics workspace associated with your Container Apps environment.
 
     ```azurecli
     az containerapp logs show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP
     ```
 
-1. List revisions and confirm a revision is active.
-
-    ```azurecli
-    az containerapp revision list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP
-    ```
+    Look for gunicorn startup messages showing workers spawned and listening on port 8000. You should also see HTTP request logs from your curl commands (GET /health, POST /process, etc.).
 
 ## Clean up resources
 
-Cleaning up avoids ongoing cost. You delete the resource group, which deletes the Container Apps environment, container app, and registry.
 
-1. Delete the resource group.
-
-    ```azurecli
-    az group delete --name $RESOURCE_GROUP
-    ```

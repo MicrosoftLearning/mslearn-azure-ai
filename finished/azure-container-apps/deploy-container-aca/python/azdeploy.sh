@@ -104,6 +104,7 @@ create_acr_and_build_image() {
 # Function to create Container Apps environment
 create_containerapps_environment() {
     echo "Creating Container Apps environment '$aca_env' (if needed)..."
+    echo "This may take a few minutes..."
     az containerapp env show --name "$aca_env" --resource-group "$rg" > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         az containerapp env create \
@@ -153,8 +154,8 @@ check_deployment_status() {
 
     # Check Container Apps environment
     echo "Container Apps Environment ($aca_env):"
-    local env_status=$(az containerapp env show --resource-group "$rg" --name "$aca_env" --query "provisioningState" -o tsv 2>/dev/null)
-    if [ ! -z "$env_status" ]; then
+    local env_status=$(az containerapp env show --resource-group "$rg" --name "$aca_env" --query "properties.provisioningState" -o tsv 2>/dev/null | tail -1)
+    if [ -n "$env_status" ]; then
         echo "  Status: $env_status"
         if [ "$env_status" = "Succeeded" ]; then
             echo "  ✓ Container Apps environment is ready"
