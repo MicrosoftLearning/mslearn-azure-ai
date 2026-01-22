@@ -40,6 +40,11 @@
       "source": "starter/container-hosting/app-service/python",
       "output": "downloads/python",
       "name": "app-svc-container-python.zip"
+    },
+    {
+      "source": "starter/aca/aca-deploy/python",
+      "output": "downloads/python",
+      "name": "aca-deploy-python.zip"
     }
   ]
 }
