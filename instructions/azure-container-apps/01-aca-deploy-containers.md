@@ -213,7 +213,7 @@ You should validate that the app starts and that ingress works. You also use log
     Invoke-RestMethod -Uri "https://$FQDN/health"
     ```
 
-1. Run the following command to verify the secret is configured by calling the root endpoint. The endpoint returns JSON containing app information.
+1. Run the following command to verify the secret is configured by calling the root endpoint. The endpoint returns JSON containing app information including the configured model name and whether the API key secret is configured.
 
     **Bash**
     ```bash
