@@ -108,9 +108,11 @@ In this section you run the deployment script to deploy the necessary services t
 
 1. When the previous operation is finished, enter **2** to launch the **Create Container Apps environment** options. Creating the environment is necessary before deploying the container.
 
-    >**Note:** A file containing environment variables is created after the Container Apps environment is created. You use these variables throughout the exercise.
+1. When the previous operation is finished, enter **3** to launch the **Deploy the container app and configure secrets** option.
 
-1. When the previous operation is finished, enter **4** to exit the deployment script.
+    >**Note:** A file containing environment variables is created after the container app is created. You use these variables throughout the exercise.
+
+1. When the previous operation is finished, enter **5** to exit the deployment script.
 
 1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -125,69 +127,6 @@ In this section you run the deployment script to deploy the necessary services t
     ```
 
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
-
-
-## Deploy the container app and configure secrets
-
-In this section you deploy the API as a container app with external ingress. Because the image is in a private registry, you must configure registry authentication at create time so the first revision can pull the image. You then configure a secret and reference it from an environment variable. This pattern mirrors how AI apps store provider API keys
-
-1. Create the container app with a system-assigned managed identity and configure registry authentication at create time. The **--registry-identity** flag tells Container Apps to use the app's managed identity to pull images from the specified registry. The CLI automatically assigns the **AcrPull** role when you use this flag with an Azure Container Registry.
-
-    **Bash**
-    ```azurecli
-    az containerapp create \
-        --name $CONTAINER_APP_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --environment $ACA_ENVIRONMENT \
-        --image "$ACR_SERVER/$CONTAINER_IMAGE" \
-        --ingress external \
-        --target-port $TARGET_PORT \
-        --env-vars MODEL_NAME=$MODEL_NAME \
-        --registry-server "$ACR_SERVER" \
-        --registry-identity system
-    ```
-
-    **PowerShell**
-    ```powershell
-    az containerapp create `
-        --name $env:CONTAINER_APP_NAME `
-        --resource-group $env:RESOURCE_GROUP `
-        --environment $env:ACA_ENVIRONMENT `
-        --image "$env:ACR_SERVER/$env:CONTAINER_IMAGE" `
-        --ingress external `
-        --target-port $env:TARGET_PORT `
-        --env-vars MODEL_NAME=$env:MODEL_NAME `
-        --registry-server "$env:ACR_SERVER" `
-        --registry-identity system
-    ```
-
-1. Create a secret and reference it from an environment variable.
-
-    **Bash**
-    ```azurecli
-    az containerapp secret set -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
-        --secrets embeddings-api-key=$EMBEDDINGS_API_KEY
-    ```
-
-    **PowerShell**
-    ```powershell
-    az containerapp secret set -n $env:CONTAINER_APP_NAME -g $env:RESOURCE_GROUP `
-        --secrets embeddings-api-key=$env:EMBEDDINGS_API_KEY
-    ```
-
-1. Reference the secret from an environment variable. This command creates a new revision, which restarts the app so the secret change takes effect.
-
-    **Bash**
-    ```azurecli
-    az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
-        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
-    ```
-
-    **PowerShell**
-    ```powershell
-    az containerapp update -n $env:CONTAINER_APP_NAME -g $env:RESOURCE_GROUP `
-        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
-    ```
 
 1. Run the following command to retrieve the app FQDN and store the result to a variable.
 
@@ -207,7 +146,7 @@ In this section you deploy the API as a container app with external ingress. Bec
     Write-Output $FQDN
     ```
 
-1. Run the following command to call the health endpoint. The command should return **{"status": "healthy"}**.
+1. Run the following command to call the health endpoint to verify the app is running. The command should return **{"status": "healthy"}**.
 
     **Bash**
     ```bash

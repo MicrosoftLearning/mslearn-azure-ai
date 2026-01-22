@@ -159,6 +159,13 @@ deploy_container_app_and_configure_secrets() {
         return 1
     fi
 
+    # Ensure Container Apps environment exists (should have been created in option 2)
+    az containerapp env show --name "$aca_env" --resource-group "$rg" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Error: Container Apps environment '$aca_env' not found. Run option 2 first."
+        return 1
+    fi
+
     # Ensure the container image exists in ACR
     az acr repository show --name "$acr_name" --image "$container_image" > /dev/null 2>&1
     if [ $? -ne 0 ]; then
@@ -227,19 +234,8 @@ check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
 
-    # Check Container Apps environment
-    echo "Container Apps Environment ($aca_env):"
-    local env_status=$(az containerapp env show --resource-group "$rg" --name "$aca_env" --query "properties.provisioningState" -o tsv 2>/dev/null | tail -1)
-    if [ -n "$env_status" ]; then
-        echo "  Status: $env_status"
-        if [ "$env_status" = "Succeeded" ]; then
-            echo "  ✓ Container Apps environment is ready"
-        fi
-    else
-        echo "  Status: Not created"
-    fi
-
     # Check ACR
+    echo ""
     echo "Azure Container Registry ($acr_name):"
     local acr_status=$(az acr show --resource-group $rg --name $acr_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ ! -z "$acr_status" ]; then
@@ -253,6 +249,31 @@ check_deployment_status() {
             else
                 echo "  Container image not found"
             fi
+        fi
+    else
+        echo "  Status: Not created"
+    fi
+
+    # Check Container Apps environment
+    echo "Container Apps Environment ($aca_env):"
+    local env_status=$(az containerapp env show --resource-group "$rg" --name "$aca_env" --query "properties.provisioningState" -o tsv 2>/dev/null | tail -1)
+    if [ -n "$env_status" ]; then
+        echo "  Status: $env_status"
+        if [ "$env_status" = "Succeeded" ]; then
+            echo "  ✓ Container Apps environment is ready"
+        fi
+    else
+        echo "  Status: Not created"
+    fi
+
+    # Check Container App
+    echo ""
+    echo "Container App ($container_app_name):"
+    local app_status=$(az containerapp show --resource-group "$rg" --name "$container_app_name" --query "properties.provisioningState" -o tsv 2>/dev/null)
+    if [ -n "$app_status" ]; then
+        echo "  Status: $app_status"
+        if [ "$app_status" = "Succeeded" ]; then
+            echo "  ✓ Container App is deployed"
         fi
     else
         echo "  Status: Not created"
