@@ -28,22 +28,22 @@ $userHash = Get-UserHash
 
 # Resource names with hash for uniqueness
 $acrName = "acr$userHash"
-$appPlan = "plan-docprocessor-$userHash"
-$appName = "app-docprocessor-$userHash"
-$containerImage = "docprocessor:v1"
+$acaEnv = "aca-env-$userHash"
+$containerAppName = "ai-api"
+$containerImage = "ai-api:v1"
 
 function Show-Menu {
     Clear-Host
     Write-Host "====================================================================="
-    Write-Host "    App Service Container Exercise - Deployment Script"
+    Write-Host "    Azure Container Apps Exercise - Deployment Script"
     Write-Host "====================================================================="
     Write-Host "Resource Group: $rg"
     Write-Host "Location: $location"
+    Write-Host "Container Apps Environment: $acaEnv"
     Write-Host "ACR Name: $acrName"
-    Write-Host "App Service Plan: $appPlan"
     Write-Host "====================================================================="
     Write-Host "1. Create Azure Container Registry and build container image"
-    Write-Host "2. Create App Service Plan"
+    Write-Host "2. Create Container Apps environment"
     Write-Host "3. Check deployment status"
     Write-Host "4. Exit"
     Write-Host "====================================================================="
@@ -113,38 +113,42 @@ function Write-EnvFile {
     @(
         "`$env:RESOURCE_GROUP = `"$rg`"",
         "`$env:ACR_NAME = `"$acrName`"",
-        "`$env:APP_PLAN = `"$appPlan`"",
-        "`$env:APP_NAME = `"$appName`"",
+        "`$env:ACR_SERVER = `"$acrName.azurecr.io`"",
+        "`$env:ACA_ENVIRONMENT = `"$acaEnv`"",
+        "`$env:CONTAINER_APP_NAME = `"$containerAppName`"",
+        "`$env:CONTAINER_IMAGE = `"$containerImage`"",
+        "`$env:TARGET_PORT = `"8000`"",
+        "`$env:MODEL_NAME = `"document-processor`"",
+        "`$env:EMBEDDINGS_API_KEY = `"demo-key-12345`"",
         "`$env:LOCATION = `"$location`""
     ) | Set-Content -Path $envFile -Encoding UTF8
 
     Write-Host ""
     Write-Host "Environment variables saved to: $envFile"
-    Write-Host "Run '. .\\.env.ps1' to load them into your shell."
+    Write-Host "Run '. .\.env.ps1' to load them into your shell."
 }
 
-function Create-AppServicePlan {
-    Write-Host "Creating App Service Plan '$appPlan'..."
+function Create-ContainerAppsEnvironment {
+    Write-Host "Creating Container Apps environment '$acaEnv' (if needed)..."
+    Write-Host "This may take a few minutes..."
 
-    az appservice plan show --resource-group $rg --name $appPlan 2>$null | Out-Null
+    az containerapp env show --name $acaEnv --resource-group $rg 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        az appservice plan create `
+        az containerapp env create `
+            --name $acaEnv `
             --resource-group $rg `
-            --name $appPlan `
-            --sku B1 `
-            --is-linux 2>&1 | Out-Null
+            --location $location 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ App Service Plan created: $appPlan"
-            Write-Host "  SKU: B1 (Basic tier - supports always-on and custom containers)"
+            Write-Host "✓ Container Apps environment created: $acaEnv"
         }
         else {
-            Write-Host "Error: Failed to create App Service Plan"
+            Write-Host "Error: Failed to create Container Apps environment"
             return
         }
     }
     else {
-        Write-Host "✓ App Service Plan already exists: $appPlan"
+        Write-Host "✓ Container Apps environment already exists: $acaEnv"
     }
 
     Write-EnvFile
@@ -154,6 +158,19 @@ function Check-DeploymentStatus {
     Write-Host "Checking deployment status..."
     Write-Host ""
 
+    Write-Host "Container Apps Environment ($acaEnv):"
+    $envStatus = (az containerapp env show --resource-group $rg --name $acaEnv --query "properties.provisioningState" -o tsv 2>$null) | Select-Object -Last 1
+    if (-not [string]::IsNullOrWhiteSpace($envStatus)) {
+        Write-Host "  Status: $envStatus"
+        if ($envStatus -eq "Succeeded") {
+            Write-Host "  ✓ Container Apps environment is ready"
+        }
+    }
+    else {
+        Write-Host "  Status: Not created"
+    }
+
+    Write-Host ""
     Write-Host "Azure Container Registry ($acrName):"
     $acrStatus = az acr show --resource-group $rg --name $acrName --query "provisioningState" -o tsv 2>$null
     if (-not [string]::IsNullOrWhiteSpace($acrStatus)) {
@@ -172,52 +189,6 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: Not created"
     }
-
-    Write-Host ""
-    Write-Host "App Service Plan ($appPlan):"
-    $planStatus = az appservice plan show --resource-group $rg --name $appPlan --query "provisioningState" -o tsv 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($planStatus)) {
-        Write-Host "  Status: $planStatus"
-        $planSku = az appservice plan show --resource-group $rg --name $appPlan --query "sku.name" -o tsv 2>$null
-        if (-not [string]::IsNullOrWhiteSpace($planSku)) {
-            Write-Host "  SKU: $planSku"
-        }
-        if ($planStatus -eq "Succeeded") {
-            Write-Host "  ✓ App Service Plan is ready"
-        }
-    }
-    else {
-        Write-Host "  Status: Not created"
-    }
-
-    Write-Host ""
-    Write-Host "Web App ($appName):"
-    $appState = az webapp show --resource-group $rg --name $appName --query "state" -o tsv 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($appState)) {
-        Write-Host "  State: $appState"
-        Write-Host "  URL: https://$appName.azurewebsites.net"
-
-        $principalId = az webapp identity show --resource-group $rg --name $appName --query "principalId" -o tsv 2>$null
-        if (-not [string]::IsNullOrWhiteSpace($principalId)) {
-            Write-Host "  ✓ Managed identity configured"
-        }
-        else {
-            Write-Host "  Managed identity: Not configured"
-        }
-    }
-    else {
-        Write-Host "  Status: Not created (student task)"
-    }
-
-    Write-Host ""
-    Write-Host "====================================================================="
-    Write-Host "Environment Variables (.env.ps1 file):"
-    Write-Host "  RESOURCE_GROUP=$rg"
-    Write-Host "  ACR_NAME=$acrName"
-    Write-Host "  APP_PLAN=$appPlan"
-    Write-Host "  APP_NAME=$appName"
-    Write-Host "  LOCATION=$location"
-    Write-Host "====================================================================="
 }
 
 while ($true) {
@@ -237,7 +208,7 @@ while ($true) {
             Write-Host ""
             Create-ResourceGroup
             Write-Host ""
-            Create-AppServicePlan
+            Create-ContainerAppsEnvironment
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
