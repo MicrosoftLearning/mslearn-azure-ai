@@ -39,8 +39,9 @@ show_menu() {
     echo "====================================================================="
     echo "1. Create Azure Container Registry and build container image"
     echo "2. Create Container Apps environment"
-    echo "3. Check deployment status"
-    echo "4. Exit"
+    echo "3. Deploy the container app and configure secrets"
+    echo "4. Check deployment status"
+    echo "5. Exit"
     echo "====================================================================="
 }
 
@@ -51,14 +52,15 @@ create_resource_group() {
     local exists=$(az group exists --name $rg)
     if [ "$exists" = "false" ]; then
         az group create --name $rg --location $location > /dev/null 2>&1
-        echo "✓ Resource group created: $rg"
+        echo "Resource group created: $rg"
     else
-        echo "✓ Resource group already exists: $rg"
+        echo "Resource group already exists: $rg"
     fi
 }
 
 # Function to create Azure Container Registry and build image
 create_acr_and_build_image() {
+    echo ""
     echo "Creating Azure Container Registry '$acr_name'..."
 
     local acr_exists=$(az acr show --resource-group $rg --name $acr_name 2>/dev/null)
@@ -103,6 +105,7 @@ create_acr_and_build_image() {
 
 # Function to create Container Apps environment
 create_containerapps_environment() {
+    echo ""
     echo "Creating Container Apps environment '$aca_env' (if needed)..."
     echo "This may take a few minutes..."
     az containerapp env show --name "$aca_env" --resource-group "$rg" > /dev/null 2>&1
@@ -121,9 +124,6 @@ create_containerapps_environment() {
     else
         echo "✓ Container Apps environment already exists: $aca_env"
     fi
-
-    # Write environment variables to file
-    write_env_file
 }
 
 # Function to write environment variables to file
@@ -145,6 +145,81 @@ EOF
     echo ""
     echo "Environment variables saved to: $env_file"
     echo "Run 'source .env' to load them into your shell."
+}
+
+# Function to deploy the container app and configure secrets
+deploy_container_app_and_configure_secrets() {
+    echo "Deploying Container App '$container_app_name' and configuring secrets..."
+    echo ""
+
+    # Ensure ACR exists (image is expected to have been built in option 1)
+    az acr show --resource-group "$rg" --name "$acr_name" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Error: ACR '$acr_name' not found. Run option 1 first."
+        return 1
+    fi
+
+    # Ensure the container image exists in ACR
+    az acr repository show --name "$acr_name" --image "$container_image" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Error: Container image '$container_image' not found in ACR. Run option 1 first."
+        return 1
+    fi
+
+    # Create the Container App if it doesn't exist
+    az containerapp show --name "$container_app_name" --resource-group "$rg" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Creating Container App '$container_app_name'..."
+        # Using --registry-identity system automatically assigns AcrPull role
+        az containerapp create \
+            --name "$container_app_name" \
+            --resource-group "$rg" \
+            --environment "$aca_env" \
+            --image "$acr_name.azurecr.io/$container_image" \
+            --ingress external \
+            --target-port 8000 \
+            --env-vars MODEL_NAME=gpt-4o-mini \
+            --registry-server "$acr_name.azurecr.io" \
+            --registry-identity system > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Container App created: $container_app_name"
+        else
+            echo "Error: Failed to create Container App"
+            return 1
+        fi
+    else
+        echo "✓ Container App already exists: $container_app_name"
+    fi
+
+    # Configure secrets
+    echo "Setting Container App secret..."
+    az containerapp secret set \
+        --name "$container_app_name" \
+        --resource-group "$rg" \
+        --secrets embeddings-api-key=demo-key-12345 > /dev/null 2>&1
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to set secrets on Container App"
+        return 1
+    fi
+
+    # Reference secret from environment variable
+    echo "Configuring environment variable to reference secret..."
+    az containerapp update \
+        --name "$container_app_name" \
+        --resource-group "$rg" \
+        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key > /dev/null 2>&1
+
+    if [ $? -eq 0 ]; then
+        echo "✓ Container App updated with secret reference"
+    else
+        echo "Error: Failed to update Container App configuration"
+        return 1
+    fi
+
+    # Write environment variables to file (moved here to avoid duplication with deploy exercise)
+    write_env_file
 }
 
 # Function to check deployment status
@@ -187,7 +262,7 @@ check_deployment_status() {
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-4): " choice
+    read -p "Please select an option (1-5): " choice
 
     case $choice in
         1)
@@ -208,17 +283,23 @@ while true; do
             ;;
         3)
             echo ""
-            check_deployment_status
+            deploy_container_app_and_configure_secrets
             echo ""
             read -p "Press Enter to continue..."
             ;;
         4)
+            echo ""
+            check_deployment_status
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        5)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
-            echo "Invalid option. Please select 1-4."
+            echo "Invalid option. Please select 1-5."
             read -p "Press Enter to continue..."
             ;;
     esac
