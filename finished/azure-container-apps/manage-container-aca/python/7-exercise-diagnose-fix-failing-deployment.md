@@ -1,83 +1,310 @@
 # Exercise - Diagnose and fix a failing deployment
 
-In this exercise, you troubleshoot a failing revision and apply a targeted fix. The goal is to practice a repeatable workflow that uses revision status, logs, and probe configuration to isolate a deployment issue. This workflow is common in AI solutions because startup behavior changes frequently when you update models and dependencies.
+In this exercise, you troubleshoot a failing container app and apply targeted fixes. You use revision status, logs, and the Azure CLI to isolate deployment issues. This workflow is common in AI solutions because startup behavior changes frequently when you update models and dependencies.
 
-> [!NOTE]
-> This exercise uses Azure CLI patterns and assumes you have access to an Azure subscription with permission to manage Azure Container Apps resources. You can adapt the steps to an existing container app, or you can create a new one if your environment requires it.
+Tasks performed in this exercise:
 
-## Setup
+- Deploy a working container app using the API from the deploy exercise
+- Introduce and diagnose a missing environment variable error
+- Introduce and diagnose a secret misconfiguration
+- Introduce and diagnose an ingress configuration issue
+- Query Log Analytics for historical troubleshooting data
+- Clean up Azure resources
 
-Before you start, confirm you have a container app with an ingress-enabled HTTP service. If you are using an existing app, note the resource group, app name, and current active revision. If you create a new app for practice, keep the configuration minimal so you can focus on revision troubleshooting.
+This exercise takes approximately **30-40** minutes to complete.
 
-## Create a failing revision
+## Before you start
 
-You need a controlled failure so you can practice diagnosis. A common and realistic failure is a readiness probe configuration that points to the wrong path, which causes the platform to keep the revision unready.
+To complete the exercise, you need:
 
-1. Update your container app in a way that creates a new revision with an incorrect readiness probe path.
-1. Wait for the new revision to start.
-1. Confirm the new revision is present and identify its revision name.
+- An Azure subscription with permissions to deploy the necessary Azure services.
+- The latest version of the [Azure CLI](/cli/azure/install-azure-cli).
+- A working deployment from the "Deploy a containerized backend API to Container Apps" exercise, or you can run the setup script below to create one.
 
-Use revision listing to confirm which revision is active and which revision is unhealthy.
+## Deploy a working container app
 
-```azurecli
-az containerapp revision list \
-  --name <app-name> \
-  --resource-group <resource-group> \
-  -o table
+If you completed the deploy exercise and still have the resources, skip to the next section. Otherwise, follow these steps to deploy a working container app.
+
+1. Clone or download the exercise files and navigate to the `finished/azure-container-apps/deploy-container-aca/python` folder.
+
+1. Run the deployment script to create the Azure Container Registry and Container Apps environment.
+
+    ```bash
+    bash azdeploy.sh
+    ```
+
+    Select option **1** to create the ACR and build the image, then option **2** to create the Container Apps environment.
+
+1. Load the environment variables.
+
+    ```bash
+    source .env
+    ```
+
+1. Create the container app.
+
+    ```bash
+    az containerapp create \
+        --name $CONTAINER_APP_NAME \
+        --resource-group $RESOURCE_GROUP \
+        --environment $ACA_ENVIRONMENT \
+        --image "$ACR_SERVER/$CONTAINER_IMAGE" \
+        --ingress external \
+        --target-port $TARGET_PORT \
+        --env-vars MODEL_NAME=$MODEL_NAME \
+        --registry-server "$ACR_SERVER" \
+        --registry-identity system
+    ```
+
+1. Configure the secret and environment variable.
+
+    ```bash
+    az containerapp secret set -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --secrets embeddings-api-key=$EMBEDDINGS_API_KEY
+
+    az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
+    ```
+
+1. Verify the deployment is working.
+
+    ```bash
+    FQDN=$(az containerapp show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --query properties.configuration.ingress.fqdn -o tsv)
+
+    curl -s "https://$FQDN/health"
+    ```
+
+    You should see `{"status":"healthy"}`.
+
+## Diagnose a missing environment variable
+
+When a container app depends on an environment variable that isn't set, the app may fail to start or behave unexpectedly. In this section, you remove a required environment variable and observe the symptoms.
+
+1. Update the container app to remove the `MODEL_NAME` environment variable. The `--replace-env-vars` flag replaces all environment variables, so you must include any variables you want to keep.
+
+    ```bash
+    az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --replace-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
+    ```
+
+1. List revisions to confirm a new revision was created.
+
+    ```bash
+    az containerapp revision list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP -o table
+    ```
+
+1. Check the root endpoint to observe the misconfiguration. The `model.name` field now shows the default value instead of the configured value.
+
+    ```bash
+    curl -s "https://$FQDN/" | jq .
+    ```
+
+    The response shows `"name": "document-processor"` (the default) instead of the value you configured. In a real AI app, this could mean the wrong model is being used.
+
+1. View the current environment variables to confirm `MODEL_NAME` is missing.
+
+    ```bash
+    az containerapp show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --query "properties.template.containers[0].env" -o table
+    ```
+
+1. Fix the issue by adding the `MODEL_NAME` environment variable back.
+
+    ```bash
+    az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --set-env-vars MODEL_NAME=$MODEL_NAME
+    ```
+
+1. Verify the fix by checking the root endpoint again.
+
+    ```bash
+    curl -s "https://$FQDN/" | jq .model
+    ```
+
+    The response should now show the configured model name.
+
+You diagnosed and fixed a missing environment variable. Next, you diagnose a secret misconfiguration.
+
+## Diagnose a secret misconfiguration
+
+Secrets in Container Apps are referenced by name. If you reference a secret that doesn't exist, the revision fails to provision. In this section, you introduce an invalid secret reference.
+
+1. Update the container app to reference a secret that doesn't exist.
+
+    ```bash
+    az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --set-env-vars EMBEDDINGS_API_KEY=secretref:wrong-secret-name
+    ```
+
+    This command fails because the secret `wrong-secret-name` doesn't exist. The CLI validates secret references before creating the revision.
+
+1. View the error message. The CLI output indicates the secret reference is invalid.
+
+    > [!NOTE]
+    > Container Apps validates secret references at deployment time, which prevents broken revisions. This is different from Kubernetes, where you might see a pod stuck in a pending state due to missing secrets.
+
+1. List the secrets currently configured on the container app.
+
+    ```bash
+    az containerapp secret list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP -o table
+    ```
+
+1. Confirm the correct secret name is `embeddings-api-key`, then fix the environment variable reference.
+
+    ```bash
+    az containerapp update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
+    ```
+
+1. Verify the fix by checking the root endpoint.
+
+    ```bash
+    curl -s "https://$FQDN/" | jq .secrets
+    ```
+
+    The response should show `"embeddings_api_key_configured": true`.
+
+You diagnosed and fixed a secret misconfiguration. Next, you diagnose an ingress issue.
+
+## Diagnose an ingress configuration issue
+
+Container Apps uses the `target-port` setting to route traffic to your container. If the port doesn't match what your application listens on, requests fail. In this section, you introduce a port mismatch.
+
+1. Update the container app to use the wrong target port.
+
+    ```bash
+    az containerapp ingress update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --target-port 3000
+    ```
+
+1. Try to access the health endpoint.
+
+    ```bash
+    curl -s "https://$FQDN/health"
+    ```
+
+    The request fails or times out because Container Apps is routing traffic to port 3000, but the application listens on port 8000.
+
+1. Check the current ingress configuration.
+
+    ```bash
+    az containerapp show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --query "properties.configuration.ingress" -o yaml
+    ```
+
+    Notice the `targetPort` is set to 3000.
+
+1. Check the container logs to see if the application is running.
+
+    ```bash
+    az containerapp logs show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP
+    ```
+
+    You should see gunicorn startup messages indicating the app is listening on port 8000, confirming the mismatch.
+
+1. Fix the ingress configuration by setting the correct target port.
+
+    ```bash
+    az containerapp ingress update -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP \
+        --target-port 8000
+    ```
+
+1. Verify the fix by calling the health endpoint.
+
+    ```bash
+    curl -s "https://$FQDN/health"
+    ```
+
+    You should see `{"status":"healthy"}`.
+
+You diagnosed and fixed an ingress configuration issue. Next, you learn how to query historical logs.
+
+## Query Log Analytics for historical troubleshooting
+
+Console logs shown by `az containerapp logs show` are recent only. For historical troubleshooting, logs persist in the Log Analytics workspace associated with your Container Apps environment.
+
+1. Get the Log Analytics workspace ID from the Container Apps environment.
+
+    ```bash
+    WORKSPACE_ID=$(az containerapp env show -n $ACA_ENVIRONMENT -g $RESOURCE_GROUP \
+        --query properties.appLogsConfiguration.logAnalyticsConfiguration.customerId -o tsv)
+
+    echo "Workspace ID: $WORKSPACE_ID"
+    ```
+
+1. Query the console logs for your container app. This returns the last 50 log entries.
+
+    ```bash
+    az monitor log-analytics query -w $WORKSPACE_ID \
+        --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == '$CONTAINER_APP_NAME' | order by TimeGenerated desc | take 50" \
+        -o table
+    ```
+
+    > [!NOTE]
+    > Log Analytics data may take a few minutes to appear after events occur. If you don't see recent logs, wait a few minutes and try again.
+
+1. Query for error-level logs specifically.
+
+    ```bash
+    az monitor log-analytics query -w $WORKSPACE_ID \
+        --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == '$CONTAINER_APP_NAME' and Log_s contains 'error' | order by TimeGenerated desc | take 20" \
+        -o table
+    ```
+
+These queries help you investigate issues that occurred in the past, even after container restarts or revision changes.
+
+## Verify the final state
+
+After completing all troubleshooting scenarios, confirm the application is fully functional.
+
+1. Test all endpoints.
+
+    ```bash
+    echo "Health check:"
+    curl -s "https://$FQDN/health"
+
+    echo -e "\n\nService info:"
+    curl -s "https://$FQDN/" | jq .
+
+    echo -e "\n\nDocument processing:"
+    curl -s -X POST "https://$FQDN/process" \
+        -H "Content-Type: application/json" \
+        -d '{"content": "Test document for processing", "filename": "test.txt"}'
+    ```
+
+1. Verify the revision is healthy.
+
+    ```bash
+    az containerapp revision list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP -o table
+    ```
+
+    The active revision should show `Healthy` in the HealthState column.
+
+## Clean up resources
+
+Cleaning up avoids ongoing cost. Delete the resource group, which deletes the Container Apps environment, container app, and registry.
+
+```bash
+az group delete --name $RESOURCE_GROUP --no-wait --yes
 ```
 
-## Observe symptoms and collect evidence
+## Troubleshooting
 
-In a real incident, you should avoid making random changes until you understand the failure mode. Collect evidence first. Evidence includes revision state and log output during startup.
+If you encounter issues during this exercise, try these steps:
 
-1. Stream logs while the failing revision attempts to become ready.
-1. Look for errors that indicate probe failure or missing routes.
+**Container app not responding**
+- Check if the revision is active: `az containerapp revision list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP -o table`
+- Verify ingress is configured: `az containerapp show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP --query properties.configuration.ingress`
 
-```azurecli
-az containerapp logs show \
-  --name <app-name> \
-  --resource-group <resource-group> \
-  --follow
-```
+**Cannot see logs**
+- Console logs are recent only. Use Log Analytics for historical data.
+- Log Analytics data may take 2-5 minutes to appear.
 
-## Fix the configuration and roll forward
+**Secret reference errors**
+- List available secrets: `az containerapp secret list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP`
+- Secret names are case-sensitive.
 
-Once you confirm the issue is probe-related, apply a targeted fix. The best fix is to update the probe path and timing so readiness matches your service behavior.
-
-1. Update the container app configuration to set the correct readiness probe path.
-1. Create a new revision with the corrected configuration.
-1. Validate that the new revision becomes ready.
-
-If your app uses multiple revision mode, keep the healthy revision active and confirm it receives traffic. If your app is in single revision mode, confirm that the updated revision replaces the prior active revision.
-
-## Clean up stale revisions
-
-Cleanup is part of day-two management. After validation, deactivate unneeded revisions so the next incident investigation is easier. Container Apps automatically purges inactive revisions when you exceed 100, so explicit deletion is not required.
-
-1. Deactivate the failing revision so it cannot receive traffic.
-1. Confirm the revision is inactive and no longer receiving requests.
-
-```azurecli
-az containerapp revision deactivate \
-  --name <app-name> \
-  --resource-group <resource-group> \
-  --revision <failing-revision-name>
-```
-
-## Success criteria
-
-Success criteria help you confirm you fixed the right problem instead of introducing a workaround. They also reflect the signals you typically validate during a real on-call incident.
-
-To complete the exercise, verify these outcomes:
-
-- The corrected revision becomes ready and receives traffic.
-- Logs show clean startup and no repeated probe failure messages.
-- The container app has only the revisions you need for rollback and investigation.
-
-## Additional resources
-
-These resources provide deeper reference material for probe behavior, revision state, and log collection. Use them when you want to extend the exercise into a team runbook.
-
-- [Azure Container Apps health probes](/azure/container-apps/health-probes)
-- [Azure Container Apps logging](/azure/container-apps/logging)
-- [Azure Container Apps revisions](/azure/container-apps/revisions)
+**Environment variables not taking effect**
+- Container Apps creates a new revision when you change environment variables. Verify the new revision is active.
+- Use `--replace-env-vars` carefully—it replaces all environment variables, not just the ones you specify.
