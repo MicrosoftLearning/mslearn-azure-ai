@@ -45,6 +45,11 @@
       "source": "starter/aca/aca-deploy/python",
       "output": "downloads/python",
       "name": "aca-deploy-python.zip"
+    },
+    {
+      "source": "starter/aca/aca-manage/python",
+      "output": "downloads/python",
+      "name": "aca-manage-python.zip"
     }
   ]
 }
