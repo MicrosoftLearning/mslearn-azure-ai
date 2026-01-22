@@ -27,7 +27,7 @@ The API supports:
 
 Environment variables used by the API:
 
-- `MODEL_NAME` (for example: `document-processor`)
+- `MODEL_NAME` (for example: `gpt-4o-mini`)
 - `EMBEDDINGS_API_KEY` (a secret reference in Container Apps)
 
 ## Deploy the container app and configure secrets

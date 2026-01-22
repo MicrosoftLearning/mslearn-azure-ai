@@ -13,7 +13,7 @@ app = Flask(__name__)
 # Configuration from environment variables (set by Container Apps)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-MODEL_NAME = os.getenv("MODEL_NAME", "document-processor")
+MODEL_NAME = os.getenv("MODEL_NAME", "not-configured")
 EMBEDDINGS_API_KEY = os.getenv("EMBEDDINGS_API_KEY")
 
 MAX_DOCUMENT_SIZE_MB = int(os.getenv("MAX_DOCUMENT_SIZE_MB", "10"))

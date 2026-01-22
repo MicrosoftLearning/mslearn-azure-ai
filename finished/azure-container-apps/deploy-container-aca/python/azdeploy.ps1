@@ -118,7 +118,7 @@ function Write-EnvFile {
         "`$env:CONTAINER_APP_NAME = `"$containerAppName`"",
         "`$env:CONTAINER_IMAGE = `"$containerImage`"",
         "`$env:TARGET_PORT = `"8000`"",
-        "`$env:MODEL_NAME = `"document-processor`"",
+        "`$env:MODEL_NAME = `"gpt-4o-mini`"",
         "`$env:EMBEDDINGS_API_KEY = `"demo-key-12345`"",
         "`$env:LOCATION = `"$location`""
     ) | Set-Content -Path $envFile -Encoding UTF8

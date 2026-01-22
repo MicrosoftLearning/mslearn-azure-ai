@@ -138,7 +138,7 @@ export ACA_ENVIRONMENT="$aca_env"
 export CONTAINER_APP_NAME="$container_app_name"
 export CONTAINER_IMAGE="$container_image"
 export TARGET_PORT="8000"
-export MODEL_NAME="document-processor"
+export MODEL_NAME="gpt-4o-mini"
 export EMBEDDINGS_API_KEY="demo-key-12345"
 export LOCATION="$location"
 EOF

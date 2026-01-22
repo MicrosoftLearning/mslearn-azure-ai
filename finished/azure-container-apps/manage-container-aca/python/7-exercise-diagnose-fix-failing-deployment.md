@@ -100,7 +100,7 @@ When a container app depends on an environment variable that isn't set, the app 
     curl -s "https://$FQDN/" | jq .
     ```
 
-    The response shows `"name": "document-processor"` (the default) instead of the value you configured. In a real AI app, this could mean the wrong model is being used.
+    The response shows `"name": "not-configured"` (the default) instead of `"gpt-4o-mini"` which you configured. In a real AI app, this could mean the wrong model is being used.
 
 1. View the current environment variables to confirm `MODEL_NAME` is missing.
 
