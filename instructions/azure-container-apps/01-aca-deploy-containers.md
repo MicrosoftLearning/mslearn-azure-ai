@@ -31,7 +31,7 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure services
 
-In this section you download the project starter files and use a script to deploy the necessary services to your Azure subscription. The Azure Container Registry and Container Apps plan deployment takes a few minutes to complete.
+In this section you download the project starter files and use a script to deploy the necessary services to your Azure subscription. The Azure Container Registry and Container Apps environment deployment takes a few minutes to complete.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
