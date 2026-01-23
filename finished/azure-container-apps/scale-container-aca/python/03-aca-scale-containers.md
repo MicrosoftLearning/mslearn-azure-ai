@@ -2,9 +2,8 @@
 lab:
     topic: Azure Container Apps
     title: 'Configure autoscaling using KEDA triggers'
-    description: 'Learn how to troubleshoot Azure Container Apps by diagnosing missing environment variables, ingress misconfigurations, and querying Log Analytics for historical troubleshooting.'
+    description: 'Learn how to configure KEDA-based autoscaling in Azure Container Apps using Service Bus queue triggers and managed identity.'
 ---
-
 
 # Configure autoscaling using KEDA triggers
 
@@ -123,7 +122,7 @@ You deploy a container app configured to process messages from the Service Bus q
 
 1. Run the following command to create the container app with system-assigned managed identity and initial scale settings. The **--system-assigned** flag enables managed identity, and **--registry-identity system** allows the app to pull images from ACR using that identity.
 
-    **Bash:**
+    **Bash**
     ```azurecli
     az containerapp create \
       --name queue-processor \
@@ -140,7 +139,7 @@ You deploy a container app configured to process messages from the Service Bus q
                  "PROCESSING_DELAY_SECONDS=2"
     ```
 
-    **PowerShell:**
+    **PowerShell**
     ```azurecli
     az containerapp create `
       --name queue-processor `
@@ -157,95 +156,104 @@ You deploy a container app configured to process messages from the Service Bus q
                  "PROCESSING_DELAY_SECONDS=2"
     ```
 
-1. Configure managed identity permissions for Service Bus. Run the deployment script and select option 4:
+1. Run the deployment script and enter **4** to launch the **Configure managed identity for queue-processor app** option. This assigns the **Azure Service Bus Data Receiver** and **Azure Service Bus Data Owner** roles to the container app's managed identity. When the operation finishes enter **6** to exit.
 
-    **Bash:**
+    **Bash**
     ```bash
     ./azdeploy.sh
-    # Select option 4: Configure managed identity for queue-processor app
     ```
 
-    **PowerShell:**
+    **PowerShell**
     ```powershell
     ./azdeploy.ps1
-    # Select option 4: Configure managed identity for queue-processor app
     ```
+    >**Note:** Role assignments can take 1-2 minutes to propagate. Wait a few minutes before performing the next step.
 
-    This assigns the **Azure Service Bus Data Receiver** and **Azure Service Bus Data Owner** roles to the container app's managed identity.
+1. Run the following command to verify the application deployed with zero replicas. The application shows zero running replicas because no scale rule triggers scaling and the minimum is set to zero.
 
-    > **Note:** Role assignments can take 1-2 minutes to propagate. If the app fails to connect to Service Bus initially, wait a moment before testing.
-
-1. Verify the application deployed with zero replicas:
-
-    ```azurecli
+    **Bash**
+    ```bash
     az containerapp show \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --query "properties.runningStatus"
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --query "properties.runningStatus"
     ```
 
-    The application shows zero running replicas because no scale rule triggers scaling and the minimum is set to zero.
+    **PowerShell**
+    ```powershell
+    az containerapp show `
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --query "properties.runningStatus"
+    ```
 
 ## Configure Service Bus scaling
 
-You add a Service Bus scale rule that monitors queue depth and triggers scaling when messages accumulate. The scale rule uses the container app's managed identity to query queue metrics.
+In this section you add a Service Bus scale rule that monitors queue depth and triggers scaling when messages accumulate. The scale rule uses the container app's managed identity to query queue metrics.
 
-1. Update the container app to add a Service Bus scale rule with managed identity:
+1. Run the following command to update the container app with a Service Bus scale rule using managed identity. The **--scale-rule-identity system** parameter tells KEDA to use the container app's managed identity instead of a connection string. This scale rule monitors the **orders** queue and requests additional replicas when more than five messages are present per replica.
 
-    **Bash:**
-    ```azurecli
+    **Bash**
+    ```bash
     az containerapp update \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --scale-rule-name servicebus-scaling \
-      --scale-rule-type azure-servicebus \
-      --scale-rule-metadata "queueName=$QUEUE_NAME" \
-                            "namespace=$SERVICE_BUS_NAMESPACE" \
-                            "messageCount=5" \
-      --scale-rule-identity system
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --scale-rule-name servicebus-scaling \
+        --scale-rule-type azure-servicebus \
+        --scale-rule-metadata "queueName=$QUEUE_NAME" \
+                              "namespace=$SERVICE_BUS_NAMESPACE" \
+                              "messageCount=5" \
+        --scale-rule-identity system
     ```
 
-    **PowerShell:**
-    ```azurecli
+    **PowerShell**
+    ```powershell
     az containerapp update `
-      --name queue-processor `
-      --resource-group $env:RESOURCE_GROUP `
-      --scale-rule-name servicebus-scaling `
-      --scale-rule-type azure-servicebus `
-      --scale-rule-metadata "queueName=$env:QUEUE_NAME" `
-                            "namespace=$env:SERVICE_BUS_NAMESPACE" `
-                            "messageCount=5" `
-      --scale-rule-identity system
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --scale-rule-name servicebus-scaling `
+        --scale-rule-type azure-servicebus `
+        --scale-rule-metadata "queueName=$env:QUEUE_NAME" `
+                              "namespace=$env:SERVICE_BUS_NAMESPACE" `
+                              "messageCount=5" `
+        --scale-rule-identity system
     ```
 
-    The `--scale-rule-identity system` parameter tells KEDA to use the container app's managed identity instead of a connection string. This scale rule monitors the `orders` queue and requests additional replicas when more than five messages are present per replica.
+1. Run the following command to verify the scale rule is configured. Look for the **servicebus-scaling** rule in the output with **minReplicas** set to **0** and **maxReplicas** set to **10**.
 
-1. Verify the scale rule is configured:
-
-    ```azurecli
+    **Bash**
+    ```bash
     az containerapp show \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --query "properties.template.scale"
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --query "properties.template.scale"
+    ```
+
+    **PowerShell**
+    ```powershell
+    az containerapp show `
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --query "properties.template.scale"
     ```
 
 ## Test scaling behavior
 
-You send messages to the Service Bus queue and observe the application scaling in response. The queue processor has a 2-second processing delay per message, giving you time to observe scaling.
+In this section you send messages to the Service Bus queue and observe the application scaling in response. The queue processor has a 2-second processing delay per message, giving you time to observe scaling.
 
-1. Open a second terminal window for monitoring. In that window, load the environment variables and start monitoring replicas in real-time:
+1. Open a second terminal window for monitoring. In that window, load the environment variables and run the following command to start monitoring replicas in real-time. Press **Ctrl+C** to stop monitoring when you're done observing.
 
-    **Bash:**
+    **Bash**
     ```bash
     source .env
     watch -n 2 "az containerapp replica list \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --query '[].name' \
-      --output table"
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --query '[].name' \
+        --output table"
     ```
 
-    **PowerShell:**
+    **PowerShell**
     ```powershell
     . .\.env.ps1
     while ($true) {
@@ -259,22 +267,20 @@ You send messages to the Service Bus queue and observe the application scaling i
     }
     ```
 
-    Press `Ctrl+C` to stop monitoring when you're done observing.
+1. In your original terminal, run the following command to send 100 messages to the queue.
 
-1. In your original terminal, send 100 messages to the queue:
-
-    **Bash:**
+    **Bash**
     ```bash
     for i in {1..100}; do
-      az servicebus queue send \
-        --namespace-name $SERVICE_BUS_NAMESPACE \
-        --name $QUEUE_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --body "Order $i"
+        az servicebus queue send \
+            --namespace-name $SERVICE_BUS_NAMESPACE \
+            --name $QUEUE_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --body "Order $i"
     done
     ```
 
-    **PowerShell:**
+    **PowerShell**
     ```powershell
     1..100 | ForEach-Object {
         az servicebus queue send `
@@ -285,87 +291,166 @@ You send messages to the Service Bus queue and observe the application scaling i
     }
     ```
 
-1. Watch the monitoring terminal. With 100 messages and a `messageCount` threshold of 5, the scaler requests up to 20 replicas (capped at max 10). You should see replicas scale up as messages accumulate.
+1. Watch the monitoring terminal. With 100 messages and a **messageCount** threshold of **5**, the scaler requests up to 20 replicas (capped at max 10). You should see replicas scale up as messages accumulate.
 
-1. View the system logs to observe scaling events:
+1. Run the following command to view the system logs and observe scaling events. Look for log entries indicating replica scheduling and scaling decisions.
 
-    ```azurecli
+    **Bash**
+    ```bash
     az containerapp logs show \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --type system \
-      --tail 50
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --type system \
+        --tail 50
     ```
 
-    Look for log entries indicating replica scheduling and scaling decisions.
+    **PowerShell**
+    ```powershell
+    az containerapp logs show `
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --type system `
+        --tail 50
+    ```
 
-1. Continue watching the monitoring terminal as messages are processed. The 2-second delay per message means processing takes several minutes across all replicas, giving you time to observe both scale-up and scale-down behavior. After messages are processed, the application eventually scales back to zero replicas after the 300-second cool-down period.
+1. Continue watching the monitoring terminal as messages are processed. The 2-second delay per message means processing takes several minutes across all replicas, giving you time to observe both scale-up and scale-down behavior. After messages are processed, the application eventually scales back to zero replicas after the **300-second** cool-down period.
 
-## Add HTTP scaling for API endpoints (optional)
+## Configure multiple scale rules using YAML
 
-You can add an HTTP scale rule to handle scenarios where the application also receives HTTP requests.
+In this section you learn how to configure multiple scale rules using YAML configuration. Adding a new scale rule via the CLI replaces the previous rule, so you use YAML to maintain multiple rules simultaneously.
 
-1. Enable ingress for the container app:
+1. Run the following command to enable ingress for the container app.
 
-    ```azurecli
+    **Bash**
+    ```bash
     az containerapp ingress enable \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --target-port 8080 \
-      --type external
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --target-port 8080 \
+        --type external
     ```
 
-1. Update the container app to add an HTTP scale rule alongside the existing Service Bus rule:
-
-    ```azurecli
-    az containerapp update \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --scale-rule-name http-scaling \
-      --scale-rule-type http \
-      --scale-rule-http-concurrency 10
+    **PowerShell**
+    ```powershell
+    az containerapp ingress enable `
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --target-port 8080 `
+        --type external
     ```
 
-    Note that adding a new scale rule via the CLI replaces the previous rule. To maintain multiple rules, use YAML configuration or the Azure portal.
+1. Run the following command to export the app configuration to a YAML file.
 
-1. To configure both rules simultaneously, export the app configuration and modify it:
-
-    ```azurecli
+    **Bash**
+    ```bash
     az containerapp show \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --output yaml > app-config.yaml
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --output yaml > app-config.yaml
     ```
 
-1. Edit `app-config.yaml` to include both scale rules under the `scale.rules` section, then apply the updated configuration:
+    **PowerShell**
+    ```powershell
+    az containerapp show `
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --output yaml > app-config.yaml
+    ```
 
-    ```azurecli
+1. Open the *app-config.yaml* file in VS Code. Find the **scale** section under **properties > template** and locate the **rules** array. Add an HTTP scale rule alongside the existing Service Bus rule so both rules are present. The **rules** section should look similar to the following example.
+
+    ```yaml
+    scale:
+      maxReplicas: 10
+      minReplicas: 0
+      rules:
+      - name: servicebus-scaling
+        custom:
+          type: azure-servicebus
+          metadata:
+            messageCount: "5"
+            namespace: <your-servicebus-namespace>
+            queueName: orders
+          identity: system
+      - name: http-scaling
+        http:
+          metadata:
+            concurrentRequests: "10"
+    ```
+
+1. Save the file and run the following command to apply the updated configuration.
+
+    **Bash**
+    ```bash
     az containerapp update \
-      --name queue-processor \
-      --resource-group $RESOURCE_GROUP \
-      --yaml app-config.yaml
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --yaml app-config.yaml
     ```
 
-## Clean up resources
+    **PowerShell**
+    ```powershell
+    az containerapp update `
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --yaml app-config.yaml
+    ```
 
-Cleaning up avoids ongoing cost. Delete the resource group, which deletes the Container Apps environment, container app, and registry.
+1. Run the following command to verify both scale rules are configured. You should see both the **servicebus-scaling** and **http-scaling** rules in the output.
 
-```azurecli
-az group delete --name $RESOURCE_GROUP --no-wait --yes
-```
+    **Bash**
+    ```bash
+    az containerapp show \
+        --name queue-processor \
+        --resource-group $RESOURCE_GROUP \
+        --query "properties.template.scale.rules[].name"
+    ```
+
+    **PowerShell**
+    ```powershell
+    az containerapp show `
+        --name queue-processor `
+        --resource-group $env:RESOURCE_GROUP `
+        --query "properties.template.scale.rules[].name"
+    ```
+
+# Clean up resources
+
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
+
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
+
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
 
 ## Troubleshooting
 
 If you encounter issues during this exercise, try these steps:
 
-**Container app not responding**
-- Check if the revision is active using **az containerapp revision list**
-- Verify ingress is configured using **az containerapp show**
+**App not scaling up when messages are sent**
+- Verify the scale rule is configured using **az containerapp show --query "properties.template.scale"**
+- Ensure the managed identity has the **Azure Service Bus Data Owner** role assigned (required for KEDA to query queue metrics)
+- Check that the queue name and namespace in the scale rule match your Service Bus resources
 
-**Cannot see logs**
-- Console logs are recent only. Use Log Analytics for historical data.
-- Log Analytics data may take 2-5 minutes to appear.
+**Managed identity permission errors**
+- Role assignments can take 1-2 minutes to propagate after running option 4
+- Verify the container app has a system-assigned identity using **az containerapp identity show**
+- Ensure both **Azure Service Bus Data Receiver** and **Azure Service Bus Data Owner** roles are assigned
 
-**Environment variables not taking effect**
-- Container Apps creates a new revision when you change environment variables. Verify the new revision is active.
-- Use **--replace-env-vars** carefully—it replaces all environment variables, not just the ones you specify.
+**App scales to zero and won't start**
+- This is expected when the queue is empty and **minReplicas** is set to **0**
+- Send messages to the queue to trigger scaling
+- Check the scale rule configuration to ensure it references the correct queue
+
+**Cannot see replicas in monitoring**
+- The replica list command only shows running replicas
+- If the app scaled to zero, no replicas will be shown
+- Send messages to trigger scaling and wait for replicas to start
+
+**YAML update fails**
+- Ensure the YAML file syntax is valid
+- Remove read-only properties like **id**, **systemData**, and **type** from the YAML before applying
+- Verify the scale rules section follows the correct structure
