@@ -33,10 +33,6 @@ To complete the exercise, you need:
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli?view=azure-cli-latest).
 - Optional: [Python 3.12](https://www.python.org/downloads/) or greater.
 
-This exercise takes approximately **30** minutes to complete.
-
->**Important:** Azure Container Registry task runs are temporarily paused from Azure free credits. This exercise requires a Pay-As-You-Go, or another paid plan.
-
 ## Download project starter files and deploy Azure services
 
 In this section you download the project starter files and use a script to deploy the necessary services to your Azure subscription. The Azure Container Registry and Container Apps environment deployment takes a few minutes to complete.
