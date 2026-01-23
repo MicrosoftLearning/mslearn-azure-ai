@@ -1,26 +1,28 @@
-"""AI document processing mock API for Azure Container Apps exercises."""
+"""Service Bus queue processor for Azure Container Apps scaling exercise.
 
-import json
+This application processes messages from an Azure Service Bus queue using managed
+identity authentication. It includes a configurable processing delay to demonstrate
+KEDA-based autoscaling behavior in Container Apps.
+"""
+
 import logging
 import os
-import uuid
+import signal
+import sys
+import threading
+import time
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, request
+from azure.identity import DefaultAzureCredential
+from azure.servicebus import ServiceBusClient, ServiceBusReceiveMode
+from flask import Flask, jsonify
 
-app = Flask(__name__)
-
-# Configuration from environment variables (set by Container Apps)
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+# Configuration from environment variables
+SERVICE_BUS_NAMESPACE = os.getenv("SERVICE_BUS_NAMESPACE", "")
+QUEUE_NAME = os.getenv("QUEUE_NAME", "orders")
+PROCESSING_DELAY_SECONDS = int(os.getenv("PROCESSING_DELAY_SECONDS", "2"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-MODEL_NAME = os.getenv("MODEL_NAME", "not-configured")
-EMBEDDINGS_API_KEY = os.getenv("EMBEDDINGS_API_KEY")
-
-MAX_DOCUMENT_SIZE_MB = int(os.getenv("MAX_DOCUMENT_SIZE_MB", "10"))
-PROCESSING_TIMEOUT_SECONDS = int(os.getenv("PROCESSING_TIMEOUT_SECONDS", "15"))
-
-# Container Apps filesystem is ephemeral by default; use /tmp for demo storage.
-STORAGE_PATH = os.getenv("STORAGE_PATH", "/tmp/processed")
+HEALTH_PORT = int(os.getenv("HEALTH_PORT", "8080"))
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
@@ -28,204 +30,144 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Flask app for health endpoint
+app = Flask(__name__)
 
-def _ensure_storage_directory() -> bool:
-    try:
-        os.makedirs(STORAGE_PATH, exist_ok=True)
-        return True
-    except Exception as exc:
-        logger.warning("Could not create storage directory: %s", exc)
-        return False
-
-
-def _embeddings_key_configured() -> bool:
-    return bool(EMBEDDINGS_API_KEY and EMBEDDINGS_API_KEY.strip())
-
-
-@app.route("/", methods=["GET"])
-def root():
-    """Service info endpoint for quick verification."""
-    logger.info("Service info requested")
-    return jsonify(
-        {
-            "service": "AI Document Processing API",
-            "status": "running",
-            "version": "1.0.0",
-            "environment": ENVIRONMENT,
-            "model": {"name": MODEL_NAME},
-            "secrets": {"embeddings_api_key_configured": _embeddings_key_configured()},
-            "config": {
-                "max_document_size_mb": MAX_DOCUMENT_SIZE_MB,
-                "processing_timeout_seconds": PROCESSING_TIMEOUT_SECONDS,
-                "log_level": LOG_LEVEL,
-                "storage_path": STORAGE_PATH,
-            },
-        }
-    )
+# Global state for health checks
+processor_healthy = True
+messages_processed = 0
+shutdown_requested = False
 
 
 @app.route("/health", methods=["GET"])
 def health():
-    """Simple health check endpoint used by the exercise."""
-    return jsonify({"status": "healthy"})
+    """Health check endpoint for Container Apps probes."""
+    if processor_healthy:
+        return jsonify({
+            "status": "healthy",
+            "messages_processed": messages_processed,
+            "queue_name": QUEUE_NAME,
+            "namespace": SERVICE_BUS_NAMESPACE,
+        })
+    return jsonify({"status": "unhealthy"}), 503
 
 
-@app.route("/process", methods=["POST"])
-def process_document():
-    """Mock document processing endpoint.
+@app.route("/", methods=["GET"])
+def root():
+    """Service info endpoint."""
+    return jsonify({
+        "service": "Service Bus Queue Processor",
+        "status": "running",
+        "version": "1.0.0",
+        "config": {
+            "namespace": SERVICE_BUS_NAMESPACE,
+            "queue_name": QUEUE_NAME,
+            "processing_delay_seconds": PROCESSING_DELAY_SECONDS,
+        },
+        "stats": {
+            "messages_processed": messages_processed,
+        },
+    })
 
-    Accepts:
-    - JSON: {"content": "...", "filename": "..."}
-    - multipart/form-data with a file named "file"
 
-    Returns:
-    - mock entities, key phrases, sentiment, and a generated document id.
+def run_health_server():
+    """Run the Flask health server in a separate thread."""
+    logger.info("Starting health server on port %d", HEALTH_PORT)
+    app.run(host="0.0.0.0", port=HEALTH_PORT, threaded=True, use_reloader=False)
+
+
+def process_message(message_body: str) -> None:
+    """Process a single message with configurable delay.
+
+    The delay simulates work and allows scaling behavior to be observed.
     """
-    logger.info("Document processing request received")
+    global messages_processed
 
-    doc_id = str(uuid.uuid4())
+    logger.info("Processing message: %s", message_body[:100] if len(message_body) > 100 else message_body)
+
+    # Simulate processing work
+    time.sleep(PROCESSING_DELAY_SECONDS)
+
+    messages_processed += 1
     timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-    if request.is_json:
-        data = request.get_json(silent=True) or {}
-        content = data.get("content", "")
-        filename = data.get("filename", "document.txt")
-    elif request.files:
-        file = request.files.get("file")
-        if not file:
-            return jsonify({"error": "No file provided"}), 400
-        content = file.read().decode("utf-8", errors="ignore")
-        filename = file.filename or "document.txt"
-    else:
-        content = request.data.decode("utf-8", errors="ignore") or "Sample document"
-        filename = "document.txt"
-
-    content_size_mb = len(content.encode("utf-8")) / (1024 * 1024)
-    if content_size_mb > MAX_DOCUMENT_SIZE_MB:
-        logger.warning("Document too large: %.2f MB", content_size_mb)
-        return (
-            jsonify({"error": f"Document exceeds maximum size of {MAX_DOCUMENT_SIZE_MB} MB"}),
-            413,
-        )
-
-    logger.info("Processing document: %s (%s chars)", filename, len(content))
-
-    word_count = len(content.split())
-    char_count = len(content)
-
-    mock_entities = [
-        {"text": "Azure", "type": "Technology", "confidence": 0.95},
-        {"text": "Container Apps", "type": "Service", "confidence": 0.93},
-        {"text": "document", "type": "Concept", "confidence": 0.87},
-    ]
-
-    mock_key_phrases = [
-        "document processing",
-        "container deployment",
-        "secrets and configuration",
-        "revision management",
-    ]
-
-    mock_sentiment = {
-        "overall": "neutral",
-        "confidence": 0.78,
-        "scores": {"positive": 0.22, "neutral": 0.68, "negative": 0.10},
-    }
-
-    result = {
-        "document_id": doc_id,
-        "filename": filename,
-        "processed_at": timestamp,
-        "environment": ENVIRONMENT,
-        "model": {"name": MODEL_NAME},
-        "secrets": {"embeddings_api_key_configured": _embeddings_key_configured()},
-        "statistics": {
-            "character_count": char_count,
-            "word_count": word_count,
-            "size_bytes": len(content.encode("utf-8")),
-        },
-        "analysis": {
-            "entities": mock_entities,
-            "key_phrases": mock_key_phrases,
-            "sentiment": mock_sentiment,
-        },
-        "processing_config": {
-            "timeout_seconds": PROCESSING_TIMEOUT_SECONDS,
-            "max_size_mb": MAX_DOCUMENT_SIZE_MB,
-        },
-    }
-
-    storage_available = _ensure_storage_directory()
-    if storage_available:
-        try:
-            result_path = os.path.join(STORAGE_PATH, f"{doc_id}.json")
-            with open(result_path, "w", encoding="utf-8") as f:
-                json.dump(result, f, indent=2)
-            result["storage"] = {"saved": True, "path": result_path}
-            logger.info("Result saved to %s", result_path)
-        except Exception as exc:
-            logger.error("Failed to save result: %s", exc)
-            result["storage"] = {"saved": False, "error": str(exc)}
-    else:
-        result["storage"] = {"saved": False, "reason": "Storage not available"}
-
-    return jsonify(result)
+    logger.info("Message processed at %s (total: %d)", timestamp, messages_processed)
 
 
-@app.route("/documents", methods=["GET"])
-def list_documents():
-    """List processed documents stored in the container's local filesystem."""
-    logger.info("Listing processed documents")
+def handle_shutdown(signum, frame):
+    """Handle graceful shutdown on SIGTERM/SIGINT."""
+    global shutdown_requested
+    logger.info("Shutdown signal received, finishing current message...")
+    shutdown_requested = True
 
-    if not _ensure_storage_directory():
-        return jsonify({"documents": [], "error": "Storage not available"})
+
+def run_queue_processor():
+    """Main loop to receive and process messages from Service Bus."""
+    global processor_healthy
+
+    if not SERVICE_BUS_NAMESPACE:
+        logger.error("SERVICE_BUS_NAMESPACE environment variable is required")
+        processor_healthy = False
+        sys.exit(1)
+
+    fully_qualified_namespace = f"{SERVICE_BUS_NAMESPACE}.servicebus.windows.net"
+    logger.info("Connecting to Service Bus namespace: %s", fully_qualified_namespace)
+    logger.info("Queue name: %s", QUEUE_NAME)
+    logger.info("Processing delay: %d seconds", PROCESSING_DELAY_SECONDS)
 
     try:
-        files = []
-        for filename in os.listdir(STORAGE_PATH):
-            if filename.endswith(".json"):
-                filepath = os.path.join(STORAGE_PATH, filename)
-                stat = os.stat(filepath)
-                files.append(
-                    {
-                        "document_id": filename.replace(".json", ""),
-                        "size_bytes": stat.st_size,
-                        "created_at": datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
-                    }
-                )
-        return jsonify({"documents": files, "count": len(files)})
+        credential = DefaultAzureCredential()
+
+        with ServiceBusClient(
+            fully_qualified_namespace=fully_qualified_namespace,
+            credential=credential,
+        ) as client:
+            with client.get_queue_receiver(
+                queue_name=QUEUE_NAME,
+                receive_mode=ServiceBusReceiveMode.PEEK_LOCK,
+            ) as receiver:
+                logger.info("Connected to queue, waiting for messages...")
+                processor_healthy = True
+
+                while not shutdown_requested:
+                    # Receive messages with a timeout to allow checking shutdown flag
+                    messages = receiver.receive_messages(max_message_count=1, max_wait_time=5)
+
+                    for message in messages:
+                        try:
+                            message_body = str(message)
+                            process_message(message_body)
+                            receiver.complete_message(message)
+                        except Exception as exc:
+                            logger.error("Error processing message: %s", exc)
+                            # Message will be abandoned and retried
+                            receiver.abandon_message(message)
+
+                logger.info("Shutdown complete, processed %d messages", messages_processed)
+
     except Exception as exc:
-        logger.error("Failed to list documents: %s", exc)
-        return jsonify({"documents": [], "error": str(exc)})
+        logger.error("Fatal error in queue processor: %s", exc)
+        processor_healthy = False
+        raise
 
 
-@app.route("/documents/<doc_id>", methods=["GET"])
-def get_document(doc_id: str):
-    """Retrieve a processed document by id."""
-    logger.info("Retrieving document: %s", doc_id)
+def main():
+    """Application entry point."""
+    logger.info("Starting Service Bus Queue Processor")
+    logger.info("SERVICE_BUS_NAMESPACE=%s", SERVICE_BUS_NAMESPACE)
+    logger.info("QUEUE_NAME=%s", QUEUE_NAME)
+    logger.info("PROCESSING_DELAY_SECONDS=%d", PROCESSING_DELAY_SECONDS)
 
-    filepath = os.path.join(STORAGE_PATH, f"{doc_id}.json")
-    if not os.path.exists(filepath):
-        return jsonify({"error": "Document not found"}), 404
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, handle_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown)
 
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            return jsonify(json.load(f))
-    except Exception as exc:
-        logger.error("Failed to read document: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+    # Start health server in background thread
+    health_thread = threading.Thread(target=run_health_server, daemon=True)
+    health_thread.start()
 
-
-def _log_startup_summary() -> None:
-    logger.info("Starting AI Document Processing API")
-    logger.info("ENVIRONMENT=%s LOG_LEVEL=%s", ENVIRONMENT, LOG_LEVEL)
-    logger.info("MODEL_NAME=%s", MODEL_NAME)
-    logger.info("EMBEDDINGS_API_KEY configured: %s", _embeddings_key_configured())
+    # Run the main queue processor
+    run_queue_processor()
 
 
 if __name__ == "__main__":
-    _log_startup_summary()
-    _ensure_storage_directory()
-
-    port = int(os.getenv("PORT", "8000"))
-    app.run(host="0.0.0.0", port=port)
+    main()
