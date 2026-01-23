@@ -17,7 +17,7 @@ Tasks performed in this exercise:
 - Query Log Analytics for historical troubleshooting data
 - Clean up Azure resources
 
-This exercise takes approximately **30-40** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 >**Important:** Azure Container Registry task runs are temporarily paused from Azure free credits. This exercise requires a Pay-As-You-Go, or another paid plan.
 
