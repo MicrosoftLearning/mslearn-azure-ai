@@ -2,15 +2,11 @@ In this exercise, you deploy a container app that processes messages from an Azu
 
 ## Set up the Azure environment
 
-You start by creating the Azure resources needed for this exercise. You create a resource group, a Container Apps environment, and an Azure Service Bus namespace with a queue.
+You start by creating the Azure resources needed for this exercise.
 
-1. Sign in to your Azure subscription using the Azure CLI:
+NOTE: Steps in this section have been commented out. Resources will be deployed using a script.
 
-    ```azurecli
-    az login
-    ```
-
-1. Set variables for the resources you create in this exercise:
+<!-- 1. Set variables for the resources you create in this exercise:
 
     ```bash
     RESOURCE_GROUP="rg-scaling-exercise"
@@ -54,7 +50,7 @@ You start by creating the Azure resources needed for this exercise. You create a
       --name $QUEUE_NAME \
       --namespace-name $SERVICE_BUS_NAMESPACE \
       --resource-group $RESOURCE_GROUP
-    ```
+    ``` -->
 
 ## Deploy a queue processor application
 
