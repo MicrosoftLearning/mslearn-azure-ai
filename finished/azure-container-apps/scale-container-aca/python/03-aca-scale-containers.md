@@ -18,8 +18,9 @@ Tasks performed in this exercise:
 - Configure a Service Bus scale rule using KEDA
 - Test scaling behavior by sending messages to the queue
 - Monitor replica count changes in real-time
+- Configure multiple scale rules using YAML
 
-This exercise takes approximately **30** minutes to complete.
+This exercise takes approximately **30-45** minutes to complete.
 
 >**Important:** Azure Container Registry task runs are temporarily paused from Azure free credits. This exercise requires a Pay-As-You-Go, or another paid plan.
 
