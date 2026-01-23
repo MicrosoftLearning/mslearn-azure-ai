@@ -7,6 +7,8 @@ lab:
 
 # Configure autoscaling using KEDA triggers
 
+AI applications often experience unpredictable workloads—a batch of documents to process, a surge in inference requests, or asynchronous tasks from an AI pipeline. KEDA-based autoscaling in Azure Container Apps allows your AI workloads to scale to zero when idle (saving costs) and rapidly scale up when work arrives. This is particularly valuable for queue-based AI processing patterns like document analysis, image processing, or batch inference jobs.
+
 In this exercise, you deploy a container app that processes messages from an Azure Service Bus queue and configure KEDA-based autoscaling. You observe the application scaling in response to queue depth and validate scaling behavior under load using managed identity authentication.
 
 Tasks performed in this exercise:
@@ -118,7 +120,7 @@ In this section you run the deployment script to deploy the necessary services t
 
 ## Deploy a queue processor application
 
-You deploy a container app configured to process messages from the Service Bus queue using managed identity. The application includes a configurable processing delay to make scaling behavior observable.
+Queue-based processing is a common pattern in AI solutions. For example, an AI document processing pipeline might receive requests via a queue, allowing the system to handle bursts of work without dropping requests. The queue processor you deploy simulates this pattern with a configurable processing delay, representing the time an AI model might take to analyze each item.
 
 1. Run the following command to create the container app with system-assigned managed identity and initial scale settings. The **--system-assigned** flag enables managed identity, and **--registry-identity system** allows the app to pull images from ACR using that identity.
 
@@ -239,7 +241,7 @@ In this section you add a Service Bus scale rule that monitors queue depth and t
 
 ## Test scaling behavior
 
-In this section you send messages to the Service Bus queue and observe the application scaling in response. The queue processor has a 2-second processing delay per message, giving you time to observe scaling.
+AI workloads often arrive in bursts—a user uploads 100 documents for analysis, or a scheduled job triggers batch inference. In this section, you simulate this pattern by sending 100 messages to observe how the application scales to meet demand and then scales back down when the work is complete.
 
 1. Open a second terminal window for monitoring. In that window, load the environment variables and run the following command to start monitoring replicas in real-time. Press **Ctrl+C** to stop monitoring when you're done observing.
 
