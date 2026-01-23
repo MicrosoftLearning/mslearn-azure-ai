@@ -121,7 +121,7 @@ In this section you run the deployment script to deploy the necessary services t
 
 You deploy a container app configured to process messages from the Service Bus queue using managed identity. The application includes a configurable processing delay to make scaling behavior observable.
 
-1. Create the container app with system-assigned managed identity and initial scale settings:
+1. Run the following command to create the container app with system-assigned managed identity and initial scale settings. The **--system-assigned** flag enables managed identity, and **--registry-identity system** allows the app to pull images from ACR using that identity.
 
     **Bash:**
     ```azurecli
@@ -156,8 +156,6 @@ You deploy a container app configured to process messages from the Service Bus q
                  "QUEUE_NAME=$env:QUEUE_NAME" `
                  "PROCESSING_DELAY_SECONDS=2"
     ```
-
-    The `--system-assigned` flag enables managed identity, and `--registry-identity system` allows the app to pull images from ACR using that identity.
 
 1. Configure managed identity permissions for Service Bus. Run the deployment script and select option 4:
 
