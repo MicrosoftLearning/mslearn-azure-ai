@@ -15,7 +15,6 @@ Tasks performed in this exercise:
 - Introduce and diagnose a missing environment variable error
 - Introduce and diagnose an ingress configuration issue
 - Query Log Analytics for historical troubleshooting data
-- Clean up Azure resources
 
 This exercise takes approximately **30** minutes to complete.
 
