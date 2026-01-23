@@ -126,9 +126,6 @@ create_containerapps_environment() {
     else
         echo "✓ Container Apps environment already exists: $aca_env"
     fi
-
-    # Write environment variables to file
-    write_env_file
 }
 
 # Function to create Service Bus namespace and queue
