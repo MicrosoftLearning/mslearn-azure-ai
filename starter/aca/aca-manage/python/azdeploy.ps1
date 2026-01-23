@@ -44,9 +44,8 @@ function Show-Menu {
     Write-Host "====================================================================="
     Write-Host "1. Create Azure Container Registry and build container image"
     Write-Host "2. Create Container Apps environment"
-    Write-Host "3. Deploy the container app and configure secrets"
-    Write-Host "4. Check deployment status"
-    Write-Host "5. Exit"
+    Write-Host "3. Check deployment status"
+    Write-Host "4. Exit"
     Write-Host "====================================================================="
 }
 
@@ -64,7 +63,6 @@ function Create-ResourceGroup {
 }
 
 function Create-AcrAndBuildImage {
-    Write-Host ""
     Write-Host "Creating Azure Container Registry '$acrName'..."
 
     az acr show --resource-group $rg --name $acrName 2>$null | Out-Null
@@ -108,31 +106,6 @@ function Create-AcrAndBuildImage {
     }
 }
 
-function Create-ContainerAppsEnvironment {
-    Write-Host ""
-    Write-Host "Creating Container Apps environment '$acaEnv' (if needed)..."
-    Write-Host "This may take a few minutes..."
-
-    az containerapp env show --name $acaEnv --resource-group $rg 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        az containerapp env create `
-            --name $acaEnv `
-            --resource-group $rg `
-            --location $location 2>&1 | Out-Null
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Container Apps environment created: $acaEnv"
-        }
-        else {
-            Write-Host "Error: Failed to create Container Apps environment"
-            return
-        }
-    }
-    else {
-        Write-Host "✓ Container Apps environment already exists: $acaEnv"
-    }
-}
-
 function Write-EnvFile {
     $scriptDir = Split-Path -Parent $PSCommandPath
     $envFile = Join-Path $scriptDir ".env.ps1"
@@ -155,87 +128,29 @@ function Write-EnvFile {
     Write-Host "Run '. .\.env.ps1' to load them into your shell."
 }
 
-function Deploy-ContainerAppAndConfigureSecrets {
-    Write-Host "Deploying Container App '$containerAppName' and configuring secrets..."
-    Write-Host ""
+function Create-ContainerAppsEnvironment {
+    Write-Host "Creating Container Apps environment '$acaEnv' (if needed)..."
+    Write-Host "This may take a few minutes..."
 
-    # Ensure ACR exists (image is expected to have been built in option 1)
-    az acr show --resource-group $rg --name $acrName 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: ACR '$acrName' not found. Run option 1 first."
-        return
-    }
-
-    # Ensure Container Apps environment exists (should have been created in option 2)
     az containerapp env show --name $acaEnv --resource-group $rg 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Container Apps environment '$acaEnv' not found. Run option 2 first."
-        return
-    }
-
-    # Ensure the container image exists in ACR
-    az acr repository show --name $acrName --image $containerImage 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Container image '$containerImage' not found in ACR. Run option 1 first."
-        return
-    }
-
-    # Create the Container App if it doesn't exist
-    az containerapp show --name $containerAppName --resource-group $rg 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Creating Container App '$containerAppName'..."
-        # Using --registry-identity system automatically assigns AcrPull role
-        az containerapp create `
-            --name $containerAppName `
+        az containerapp env create `
+            --name $acaEnv `
             --resource-group $rg `
-            --environment $acaEnv `
-            --image "$acrName.azurecr.io/$containerImage" `
-            --ingress external `
-            --target-port 8000 `
-            --env-vars MODEL_NAME=gpt-4o-mini `
-            --registry-server "$acrName.azurecr.io" `
-            --registry-identity system 2>&1 | Out-Null
+            --location $location 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Container App created: $containerAppName"
+            Write-Host "✓ Container Apps environment created: $acaEnv"
         }
         else {
-            Write-Host "Error: Failed to create Container App"
+            Write-Host "Error: Failed to create Container Apps environment"
             return
         }
     }
     else {
-        Write-Host "✓ Container App already exists: $containerAppName"
+        Write-Host "✓ Container Apps environment already exists: $acaEnv"
     }
 
-    # Configure secrets
-    Write-Host "Setting Container App secret..."
-    az containerapp secret set `
-        --name $containerAppName `
-        --resource-group $rg `
-        --secrets embeddings-api-key=demo-key-12345 2>&1 | Out-Null
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to set secrets on Container App"
-        return
-    }
-
-    # Reference secret from environment variable
-    Write-Host "Configuring environment variable to reference secret..."
-    az containerapp update `
-        --name $containerAppName `
-        --resource-group $rg `
-        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key 2>&1 | Out-Null
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Container App updated with secret reference"
-    }
-    else {
-        Write-Host "Error: Failed to update Container App configuration"
-        return
-    }
-
-    # Write environment variables to file (moved here to avoid duplication with deploy exercise)
     Write-EnvFile
 }
 
@@ -243,7 +158,18 @@ function Check-DeploymentStatus {
     Write-Host "Checking deployment status..."
     Write-Host ""
 
-    # Check ACR
+    Write-Host "Container Apps Environment ($acaEnv):"
+    $envStatus = (az containerapp env show --resource-group $rg --name $acaEnv --query "properties.provisioningState" -o tsv 2>$null) | Select-Object -Last 1
+    if (-not [string]::IsNullOrWhiteSpace($envStatus)) {
+        Write-Host "  Status: $envStatus"
+        if ($envStatus -eq "Succeeded") {
+            Write-Host "  ✓ Container Apps environment is ready"
+        }
+    }
+    else {
+        Write-Host "  Status: Not created"
+    }
+
     Write-Host ""
     Write-Host "Azure Container Registry ($acrName):"
     $acrStatus = az acr show --resource-group $rg --name $acrName --query "provisioningState" -o tsv 2>$null
@@ -263,38 +189,11 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: Not created"
     }
-
-    # Check Container Apps environment
-    Write-Host "Container Apps Environment ($acaEnv):"
-    $envStatus = (az containerapp env show --resource-group $rg --name $acaEnv --query "properties.provisioningState" -o tsv 2>$null) | Select-Object -Last 1
-    if (-not [string]::IsNullOrWhiteSpace($envStatus)) {
-        Write-Host "  Status: $envStatus"
-        if ($envStatus -eq "Succeeded") {
-            Write-Host "  ✓ Container Apps environment is ready"
-        }
-    }
-    else {
-        Write-Host "  Status: Not created"
-    }
-
-    # Check Container App
-    Write-Host ""
-    Write-Host "Container App ($containerAppName):"
-    $appStatus = az containerapp show --resource-group $rg --name $containerAppName --query "properties.provisioningState" -o tsv 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($appStatus)) {
-        Write-Host "  Status: $appStatus"
-        if ($appStatus -eq "Succeeded") {
-            Write-Host "  ✓ Container App is deployed"
-        }
-    }
-    else {
-        Write-Host "  Status: Not created"
-    }
 }
 
 while ($true) {
     Show-Menu
-    $choice = Read-Host "Please select an option (1-5)"
+    $choice = Read-Host "Please select an option (1-4)"
 
     switch ($choice) {
         "1" {
@@ -315,23 +214,17 @@ while ($true) {
         }
         "3" {
             Write-Host ""
-            Deploy-ContainerAppAndConfigureSecrets
-            Write-Host ""
-            Read-Host "Press Enter to continue"
-        }
-        "4" {
-            Write-Host ""
             Check-DeploymentStatus
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
-        "5" {
+        "4" {
             Write-Host "Exiting..."
             Clear-Host
             exit 0
         }
         default {
-            Write-Host "Invalid option. Please select 1-5."
+            Write-Host "Invalid option. Please select 1-4."
             Read-Host "Press Enter to continue"
         }
     }
