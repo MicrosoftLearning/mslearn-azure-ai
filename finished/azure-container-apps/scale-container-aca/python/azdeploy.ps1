@@ -31,10 +31,8 @@ $userHash = Get-UserHash
 # Resource names with hash for uniqueness
 $acrName = "acr$userHash"
 $acaEnv = "aca-env-$userHash"
-$sbNamespace = "sb-$userHash"
-$queueName = "orders"
-$containerAppName = "queue-processor"
-$containerImage = "queue-processor:v1"
+$containerAppName = "agent-api"
+$containerImage = "agent-api:v1"
 
 function Show-Menu {
     Clear-Host
@@ -45,14 +43,12 @@ function Show-Menu {
     Write-Host "Location: $location"
     Write-Host "Container Apps Environment: $acaEnv"
     Write-Host "ACR Name: $acrName"
-    Write-Host "Service Bus Namespace: $sbNamespace"
     Write-Host "====================================================================="
     Write-Host "1. Create Azure Container Registry and build container image"
     Write-Host "2. Create Container Apps environment"
-    Write-Host "3. Create Service Bus namespace and queue"
-    Write-Host "4. Configure managed identity for queue-processor app"
-    Write-Host "5. Check deployment status"
-    Write-Host "6. Exit"
+    Write-Host "3. Create Container App"
+    Write-Host "4. Check deployment status"
+    Write-Host "5. Exit"
     Write-Host "====================================================================="
 }
 
@@ -117,16 +113,24 @@ function Write-EnvFile {
     $scriptDir = Split-Path -Parent $PSCommandPath
     $envFile = Join-Path $scriptDir ".env.ps1"
 
+    $containerAppFqdn = az containerapp show `
+        --name $containerAppName `
+        --resource-group $rg `
+        --query "properties.configuration.ingress.fqdn" `
+        --output tsv 2>$null
+
+    $containerAppUrl = ""
+    if (-not [string]::IsNullOrWhiteSpace($containerAppFqdn)) {
+        $containerAppUrl = "https://$containerAppFqdn"
+    }
+
     @(
         "`$env:RESOURCE_GROUP = `"$rg`"",
-        "`$env:ACR_NAME = `"$acrName`"",
-        "`$env:ACR_SERVER = `"$acrName.azurecr.io`"",
         "`$env:ACA_ENVIRONMENT = `"$acaEnv`"",
         "`$env:CONTAINER_APP_NAME = `"$containerAppName`"",
+        "`$env:CONTAINER_APP_FQDN = `"$containerAppFqdn`"",
+        "`$env:CONTAINER_APP_URL = `"$containerAppUrl`"",
         "`$env:CONTAINER_IMAGE = `"$containerImage`"",
-        "`$env:SERVICE_BUS_NAMESPACE = `"$sbNamespace`"",
-        "`$env:SERVICE_BUS_FQDN = `"$sbNamespace.servicebus.windows.net`"",
-        "`$env:QUEUE_NAME = `"$queueName`"",
         "`$env:LOCATION = `"$location`""
     ) | Set-Content -Path $envFile -Encoding UTF8
 
@@ -157,72 +161,61 @@ function Create-ContainerAppsEnvironment {
     else {
         Write-Host "✓ Container Apps environment already exists: $acaEnv"
     }
-
-    Write-EnvFile
 }
 
-function Create-ServiceBus {
-    Write-Host "Creating Service Bus namespace '$sbNamespace'..."
+function Create-ContainerApp {
+    Write-Host "Creating Container App '$containerAppName' (if needed)..."
+    Write-Host "This may take a few minutes..."
 
-    az servicebus namespace show --resource-group $rg --name $sbNamespace 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        az servicebus namespace create `
-            --resource-group $rg `
-            --name $sbNamespace `
-            --location $location `
-            --sku Standard 2>&1 | Out-Null
+    $acrServer = "$acrName.azurecr.io"
+    $containerImageFqdn = "$acrServer/$containerImage"
 
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Service Bus namespace created: $sbNamespace"
-        }
-        else {
-            Write-Host "Error: Failed to create Service Bus namespace"
-            return
-        }
-    }
-    else {
-        Write-Host "✓ Service Bus namespace already exists: $sbNamespace"
-    }
-
-    Write-Host ""
-    Write-Host "Creating queue '$queueName'..."
-
-    az servicebus queue show --resource-group $rg --namespace-name $sbNamespace --name $queueName 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        az servicebus queue create `
-            --resource-group $rg `
-            --namespace-name $sbNamespace `
-            --name $queueName 2>&1 | Out-Null
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Queue created: $queueName"
-        }
-        else {
-            Write-Host "Error: Failed to create queue"
-            return
-        }
-    }
-    else {
-        Write-Host "✓ Queue already exists: $queueName"
-    }
-
-    Write-EnvFile
-}
-
-function Configure-ManagedIdentity {
-    Write-Host "Configuring managed identity for '$containerAppName'..."
-    Write-Host ""
-
-    # Check if container app exists
     az containerapp show --resource-group $rg --name $containerAppName 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Container app '$containerAppName' not found."
-        Write-Host "Please deploy the container app first using the exercise steps."
-        return
+        # Prereq check: Container Apps environment must exist
+        az containerapp env show --name $acaEnv --resource-group $rg 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Container Apps environment '$acaEnv' not found."
+            Write-Host "Please run option 2 to create the Container Apps environment, then try again."
+            return
+        }
+
+        # Prereq check: container image must exist in ACR
+        az acr repository show --name $acrName --image $containerImage 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Container image '$containerImage' isn't available in '$acrName'."
+            Write-Host "Please run option 1 to create ACR and build/push the image, then try again."
+            return
+        }
+
+        az containerapp create `
+            --name $containerAppName `
+            --resource-group $rg `
+            --environment $acaEnv `
+            --image $containerImageFqdn `
+            --registry-server $acrServer `
+            --registry-identity system `
+            --system-assigned `
+            --ingress external `
+            --target-port 8080 `
+            --min-replicas 1 `
+            --max-replicas 1 `
+            --env-vars "AGENT_DEFAULT_DELAY_MS=500" 2>&1 | Out-Null
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to create Container App"
+            return
+        }
+        Write-Host "✓ Container App created: $containerAppName"
+    }
+    else {
+        Write-Host "✓ Container App already exists: $containerAppName"
     }
 
-    # Get the principal ID of the container app's system-assigned identity
-    Write-Host "Getting container app identity..."
+    # Ensure the system-assigned identity can pull from ACR
+    Write-Host ""
+    Write-Host "Ensuring Container App identity can pull from ACR (AcrPull)..."
+
     $principalId = az containerapp identity show `
         --resource-group $rg `
         --name $containerAppName `
@@ -230,80 +223,25 @@ function Configure-ManagedIdentity {
         --output tsv 2>$null
 
     if ([string]::IsNullOrWhiteSpace($principalId)) {
-        Write-Host "Error: Container app does not have a system-assigned identity."
-        Write-Host "Please create the container app with --system-assigned flag."
+        Write-Host "Error: Unable to resolve Container App principalId"
         return
     }
-    Write-Host "✓ Principal ID: $principalId"
 
-    # Get Service Bus namespace resource ID
-    Write-Host ""
-    Write-Host "Getting Service Bus resource ID..."
-    $sbResourceId = az servicebus namespace show `
-        --resource-group $rg `
-        --name $sbNamespace `
-        --query id `
-        --output tsv 2>$null
-
-    if ([string]::IsNullOrWhiteSpace($sbResourceId)) {
-        Write-Host "Error: Service Bus namespace '$sbNamespace' not found."
-        Write-Host "Please run option 3 first to create the Service Bus namespace."
+    $acrId = az acr show --resource-group $rg --name $acrName --query id --output tsv 2>$null
+    if ([string]::IsNullOrWhiteSpace($acrId)) {
+        Write-Host "Error: Unable to resolve ACR resource id"
         return
     }
-    Write-Host "✓ Service Bus resource ID obtained"
 
-    # Assign Azure Service Bus Data Receiver role (for receiving messages)
-    Write-Host ""
-    Write-Host "Assigning 'Azure Service Bus Data Receiver' role..."
     az role assignment create `
         --assignee $principalId `
-        --role "Azure Service Bus Data Receiver" `
-        --scope $sbResourceId 2>&1 | Out-Null
+        --role "AcrPull" `
+        --scope $acrId 2>&1 | Out-Null
 
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Service Bus Data Receiver role assigned"
-    }
-    else {
-        Write-Host "  Role may already be assigned or assignment failed"
-    }
+    Write-Host "✓ AcrPull role assigned (or already present)"
 
-    # Assign Azure Service Bus Data Owner role (for KEDA scaler to query metrics)
-    Write-Host ""
-    Write-Host "Assigning 'Azure Service Bus Data Owner' role (required for KEDA scaling)..."
-    az role assignment create `
-        --assignee $principalId `
-        --role "Azure Service Bus Data Owner" `
-        --scope $sbResourceId 2>&1 | Out-Null
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Service Bus Data Owner role assigned"
-    }
-    else {
-        Write-Host "  Role may already be assigned or assignment failed"
-    }
-
-    # Assign Azure Service Bus Data Owner role to the signed-in user (for sending test messages)
-    Write-Host ""
-    Write-Host "Assigning 'Azure Service Bus Data Owner' role to signed-in user (for sending test messages)..."
-    az role assignment create `
-        --assignee $script:SignedInUserObjectId `
-        --role "Azure Service Bus Data Owner" `
-        --scope $sbResourceId 2>&1 | Out-Null
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Service Bus Data Owner role assigned to signed-in user"
-    }
-    else {
-        Write-Host "  Role may already be assigned or assignment failed"
-    }
-
-    Write-Host ""
-    Write-Host "====================================================================="
-    Write-Host "Managed identity configuration complete!"
-    Write-Host ""
-    Write-Host "NOTE: Azure role assignments can take 1-2 minutes to propagate."
-    Write-Host "If the app fails to connect to Service Bus, wait a moment and retry."
-    Write-Host "====================================================================="
+    # Persist env vars for the lab + dashboard
+    Write-EnvFile
 }
 
 function Check-DeploymentStatus {
@@ -343,26 +281,6 @@ function Check-DeploymentStatus {
     }
 
     Write-Host ""
-    Write-Host "Service Bus Namespace ($sbNamespace):"
-    $sbStatus = az servicebus namespace show --resource-group $rg --name $sbNamespace --query "provisioningState" -o tsv 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($sbStatus)) {
-        Write-Host "  Status: $sbStatus"
-        if ($sbStatus -eq "Succeeded") {
-            Write-Host "  ✓ Service Bus namespace is ready"
-            $queueStatus = az servicebus queue show --resource-group $rg --namespace-name $sbNamespace --name $queueName --query "status" -o tsv 2>$null
-            if (-not [string]::IsNullOrWhiteSpace($queueStatus)) {
-                Write-Host "  ✓ Queue '$queueName': $queueStatus"
-            }
-            else {
-                Write-Host "  Queue '$queueName' not found"
-            }
-        }
-    }
-    else {
-        Write-Host "  Status: Not created"
-    }
-
-    Write-Host ""
     Write-Host "Container App ($containerAppName):"
     $appStatus = az containerapp show --resource-group $rg --name $containerAppName --query "properties.provisioningState" -o tsv 2>$null
     if (-not [string]::IsNullOrWhiteSpace($appStatus)) {
@@ -373,6 +291,13 @@ function Check-DeploymentStatus {
         }
         else {
             Write-Host "  ⚠ No system-assigned identity"
+        }
+        $fqdn = az containerapp show --resource-group $rg --name $containerAppName --query "properties.configuration.ingress.fqdn" -o tsv 2>$null
+        if (-not [string]::IsNullOrWhiteSpace($fqdn)) {
+            Write-Host "  ✓ Ingress FQDN: $fqdn"
+        }
+        else {
+            Write-Host "  ⚠ Ingress not enabled (no FQDN)"
         }
         $replicaCount = az containerapp replica list --resource-group $rg --name $containerAppName --query "length([])" -o tsv 2>$null
         if ([string]::IsNullOrWhiteSpace($replicaCount)) { $replicaCount = "0" }
@@ -385,7 +310,7 @@ function Check-DeploymentStatus {
 
 while ($true) {
     Show-Menu
-    $choice = Read-Host "Please select an option (1-6)"
+    $choice = Read-Host "Please select an option (1-5)"
 
     switch ($choice) {
         "1" {
@@ -408,33 +333,23 @@ while ($true) {
             Write-Host ""
             Create-ResourceGroup
             Write-Host ""
-            Create-ServiceBus
+            Create-ContainerApp
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
         "4" {
             Write-Host ""
-            Create-ResourceGroup
-            Write-Host ""
-            Create-ServiceBus
-            Write-Host ""
-            Configure-ManagedIdentity
-            Write-Host ""
-            Read-Host "Press Enter to continue"
-        }
-        "5" {
-            Write-Host ""
             Check-DeploymentStatus
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
-        "6" {
+        "5" {
             Write-Host "Exiting..."
             Clear-Host
             exit 0
         }
         default {
-            Write-Host "Invalid option. Please select 1-6."
+            Write-Host "Invalid option. Please select 1-5."
             Read-Host "Press Enter to continue"
         }
     }
