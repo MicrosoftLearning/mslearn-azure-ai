@@ -94,7 +94,9 @@ In this section you run the deployment script to deploy the necessary services t
 
 1. When the previous operation is finished, enter **2** to launch **Create Container Apps environment**.
 
-1. When the previous operation is finished, enter **3** to launch **Create Container App (ingress enabled)**. This option also writes the `.env` file used by the rest of the exercise.
+1. When the previous operation is finished, enter **3** to launch **Create Container App**.
+
+    >**Note:** A file containing environment variables is created after the container app is created. You use these variables throughout the exercise.
 
 1. When the deployment completes, enter **5** to exit the deployment script.
 
