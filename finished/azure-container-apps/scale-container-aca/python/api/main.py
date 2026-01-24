@@ -1,173 +1,113 @@
-"""Service Bus queue processor for Azure Container Apps scaling exercise.
+"""Mock agent API for Azure Container Apps autoscaling exercise.
 
-This application processes messages from an Azure Service Bus queue using managed
-identity authentication. It includes a configurable processing delay to demonstrate
-KEDA-based autoscaling behavior in Container Apps.
+This app exposes an HTTP endpoint that simulates agent request processing.
+Students use it to generate concurrent HTTP traffic and observe autoscaling.
 """
 
-import logging
+from __future__ import annotations
+
 import os
-import signal
-import sys
 import threading
 import time
-from datetime import datetime, timezone
+import uuid
 
-from azure.identity import DefaultAzureCredential
-from azure.servicebus import ServiceBusClient, ServiceBusReceiveMode
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
-# Configuration from environment variables
-SERVICE_BUS_NAMESPACE = os.getenv("SERVICE_BUS_NAMESPACE", "")
-QUEUE_NAME = os.getenv("QUEUE_NAME", "orders")
-PROCESSING_DELAY_SECONDS = int(os.getenv("PROCESSING_DELAY_SECONDS", "2"))
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-HEALTH_PORT = int(os.getenv("HEALTH_PORT", "8080"))
 
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
-# Flask app for health endpoint
+
+APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
+AGENT_DEFAULT_DELAY_MS = _int_env("AGENT_DEFAULT_DELAY_MS", 500)
+
 app = Flask(__name__)
 
-# Global state for health checks
-processor_healthy = True
-messages_processed = 0
-shutdown_requested = False
+_lock = threading.Lock()
+_stats = {
+    "requests_total": 0,
+    "requests_in_flight": 0,
+    "requests_succeeded": 0,
+    "requests_failed": 0,
+    "total_processing_ms": 0,
+}
 
 
 @app.route("/health", methods=["GET"])
 def health():
-    """Health check endpoint for Container Apps probes."""
-    if processor_healthy:
-        return jsonify({
-            "status": "healthy",
-            "messages_processed": messages_processed,
-            "queue_name": QUEUE_NAME,
-            "namespace": SERVICE_BUS_NAMESPACE,
-        })
-    return jsonify({"status": "unhealthy"}), 503
+    return jsonify({"status": "healthy"})
 
 
 @app.route("/", methods=["GET"])
 def root():
-    """Service info endpoint."""
+    with _lock:
+        avg_ms = 0
+        if _stats["requests_succeeded"] > 0:
+            avg_ms = int(_stats["total_processing_ms"] / _stats["requests_succeeded"])
+
+        snapshot = {
+            **_stats,
+            "avg_processing_ms": avg_ms,
+        }
+
     return jsonify({
-        "service": "Service Bus Queue Processor",
+        "service": "Mock Agent API",
         "status": "running",
-        "version": "1.0.0",
+        "version": APP_VERSION,
         "config": {
-            "namespace": SERVICE_BUS_NAMESPACE,
-            "queue_name": QUEUE_NAME,
-            "processing_delay_seconds": PROCESSING_DELAY_SECONDS,
+            "agent_default_delay_ms": AGENT_DEFAULT_DELAY_MS,
         },
-        "stats": {
-            "messages_processed": messages_processed,
-        },
+        "stats": snapshot,
     })
 
 
-def run_health_server():
-    """Run the Flask health server in a separate thread."""
-    logger.info("Starting health server on port %d", HEALTH_PORT)
-    app.run(host="0.0.0.0", port=HEALTH_PORT, threaded=True, use_reloader=False)
+@app.route("/agent/process", methods=["POST"])
+def agent_process():
+    payload = request.get_json(silent=True) or {}
+    delay_ms = payload.get("delayMs", AGENT_DEFAULT_DELAY_MS)
+    try:
+        delay_ms = int(delay_ms)
+    except (TypeError, ValueError):
+        delay_ms = AGENT_DEFAULT_DELAY_MS
 
+    delay_ms = max(0, min(delay_ms, 30_000))
 
-def process_message(message_body: str) -> None:
-    """Process a single message with configurable delay.
+    request_id = payload.get("requestId") or str(uuid.uuid4())
+    user_input = payload.get("input", "")
 
-    The delay simulates work and allows scaling behavior to be observed.
-    """
-    global messages_processed
-
-    logger.info("Processing message: %s", message_body[:100] if len(message_body) > 100 else message_body)
-
-    # Simulate processing work
-    time.sleep(PROCESSING_DELAY_SECONDS)
-
-    messages_processed += 1
-    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    logger.info("Message processed at %s (total: %d)", timestamp, messages_processed)
-
-
-def handle_shutdown(signum, frame):
-    """Handle graceful shutdown on SIGTERM/SIGINT."""
-    global shutdown_requested
-    logger.info("Shutdown signal received, finishing current message...")
-    shutdown_requested = True
-
-
-def run_queue_processor():
-    """Main loop to receive and process messages from Service Bus."""
-    global processor_healthy
-
-    if not SERVICE_BUS_NAMESPACE:
-        logger.error("SERVICE_BUS_NAMESPACE environment variable is required")
-        processor_healthy = False
-        sys.exit(1)
-
-    fully_qualified_namespace = f"{SERVICE_BUS_NAMESPACE}.servicebus.windows.net"
-    logger.info("Connecting to Service Bus namespace: %s", fully_qualified_namespace)
-    logger.info("Queue name: %s", QUEUE_NAME)
-    logger.info("Processing delay: %d seconds", PROCESSING_DELAY_SECONDS)
+    start = time.perf_counter()
+    with _lock:
+        _stats["requests_total"] += 1
+        _stats["requests_in_flight"] += 1
 
     try:
-        credential = DefaultAzureCredential()
+        time.sleep(delay_ms / 1000.0)
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
 
-        with ServiceBusClient(
-            fully_qualified_namespace=fully_qualified_namespace,
-            credential=credential,
-        ) as client:
-            with client.get_queue_receiver(
-                queue_name=QUEUE_NAME,
-                receive_mode=ServiceBusReceiveMode.PEEK_LOCK,
-            ) as receiver:
-                logger.info("Connected to queue, waiting for messages...")
-                processor_healthy = True
+        with _lock:
+            _stats["requests_succeeded"] += 1
+            _stats["total_processing_ms"] += elapsed_ms
 
-                while not shutdown_requested:
-                    # Receive messages with a timeout to allow checking shutdown flag
-                    messages = receiver.receive_messages(max_message_count=1, max_wait_time=5)
-
-                    for message in messages:
-                        try:
-                            message_body = str(message)
-                            process_message(message_body)
-                            receiver.complete_message(message)
-                        except Exception as exc:
-                            logger.error("Error processing message: %s", exc)
-                            # Message will be abandoned and retried
-                            receiver.abandon_message(message)
-
-                logger.info("Shutdown complete, processed %d messages", messages_processed)
-
-    except Exception as exc:
-        logger.error("Fatal error in queue processor: %s", exc)
-        processor_healthy = False
-        raise
-
-
-def main():
-    """Application entry point."""
-    logger.info("Starting Service Bus Queue Processor")
-    logger.info("SERVICE_BUS_NAMESPACE=%s", SERVICE_BUS_NAMESPACE)
-    logger.info("QUEUE_NAME=%s", QUEUE_NAME)
-    logger.info("PROCESSING_DELAY_SECONDS=%d", PROCESSING_DELAY_SECONDS)
-
-    # Register signal handlers for graceful shutdown
-    signal.signal(signal.SIGTERM, handle_shutdown)
-    signal.signal(signal.SIGINT, handle_shutdown)
-
-    # Start health server in background thread
-    health_thread = threading.Thread(target=run_health_server, daemon=True)
-    health_thread.start()
-
-    # Run the main queue processor
-    run_queue_processor()
-
-
-if __name__ == "__main__":
-    main()
+        return jsonify({
+            "requestId": request_id,
+            "status": "ok",
+            "inputEcho": user_input[:2000],
+            "output": {
+                "answer": "This is mock agent output.",
+                "citations": [],
+            },
+            "latencyMs": elapsed_ms,
+        })
+    except Exception:
+        with _lock:
+            _stats["requests_failed"] += 1
+        return jsonify({"requestId": request_id, "status": "error"}), 500
+    finally:
+        with _lock:
+            _stats["requests_in_flight"] = max(0, _stats["requests_in_flight"] - 1)

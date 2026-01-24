@@ -23,10 +23,8 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 # Resource names with hash for uniqueness
 acr_name="acr${user_hash}"
 aca_env="aca-env-${user_hash}"
-sb_namespace="sb-${user_hash}"
-queue_name="orders"
-container_app_name="queue-processor"
-container_image="queue-processor:v1"
+container_app_name="agent-api"
+container_image="agent-api:v1"
 
 # Function to display menu
 show_menu() {
@@ -38,14 +36,12 @@ show_menu() {
     echo "Location: $location"
     echo "Container Apps Environment: $aca_env"
     echo "ACR Name: $acr_name"
-    echo "Service Bus Namespace: $sb_namespace"
     echo "====================================================================="
     echo "1. Create Azure Container Registry and build container image"
     echo "2. Create Container Apps environment"
-    echo "3. Create Service Bus namespace and queue"
-    echo "4. Configure managed identity for queue-processor app"
-    echo "5. Check deployment status"
-    echo "6. Exit"
+    echo "3. Create Container App"
+    echo "4. Check deployment status"
+    echo "5. Exit"
     echo "====================================================================="
 }
 
@@ -106,6 +102,94 @@ create_acr_and_build_image() {
     fi
 }
 
+# Function to create the Container App (ingress enabled, no scale rules)
+create_container_app() {
+    echo "Creating Container App '$container_app_name' (if needed)..."
+    echo "This may take a few minutes..."
+
+    local acr_server="$acr_name.azurecr.io"
+    local container_image_fqdn="$acr_server/$container_image"
+
+    az containerapp show --resource-group "$rg" --name "$container_app_name" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        # Prereq check: Container Apps environment must exist
+        az containerapp env show --name "$aca_env" --resource-group "$rg" > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo "Error: Container Apps environment '$aca_env' not found."
+            echo "Please run option 2 to create the Container Apps environment, then try again."
+            return 1
+        fi
+
+        # Prereq check: ACR + image must exist
+        az acr show --resource-group "$rg" --name "$acr_name" > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo "Error: Azure Container Registry '$acr_name' not found."
+            echo "Please run option 1 to create ACR and build the image, then try again."
+            return 1
+        fi
+
+        az acr repository show --name "$acr_name" --image "$container_image" > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo "Error: Container image '$container_image' not found in '$acr_name'."
+            echo "Please run option 1 to build/push the image, then try again."
+            return 1
+        fi
+
+        az containerapp create \
+            --name "$container_app_name" \
+            --resource-group "$rg" \
+            --environment "$aca_env" \
+            --image "$container_image_fqdn" \
+            --registry-server "$acr_server" \
+            --registry-identity system \
+            --system-assigned \
+            --ingress external \
+            --target-port 8080 \
+            --min-replicas 1 \
+            --max-replicas 1 \
+            --env-vars "AGENT_DEFAULT_DELAY_MS=500" > /dev/null 2>&1
+
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to create Container App"
+            return 1
+        fi
+        echo "✓ Container App created: $container_app_name"
+    else
+        echo "✓ Container App already exists: $container_app_name"
+    fi
+
+    # Ensure the system-assigned identity can pull from ACR
+    echo ""
+    echo "Ensuring Container App identity can pull from ACR (AcrPull)..."
+
+    local principal_id=$(az containerapp identity show \
+        --resource-group "$rg" \
+        --name "$container_app_name" \
+        --query principalId \
+        --output tsv 2>/dev/null)
+
+    if [ -z "$principal_id" ]; then
+        echo "Error: Unable to resolve Container App principalId"
+        return 1
+    fi
+
+    local acr_id=$(az acr show --resource-group "$rg" --name "$acr_name" --query id --output tsv 2>/dev/null)
+    if [ -z "$acr_id" ]; then
+        echo "Error: Unable to resolve ACR resource id"
+        return 1
+    fi
+
+    az role assignment create \
+        --assignee "$principal_id" \
+        --role "AcrPull" \
+        --scope "$acr_id" > /dev/null 2>&1
+
+    echo "✓ AcrPull role assigned (or already present)"
+
+    # Persist env vars for the lab + dashboard
+    write_env_file
+}
+
 # Function to create Container Apps environment
 create_containerapps_environment() {
     echo "Creating Container Apps environment '$aca_env' (if needed)..."
@@ -128,150 +212,22 @@ create_containerapps_environment() {
     fi
 }
 
-# Function to create Service Bus namespace and queue
-create_servicebus() {
-    echo "Creating Service Bus namespace '$sb_namespace'..."
 
-    local sb_exists=$(az servicebus namespace show --resource-group $rg --name $sb_namespace 2>/dev/null)
-    if [ -z "$sb_exists" ]; then
-        az servicebus namespace create \
-            --resource-group $rg \
-            --name $sb_namespace \
-            --location $location \
-            --sku Standard > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ Service Bus namespace created: $sb_namespace"
-        else
-            echo "Error: Failed to create Service Bus namespace"
-            return 1
-        fi
-    else
-        echo "✓ Service Bus namespace already exists: $sb_namespace"
-    fi
-
-    echo ""
-    echo "Creating queue '$queue_name'..."
-
-    local queue_exists=$(az servicebus queue show --resource-group $rg --namespace-name $sb_namespace --name $queue_name 2>/dev/null)
-    if [ -z "$queue_exists" ]; then
-        az servicebus queue create \
-            --resource-group $rg \
-            --namespace-name $sb_namespace \
-            --name $queue_name > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ Queue created: $queue_name"
-        else
-            echo "Error: Failed to create queue"
-            return 1
-        fi
-    else
-        echo "✓ Queue already exists: $queue_name"
-    fi
-
-    # Update environment file with Service Bus info
-    write_env_file
-}
-
-# Function to configure managed identity for the container app
-configure_managed_identity() {
-    echo "Configuring managed identity for '$container_app_name'..."
-    echo ""
-
-    # Check if container app exists
-    local app_exists=$(az containerapp show --resource-group $rg --name $container_app_name 2>/dev/null)
-    if [ -z "$app_exists" ]; then
-        echo "Error: Container app '$container_app_name' not found."
-        echo "Please deploy the container app first using the exercise steps."
-        return 1
-    fi
-
-    # Get the principal ID of the container app's system-assigned identity
-    echo "Getting container app identity..."
-    local principal_id=$(az containerapp identity show \
-        --resource-group $rg \
-        --name $container_app_name \
-        --query principalId \
-        --output tsv 2>/dev/null)
-
-    if [ -z "$principal_id" ]; then
-        echo "Error: Container app does not have a system-assigned identity."
-        echo "Please create the container app with --system-assigned flag."
-        return 1
-    fi
-    echo "✓ Principal ID: $principal_id"
-
-    # Get Service Bus namespace resource ID
-    echo ""
-    echo "Getting Service Bus resource ID..."
-    local sb_resource_id=$(az servicebus namespace show \
-        --resource-group $rg \
-        --name $sb_namespace \
-        --query id \
-        --output tsv 2>/dev/null)
-
-    if [ -z "$sb_resource_id" ]; then
-        echo "Error: Service Bus namespace '$sb_namespace' not found."
-        echo "Please run option 3 first to create the Service Bus namespace."
-        return 1
-    fi
-    echo "✓ Service Bus resource ID obtained"
-
-    # Assign Azure Service Bus Data Receiver role (for receiving messages)
-    echo ""
-    echo "Assigning 'Azure Service Bus Data Receiver' role..."
-    az role assignment create \
-        --assignee "$principal_id" \
-        --role "Azure Service Bus Data Receiver" \
-        --scope "$sb_resource_id" > /dev/null 2>&1
-
-    if [ $? -eq 0 ]; then
-        echo "✓ Service Bus Data Receiver role assigned"
-    else
-        echo "  Role may already be assigned or assignment failed"
-    fi
-
-    # Assign Azure Service Bus Data Owner role (for KEDA scaler to query metrics)
-    echo ""
-    echo "Assigning 'Azure Service Bus Data Owner' role (required for KEDA scaling)..."
-    az role assignment create \
-        --assignee "$principal_id" \
-        --role "Azure Service Bus Data Owner" \
-        --scope "$sb_resource_id" > /dev/null 2>&1
-
-    if [ $? -eq 0 ]; then
-        echo "✓ Service Bus Data Owner role assigned"
-    else
-        echo "  Role may already be assigned or assignment failed"
-    fi
-
-    # Assign Azure Service Bus Data Owner role to the signed-in user (for sending test messages)
-    echo ""
-    echo "Assigning 'Azure Service Bus Data Owner' role to signed-in user (for sending test messages)..."
-    az role assignment create \
-        --assignee "$user_object_id" \
-        --role "Azure Service Bus Data Owner" \
-        --scope "$sb_resource_id" > /dev/null 2>&1
-
-    if [ $? -eq 0 ]; then
-        echo "✓ Service Bus Data Owner role assigned to signed-in user"
-    else
-        echo "  Role may already be assigned or assignment failed"
-    fi
-
-    echo ""
-    echo "====================================================================="
-    echo "Managed identity configuration complete!"
-    echo ""
-    echo "NOTE: Azure role assignments can take 1-2 minutes to propagate."
-    echo "If the app fails to connect to Service Bus, wait a moment and retry."
-    echo "====================================================================="
-}
 
 # Function to write environment variables to file
 write_env_file() {
     local env_file="$(dirname "$0")/.env"
+
+    local container_app_fqdn=$(az containerapp show \
+        --name "$container_app_name" \
+        --resource-group "$rg" \
+        --query "properties.configuration.ingress.fqdn" \
+        --output tsv 2>/dev/null)
+
+    local container_app_url=""
+    if [ -n "$container_app_fqdn" ]; then
+        container_app_url="https://$container_app_fqdn"
+    fi
 
     cat > "$env_file" << EOF
 export RESOURCE_GROUP="$rg"
@@ -279,10 +235,9 @@ export ACR_NAME="$acr_name"
 export ACR_SERVER="$acr_name.azurecr.io"
 export ACA_ENVIRONMENT="$aca_env"
 export CONTAINER_APP_NAME="$container_app_name"
+export CONTAINER_APP_FQDN="$container_app_fqdn"
+export CONTAINER_APP_URL="$container_app_url"
 export CONTAINER_IMAGE="$container_image"
-export SERVICE_BUS_NAMESPACE="$sb_namespace"
-export SERVICE_BUS_FQDN="$sb_namespace.servicebus.windows.net"
-export QUEUE_NAME="$queue_name"
 export LOCATION="$location"
 EOF
     echo ""
@@ -327,27 +282,6 @@ check_deployment_status() {
         echo "  Status: Not created"
     fi
 
-    # Check Service Bus
-    echo ""
-    echo "Service Bus Namespace ($sb_namespace):"
-    local sb_status=$(az servicebus namespace show --resource-group $rg --name $sb_namespace --query "provisioningState" -o tsv 2>/dev/null)
-    if [ ! -z "$sb_status" ]; then
-        echo "  Status: $sb_status"
-        if [ "$sb_status" = "Succeeded" ]; then
-            echo "  ✓ Service Bus namespace is ready"
-            # Check if queue exists
-            local queue_status=$(az servicebus queue show --resource-group $rg --namespace-name $sb_namespace --name $queue_name --query "status" -o tsv 2>/dev/null)
-            if [ ! -z "$queue_status" ]; then
-                echo "  ✓ Queue '$queue_name': $queue_status"
-            else
-                echo "  Queue '$queue_name' not found"
-            fi
-        fi
-    else
-        echo "  Status: Not created"
-    fi
-
-    # Check Container App
     echo ""
     echo "Container App ($container_app_name):"
     local app_status=$(az containerapp show --resource-group $rg --name $container_app_name --query "properties.provisioningState" -o tsv 2>/dev/null)
@@ -359,6 +293,12 @@ check_deployment_status() {
         else
             echo "  ⚠ No system-assigned identity"
         fi
+        local fqdn=$(az containerapp show --resource-group $rg --name $container_app_name --query "properties.configuration.ingress.fqdn" -o tsv 2>/dev/null)
+        if [ ! -z "$fqdn" ]; then
+            echo "  ✓ Ingress FQDN: $fqdn"
+        else
+            echo "  ⚠ Ingress not enabled (no FQDN)"
+        fi
         local replica_count=$(az containerapp replica list --resource-group $rg --name $container_app_name --query "length([])" -o tsv 2>/dev/null)
         echo "  Running replicas: ${replica_count:-0}"
     else
@@ -369,7 +309,7 @@ check_deployment_status() {
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-6): " choice
+    read -p "Please select an option (1-5): " choice
 
     case $choice in
         1)
@@ -392,33 +332,23 @@ while true; do
             echo ""
             create_resource_group
             echo ""
-            create_servicebus
+            create_container_app
             echo ""
             read -p "Press Enter to continue..."
             ;;
         4)
             echo ""
-            create_resource_group
-            echo ""
-            create_servicebus
-            echo ""
-            configure_managed_identity
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        5)
-            echo ""
             check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        6)
+        5)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
-            echo "Invalid option. Please select 1-6."
+            echo "Invalid option. Please select 1-5."
             read -p "Press Enter to continue..."
             ;;
     esac
