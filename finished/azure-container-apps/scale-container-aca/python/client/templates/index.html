@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ACA Autoscaling Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <h1>Autoscaling</h1>
+        <p class="muted">
+          Local dashboard that generates HTTP load and queries ACA revisions.
+        </p>
+
+        <div class="card">
+          <h2>Environment</h2>
+          {% if envFound %}
+            <div class="kv"><span class="k">RESOURCE_GROUP</span><span class="v" id="rg">{{ resourceGroup }}</span></div>
+            <div class="kv"><span class="k">CONTAINER_APP_NAME</span><span class="v" id="appName">{{ containerAppName }}</span></div>
+            <div class="kv"><span class="k">CONTAINER_APP_URL</span><span class="v" id="appUrl">{{ containerAppUrl }}</span></div>
+          {% else %}
+            <p class="warn">.env not found. Run azdeploy.sh first.</p>
+          {% endif %}
+        </div>
+
+        <div class="card">
+          <h2>Load Generator</h2>
+          <label>Target URL</label>
+          <input id="targetUrl" type="text" value="{{ defaultTargetUrl }}" />
+
+          <div class="row">
+            <div>
+              <label>Concurrency</label>
+              <input id="concurrency" type="number" min="1" max="500" value="25" />
+            </div>
+            <div>
+              <label>Duration (sec)</label>
+              <input id="durationSeconds" type="number" min="1" max="600" value="30" />
+            </div>
+          </div>
+
+          <label>delayMs (per request)</label>
+          <input id="delayMs" type="number" min="0" max="30000" value="500" />
+
+          <div class="buttons">
+            <button id="startBtn">Start</button>
+            <button id="stopBtn" class="secondary">Stop</button>
+          </div>
+
+          <div class="small" id="loadStatus">Idle</div>
+        </div>
+
+        <div class="card">
+          <h2>Refresh</h2>
+          <div class="buttons">
+            <button id="refreshBtn" class="secondary">Refresh Revisions & Replicas</button>
+          </div>
+          <p class="small muted">Requires Azure CLI: az login + containerapp extension.</p>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="grid">
+          <section class="panel">
+            <h2>Revisions</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Active</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody id="revisionsBody">
+                <tr><td colspan="3" class="muted">No data yet. Click Refresh.</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="panel">
+            <h2>Replicas</h2>
+            <div class="metric">
+              <div class="metricValue" id="replicaCount">-</div>
+              <div class="metricLabel">running replicas</div>
+            </div>
+            <ul id="replicaList" class="list"></ul>
+          </section>
+        </div>
+
+        <section class="panel">
+          <h2>Load Run</h2>
+          <div class="twoCol">
+            <div class="kv"><span class="k">running</span><span class="v" id="st_running">-</span></div>
+            <div class="kv"><span class="k">sent</span><span class="v" id="st_sent">-</span></div>
+            <div class="kv"><span class="k">succeeded</span><span class="v" id="st_succeeded">-</span></div>
+            <div class="kv"><span class="k">failed</span><span class="v" id="st_failed">-</span></div>
+            <div class="kv"><span class="k">lastError</span><span class="v" id="st_lastError">-</span></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
