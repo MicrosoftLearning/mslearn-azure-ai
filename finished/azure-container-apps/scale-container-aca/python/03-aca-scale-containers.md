@@ -2,7 +2,7 @@
 lab:
     topic: Azure Container Apps
     title: 'Configure autoscaling for an API using KEDA'
-    description: 'Learn how to configure KEDA-based autoscaling in Azure Container Apps using HTTP concurrency triggers (no extra Azure services).'
+    description: 'Learn how to configure KEDA-based autoscaling in Azure Container Apps using HTTP concurrency triggers.'
 ---
 
 # Configure autoscaling using KEDA triggers
@@ -16,11 +16,10 @@ Tasks performed in this exercise:
 - Create Azure Container Registry and Container Apps resources
 - Deploy a mock agent API container app
 - Configure an HTTP concurrency scale rule using KEDA
-- Generate concurrent requests to trigger scale-out
-- Monitor replica count changes in real-time
+- Generate concurrent requests to trigger scale-out and monitor replica count changes in real-time
 - Configure scale rules using YAML
 
-This exercise takes approximately **25-35** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 >**Important:** Azure Container Registry task runs are temporarily paused from Azure free credits. This exercise requires a Pay-As-You-Go, or another paid plan.
 
@@ -111,6 +110,18 @@ In this section you run the deployment script to deploy the necessary services t
     . .\.env.ps1
     ```
 
+1. Verify the app endpoint is available.
+
+   **Bash**
+    ```bash
+    curl -sS "$CONTAINER_APP_URL/" | head
+    ```
+
+    **PowerShell**
+    ```powershell
+    Invoke-RestMethod "$env:CONTAINER_APP_URL/"
+    ```
+
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
 
 ## Configure autoscaling
@@ -119,19 +130,97 @@ In this section you configure an HTTP scale rule that triggers scaling based on 
 
 >**Note:** Applying configuration updates (including scaling changes) creates a **new revision**.
 
-1. (Optional) Verify the app endpoint is available.
-
-    **PowerShell**
-    ```powershell
-    Invoke-RestMethod "$env:CONTAINER_APP_URL/"
-    ```
+1. Run the following command to update the container app with an HTTP scale rule. This rule monitors concurrent in-flight requests and scales the app when demand increases.
 
     **Bash**
     ```bash
-    curl -sS "$CONTAINER_APP_URL/" | head
+    az containerapp update \
+        --name $CONTAINER_APP_NAME \
+        --resource-group $RESOURCE_GROUP \
+        --min-replicas 0 \
+        --max-replicas 10 \
+        --scale-rule-name http-scaling \
+        --scale-rule-type http \
+        --scale-rule-http-concurrency 10
     ```
 
-## Configure multiple scale rules using YAML
+    **PowerShell**
+    ```powershell
+    az containerapp update `
+        --name $env:CONTAINER_APP_NAME `
+        --resource-group $env:RESOURCE_GROUP `
+        --min-replicas 0 `
+        --max-replicas 10 `
+        --scale-rule-name http-scaling `
+        --scale-rule-type http `
+        --scale-rule-http-concurrency 10
+    ```
+
+1. Run the following command to verify the scale rule is configured. Look for the **http-scaling** rule in the output with **minReplicas** set to **0** and **maxReplicas** set to **10**.
+
+    **Bash**
+    ```bash
+    az containerapp show \
+        --name $CONTAINER_APP_NAME \
+        --resource-group $RESOURCE_GROUP \
+        --query "properties.template.scale"
+    ```
+
+    **PowerShell**
+    ```powershell
+    az containerapp show `
+        --name $env:CONTAINER_APP_NAME `
+        --resource-group $env:RESOURCE_GROUP `
+        --query "properties.template.scale"
+    ```
+
+## Generate load and observe scaling
+
+In this section you run a local Flask dashboard that can both generate concurrent requests and show Container App revisions/replicas.
+
+1. Run the following command to create a virtual environment for the client app. Depending on your environment the command might be **python** or **python3**.
+
+    ```python
+    python -m venv client/.venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** The virtual environment directory structure varies by platform. On Linux/macOS, activation scripts are in **.venv/bin/**. On Windows, they're in **.venv/Scripts/**.
+
+    **Bash**
+    ```bash
+    source client/.venv/bin/activate
+    ```
+
+    **PowerShell**
+    ```powershell
+    client\.venv\Scripts\Activate.ps1
+    ```
+
+1. Run the following command to install the dependencies for the client app.
+
+    ```bash
+    pip install -r client/requirements.txt
+    ```
+
+1. Run the following command to start the dashboard.
+
+    ```
+    python client/app.py
+    ```
+
+1. Open a browser and navigate to the following URL: `http://127.0.0.1:5000`.
+
+1. In the left pane of the app select **Refresh Revisions & Replicas**. In the top right of the app you should see **1**, or **0** replicas running.
+
+    When you deployed the app it defaulted to **1** running replica. You applied KEDA scale rule in a previous step and scaling down to zero may take an additional **~5 minutes** after the workload becomes idle because of the default **300-second (5-minute)** cool-down period.
+
+1. In the **Load Generator** section, select **Start** to being sending data to the container app.
+
+1. Select **Refresh Revisions & Replicas** every 5-10 seconds and you should see the number of replicas increase. You can run the **Load Generator** again after it stops to increase the traffic and increase replica count.
+
+When you're finished close the browser window and enter **Ctrl+c** in the terminal to end the client app.
+
+## Configure scale rules using YAML
 
 In this section you configure autoscaling by editing the Container App YAML. This is a repeatable way to manage scale rules, and it becomes essential when you have multiple rules.
 
@@ -153,17 +242,14 @@ In this section you configure autoscaling by editing the Container App YAML. Thi
         --output yaml > app-config.yaml
     ```
 
-1. Open the *app-config.yaml* file in VS Code. Find the **scale** section under **properties > template**. Update it to set **minReplicas** to **0** and **maxReplicas** to **10**, then add an HTTP scale rule that triggers when concurrent requests exceed a threshold. The **scale** section should look similar to the following example.
+1. Open the *app-config.yaml* file in VS Code. Find the **scale** section under **properties > template**. Modify the scaling configuration to reduce the **cooldownPeriod** to **200** seconds (faster scale-down), set **maxReplicas** to **5**, and set **minReplicas** to **1** so the app always has at least one replica running. The **scale** section should look similar to the following example.
 
     ```yaml
     scale:
-      maxReplicas: 10
-      minReplicas: 0
-      rules:
-      - name: http-scaling
-        http:
-          metadata:
-            concurrentRequests: "10"
+      cooldownPeriod: 200
+      maxReplicas: 5
+      minReplicas: 1
+      pollingInterval: 30
     ```
 
 1. Save the file and run the following command to apply the updated configuration.
@@ -184,14 +270,14 @@ In this section you configure autoscaling by editing the Container App YAML. Thi
         --yaml app-config.yaml
     ```
 
-1. Run the following command to verify the scale rule is configured.
+1. Run the following command to verify the changes you just implemented.
 
     **Bash**
     ```bash
     az containerapp show \
         --name $CONTAINER_APP_NAME \
         --resource-group $RESOURCE_GROUP \
-        --query "properties.template.scale.rules[].name"
+        --query "properties.template.scale"
     ```
 
     **PowerShell**
@@ -199,49 +285,7 @@ In this section you configure autoscaling by editing the Container App YAML. Thi
     az containerapp show `
         --name $env:CONTAINER_APP_NAME `
         --resource-group $env:RESOURCE_GROUP `
-        --query "properties.template.scale.rules[].name"
-    ```
-
-## Generate load and observe scaling
-
-In this section you run a local Flask dashboard that can both generate concurrent requests and show Container App revisions/replicas.
-
-1. Install the dashboard dependencies.
-
-    ```
-    python -m pip install -r finished/azure-container-apps/scale-container-aca/python/client/requirements.txt
-    ```
-
-1. Run the dashboard.
-
-    ```
-    python finished/azure-container-apps/scale-container-aca/python/client/app.py
-    ```
-
-1. Open the dashboard at `http://127.0.0.1:5000`.
-
-1. Click **Refresh Revisions & Replicas**.
-
-1. In the **Load Generator** section, click **Start** (for example: concurrency 50, duration 60, delayMs 500). You should see replicas scale out.
-
-1. (Optional) View system logs for scaling events.
-
-    **Bash**
-    ```bash
-    az containerapp logs show \
-        --name $CONTAINER_APP_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --type system \
-        --tail 50
-    ```
-
-    **PowerShell**
-    ```powershell
-    az containerapp logs show `
-        --name $env:CONTAINER_APP_NAME `
-        --resource-group $env:RESOURCE_GROUP `
-        --type system `
-        --tail 50
+        --query "properties.template.scale"
     ```
 
 # Clean up resources
@@ -261,16 +305,24 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 If you encounter issues during this exercise, try these steps:
 
 **App not scaling out under load**
-- Verify the HTTP scale rule is configured using **az containerapp show --query "properties.template.scale"**
-- Ensure you're generating concurrent requests (use the dashboard with a non-zero delay)
-- Increase `delayMs` (for example 500-1500ms) so requests overlap and concurrency accumulates
+- Verify the HTTP scale rule is configured: **az containerapp show --query "properties.template.scale"**
+- Ensure you're generating concurrent requests (use the dashboard with delayMs > 0)
+- Increase **delayMs** (500-1500ms) so requests overlap and concurrency accumulates
+- Check system logs for scaling events: **az containerapp logs show --type system --tail 50**
 
-**Dashboard can't list revisions/replicas**
-- Ensure Azure CLI is installed and you ran `az login`
-- Ensure the `containerapp` extension is installed: `az extension add --name containerapp`
-- Ensure `.env` is loaded and contains `RESOURCE_GROUP` and `CONTAINER_APP_NAME`
+**Dashboard won't start or can't list revisions/replicas**
+- Ensure Python virtual environment is activated (you should see **(.venv)** in your terminal prompt)
+- Ensure dependencies are installed: **pip install -r client/requirements.txt**
+- Ensure Azure CLI is installed and you ran **az login**
+- Ensure the **containerapp** extension is installed: **az extension add --name containerapp**
+- Ensure **.env** is loaded and contains **RESOURCE_GROUP** and **CONTAINER_APP_NAME**
+
+**Python venv activation issues**
+- On Linux/macOS, use: **source client/.venv/bin/activate**
+- On Windows PowerShell, use: **client\.venv\Scripts\Activate.ps1**
+- If **activate** script is missing, reinstall **python3-venv** package and recreate the venv
 
 **YAML update fails**
-- Ensure the YAML file syntax is valid
-- Remove read-only properties like **id**, **systemData**, and **type** from the YAML before applying
-- Verify the scale rules section follows the correct structure
+- Ensure the YAML file syntax is valid (check indentation)
+- Some read-only properties like **id**, **systemData**, and **type** may cause errors; remove them if needed
+- Verify the scale section follows the correct structure under **properties > template > scale**

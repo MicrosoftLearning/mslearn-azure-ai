@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import subprocess
 import threading
 import time
@@ -14,6 +15,9 @@ from typing import Any, Dict, Optional
 import aiohttp
 from flask import Flask, jsonify, render_template, request
 
+
+# Suppress Flask/Werkzeug request logging (the constant "GET /api/..." lines)
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 LAB_DIR = Path(__file__).resolve().parents[1]
 ENV_FILE = LAB_DIR / ".env"

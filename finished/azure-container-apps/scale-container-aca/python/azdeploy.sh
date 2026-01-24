@@ -120,18 +120,12 @@ create_container_app() {
             return 1
         fi
 
-        # Prereq check: ACR + image must exist
-        az acr show --resource-group "$rg" --name "$acr_name" > /dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            echo "Error: Azure Container Registry '$acr_name' not found."
-            echo "Please run option 1 to create ACR and build the image, then try again."
-            return 1
-        fi
-
+        # Prereq check: container image must exist in ACR
+        # (This will also fail if the ACR itself doesn't exist yet.)
         az acr repository show --name "$acr_name" --image "$container_image" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            echo "Error: Container image '$container_image' not found in '$acr_name'."
-            echo "Please run option 1 to build/push the image, then try again."
+            echo "Error: Container image '$container_image' isn't available in '$acr_name'."
+            echo "Please run option 1 to create ACR and build/push the image, then try again."
             return 1
         fi
 
@@ -212,8 +206,6 @@ create_containerapps_environment() {
     fi
 }
 
-
-
 # Function to write environment variables to file
 write_env_file() {
     local env_file="$(dirname "$0")/.env"
@@ -231,8 +223,6 @@ write_env_file() {
 
     cat > "$env_file" << EOF
 export RESOURCE_GROUP="$rg"
-export ACR_NAME="$acr_name"
-export ACR_SERVER="$acr_name.azurecr.io"
 export ACA_ENVIRONMENT="$aca_env"
 export CONTAINER_APP_NAME="$container_app_name"
 export CONTAINER_APP_FQDN="$container_app_fqdn"
