@@ -168,25 +168,31 @@ Queue-based processing is a common pattern in AI solutions. For example, an AI d
     ```
     >**Note:** Role assignments can take 1-2 minutes to propagate. Wait a few minutes before performing the next step.
 
-1. Run the following command to verify the application deployed with zero replicas. The application shows zero running replicas because no scale rule triggers scaling and the minimum is set to zero.
+1. Run the following command to check the current replicas. This command lists only *running* replicas.
+
+    At this point (before you configure the KEDA scale rule), you typically see **one** running replica even though the minimum is set to zero. After you add the scale rule in the next section, the app can scale down to **zero** running replicas when idle (empty list).
+
+    >**Note:** After the KEDA scale rule is configured and the app has scaled up to process messages, scaling back down to zero may take an additional **~5 minutes** after the workload becomes idle because of the default **300-second (5-minute)** cool-down period.
 
     **Bash**
     ```bash
-    az containerapp show \
+    az containerapp replica list \
         --name queue-processor \
         --resource-group $RESOURCE_GROUP \
-        --query "properties.runningStatus"
+        --query "[].name" \
+        --output table
     ```
 
     **PowerShell**
     ```powershell
-    az containerapp show `
+    az containerapp replica list `
         --name queue-processor `
         --resource-group $env:RESOURCE_GROUP `
-        --query "properties.runningStatus"
+        --query "[].name" `
+        --output table
     ```
 
-## Configure Service Bus scaling
+## Configure container app scaling
 
 In this section you add a Service Bus scale rule that monitors queue depth and triggers scaling when messages accumulate. The scale rule uses the container app's managed identity to query queue metrics.
 
