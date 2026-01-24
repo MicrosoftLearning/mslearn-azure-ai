@@ -246,6 +246,20 @@ configure_managed_identity() {
         echo "  Role may already be assigned or assignment failed"
     fi
 
+    # Assign Azure Service Bus Data Owner role to the signed-in user (for sending test messages)
+    echo ""
+    echo "Assigning 'Azure Service Bus Data Owner' role to signed-in user (for sending test messages)..."
+    az role assignment create \
+        --assignee "$user_object_id" \
+        --role "Azure Service Bus Data Owner" \
+        --scope "$sb_resource_id" > /dev/null 2>&1
+
+    if [ $? -eq 0 ]; then
+        echo "✓ Service Bus Data Owner role assigned to signed-in user"
+    else
+        echo "  Role may already be assigned or assignment failed"
+    fi
+
     echo ""
     echo "====================================================================="
     echo "Managed identity configuration complete!"

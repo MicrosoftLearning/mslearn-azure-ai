@@ -31,7 +31,7 @@ To complete the exercise, you need:
 - An Azure subscription with the permissions to deploy the necessary Azure services. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli?view=azure-cli-latest).
-- Optional: [Python 3.12](https://www.python.org/downloads/) or greater.
+- [Python 3.12](https://www.python.org/downloads/) or greater.
 
 ## Download project starter files and deploy Azure services
 
@@ -155,7 +155,7 @@ Queue-based processing is a common pattern in AI solutions. For example, an AI d
                  "PROCESSING_DELAY_SECONDS=2"
     ```
 
-1. Run the deployment script and enter **4** to launch the **Configure managed identity for queue-processor app** option. This assigns the **Azure Service Bus Data Receiver** and **Azure Service Bus Data Owner** roles to the container app's managed identity. When the operation finishes enter **6** to exit.
+1. Run the deployment script and enter **4** to launch the **Configure managed identity for queue-processor app** option. This assigns the **Azure Service Bus Data Receiver** and **Azure Service Bus Data Owner** roles to the container app's managed identity. It also assigns the **Azure Service Bus Data Owner** role to your signed-in user account so you can send test messages from your local machine. When the operation finishes enter **6** to exit.
 
     **Bash**
     ```bash
@@ -272,28 +272,20 @@ AI workloads often arrive in bursts—a user uploads 100 documents for analysis,
     }
     ```
 
-1. In your original terminal, run the following command to send 100 messages to the queue.
+1. In your original terminal, send 100 messages to the queue using the included console sender app (Microsoft Entra ID authentication).
 
     **Bash**
     ```bash
-    for i in {1..100}; do
-        az servicebus queue send \
-            --namespace-name $SERVICE_BUS_NAMESPACE \
-            --name $QUEUE_NAME \
-            --resource-group $RESOURCE_GROUP \
-            --body "Order $i"
-    done
+    python -m pip install -r finished/azure-container-apps/scale-container-aca/python/client/requirements.txt
+
+    python finished/azure-container-apps/scale-container-aca/python/client/send_messages.py --count 100
     ```
 
     **PowerShell**
     ```powershell
-    1..100 | ForEach-Object {
-        az servicebus queue send `
-            --namespace-name $env:SERVICE_BUS_NAMESPACE `
-            --name $env:QUEUE_NAME `
-            --resource-group $env:RESOURCE_GROUP `
-            --body "Order $_"
-    }
+    python -m pip install -r finished/azure-container-apps/scale-container-aca/python/client/requirements.txt
+
+    python finished/azure-container-apps/scale-container-aca/python/client/send_messages.py --count 100
     ```
 
 1. Watch the monitoring terminal. With 100 messages and a **messageCount** threshold of **5**, the scaler requests up to 20 replicas (capped at max 10). You should see replicas scale up as messages accumulate.

@@ -19,6 +19,8 @@ function Get-UserHash {
         exit 1
     }
 
+    $script:SignedInUserObjectId = $userObjectId
+
     $sha1 = [System.Security.Cryptography.SHA1]::Create()
     $hashBytes = $sha1.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($userObjectId))
     return ([System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower())
@@ -275,6 +277,21 @@ function Configure-ManagedIdentity {
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✓ Service Bus Data Owner role assigned"
+    }
+    else {
+        Write-Host "  Role may already be assigned or assignment failed"
+    }
+
+    # Assign Azure Service Bus Data Owner role to the signed-in user (for sending test messages)
+    Write-Host ""
+    Write-Host "Assigning 'Azure Service Bus Data Owner' role to signed-in user (for sending test messages)..."
+    az role assignment create `
+        --assignee $script:SignedInUserObjectId `
+        --role "Azure Service Bus Data Owner" `
+        --scope $sbResourceId 2>&1 | Out-Null
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✓ Service Bus Data Owner role assigned to signed-in user"
     }
     else {
         Write-Host "  Role may already be assigned or assignment failed"
