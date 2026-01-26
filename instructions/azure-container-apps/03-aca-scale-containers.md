@@ -9,7 +9,7 @@ lab:
 
 AI applications often experience unpredictable workloads—a surge in inference requests, batch jobs, or sudden spikes from an agent-based workflow. KEDA-based autoscaling in Azure Container Apps allows your workloads to scale to zero when idle (saving costs) and rapidly scale out when demand increases.
 
-In this exercise, you deploy a simple mock "agent API" and configure autoscaling based on **HTTP concurrent requests**. You then generate concurrent load and observe how the app scales out and creates new revisions when configuration changes are applied.
+In this exercise, you deploy a simple mock agent API and configure autoscaling based on **HTTP concurrent requests**. You then generate concurrent load and observe how the app scales out and creates new revisions when configuration changes are applied.
 
 Tasks performed in this exercise:
 

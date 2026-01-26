@@ -11,7 +11,7 @@ In this exercise, you troubleshoot a failing container app and apply targeted fi
 
 Tasks performed in this exercise:
 
-- Deploy a working container app using the API from the deploy exercise
+- Deploy a mock AI document processing API as a container app
 - Introduce and diagnose a missing environment variable error
 - Introduce and diagnose an ingress configuration issue
 - Query Log Analytics for historical troubleshooting data
