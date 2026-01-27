@@ -307,16 +307,16 @@ In this section you run a test script to verify the tool functions work correctl
     python -m venv agent-backend/.venv
     ```
 
-1. Run the following command to activate the Python environment. **Note:** The virtual environment directory structure varies by platform. On Linux/macOS, activation scripts are in **.venv/bin/**. On Windows, they're in **.venv/Scripts/**.
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source client/.venv/Scripts/activate**.
 
     **Bash**
     ```bash
-    source agent-backend/.venv/bin/activate
+    source client/.venv/bin/activate
     ```
 
     **PowerShell**
     ```powershell
-    agent-backend\.venv\Scripts\Activate.ps1
+    .\client\.venv\Scripts\Activate.ps1
     ```
 
 1. Run the following command to install the dependencies for the client app.
