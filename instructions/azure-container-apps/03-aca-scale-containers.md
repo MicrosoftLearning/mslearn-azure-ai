@@ -180,34 +180,40 @@ In this section you configure an HTTP scale rule that triggers scaling based on 
 
 In this section you run a local Flask dashboard that can both generate concurrent requests and show Container App revisions/replicas.
 
+1. Run the following command to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
 1. Run the following command to create a virtual environment for the client app. Depending on your environment the command might be **python** or **python3**.
 
     ```python
-    python -m venv client/.venv
+    python -m venv .venv
     ```
 
-1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source client/.venv/Scripts/activate**.
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
 
     **Bash**
     ```bash
-    source client/.venv/bin/activate
+    source .venv/bin/activate
     ```
 
     **PowerShell**
     ```powershell
-    .\client\.venv\Scripts\Activate.ps1
+    .\.venv\Scripts\Activate.ps1
     ```
 
 1. Run the following command to install the dependencies for the client app.
 
     ```bash
-    pip install -r client/requirements.txt
+    pip install -r requirements.txt
     ```
 
 1. Run the following command to start the dashboard.
 
     ```
-    python client/app.py
+    python app.py
     ```
 
 1. Open a browser and navigate to the following URL: `http://127.0.0.1:5000`.

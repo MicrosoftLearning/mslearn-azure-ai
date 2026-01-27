@@ -301,28 +301,36 @@ In this section you complete the *agent_tools.py* file by adding functions that 
 
 In this section you run a test script to verify the tool functions work correctly. The *test_workflow.py* script is included in the project files and demonstrates creating conversations, storing messages, and managing task checkpoints.
 
-1. Run the following command to create a virtual environment for the *test_workflow.py*  app. Depending on your environment the command might be **python** or **python3**.
+1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code. This keeps your **psql** session active.
 
-    ```python
-    python -m venv agent-backend/.venv
+1. Run the following command to navigate to the *agent-backend* directory.
+
+    ```
+    cd agent-backend
     ```
 
-1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source client/.venv/Scripts/activate**.
+1. Run the following command to create a virtual environment for the *test_workflow.py*  app. Depending on your environment the command might be **python** or **python3**.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
 
     **Bash**
     ```bash
-    source client/.venv/bin/activate
+    source .venv/bin/activate
     ```
 
     **PowerShell**
     ```powershell
-    .\client\.venv\Scripts\Activate.ps1
+    .\.venv\Scripts\Activate.ps1
     ```
 
 1. Run the following command to install the dependencies for the client app.
 
     ```bash
-    pip install -r client/requirements.txt
+    pip install -r requirements.txt
     ```
 
 
