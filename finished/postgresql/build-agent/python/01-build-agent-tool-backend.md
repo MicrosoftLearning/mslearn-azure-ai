@@ -56,17 +56,10 @@ In this section you download the project starter files and use a script to deplo
     az login
     ```
 
-1. Run the following command to ensure you have the **containerapp** extension for Azure CLI.
-
-    ```azurecli
-    az extension add --name containerapp
-    ```
-
 1. Run the following commands to ensure your subscription has the necessary resource providers for the exercise.
 
     ```azurecli
-    az provider register --namespace Microsoft.App
-    az provider register --namespace Microsoft.OperationalInsights
+    az provider register --namespace Microsoft.DBforPostgreSQL
     ```
 
 ### Create resources in Azure
