@@ -1,14 +1,112 @@
+---
+lab:
+    topic: Azure Database for PostgreSQL
+    title: 'Build an agent tool backend'
+    description: 'Learn how to ...'
+---
+
+# Build an agent tool backend
+
 In this exercise, you create an Azure Database for PostgreSQL instance that serves as a tool backend for an AI agent. The database stores conversation context and task state that an agent can read and write during operation. You design a schema for agent memory, build Python functions that serve as agent tools, and test the complete workflow.
 
-## Prerequisites
+Tasks performed in this exercise:
 
-To complete this exercise, you need:
+- Download the project starter files and deploy Azure services
+- Deploy resources...
+- ...
 
-- An Azure subscription with permissions to create resources
-- Azure CLI installed and configured
+This exercise takes approximately **30** minutes to complete.
+
+## Before you start
+
+To complete the exercise, you need:
+
+- An Azure subscription with the permissions to deploy the necessary Azure services. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
+- The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+- [Python 3.12](https://www.python.org/downloads/) or greater.
 - PostgreSQL command-line tools (`psql`) installed
-- Python 3.12 or later installed
-- A code editor such as Visual Studio Code
+
+## Download project starter files and deploy Azure services
+
+In this section you download the project starter files and use a script to deploy the necessary services to your Azure subscription. The Azure Container Registry and Container Apps environment deployment takes a few minutes to complete.
+
+1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
+
+    ```
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/aca-deploy-python.zip
+    ```
+
+1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
+
+1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
+
+1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+
+    ```
+    "<your-resource-group-name>" # Resource Group name
+    "<your-azure-region>" # Azure region for the resources
+    ```
+
+1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code.
+
+1. Run the following command to login to your Azure account. Answer the prompts to select your Azure account and subscription for the exercise.
+
+    ```
+    az login
+    ```
+
+1. Run the following command to ensure you have the **containerapp** extension for Azure CLI.
+
+    ```azurecli
+    az extension add --name containerapp
+    ```
+
+1. Run the following commands to ensure your subscription has the necessary resource providers for the exercise.
+
+    ```azurecli
+    az provider register --namespace Microsoft.App
+    az provider register --namespace Microsoft.OperationalInsights
+    ```
+
+### Create resources in Azure
+
+In this section you run the deployment script to deploy the necessary services to your Azure subscription.
+
+1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script. The deployment script will deploy ACR and create a file with environment variables needed for exercise.
+
+    **Bash**
+    ```bash
+    bash azdeploy.sh
+    ```
+
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
+    ```
+
+1. When the script is running, enter **1** to launch the **Create Azure Container Registry and build container image** option. This option creates the ACR service and uses ACR Tasks to build and push the image to the registry.
+
+1. When the previous operation is finished, enter **2** to launch the **Create Container Apps environment** options. Creating the environment is necessary before deploying the container.
+
+    >**Note:** A file containing environment variables is created after the Container Apps environment is created. You use these variables throughout the exercise.
+
+1. When the previous operation is finished, enter **4** to exit the deployment script.
+
+1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
+
 
 ## Create an Azure Database for PostgreSQL server
 
