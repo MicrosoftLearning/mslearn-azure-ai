@@ -7,7 +7,7 @@ lab:
 
 # Build an agent tool backend
 
-In this exercise, you create an Azure Database for PostgreSQL instance that serves as a tool backend for an AI agent. The database stores conversation context and task state that an agent can read and write during operation. You design a schema for agent memory, build Python functions that serve as agent tools, and test the complete workflow.
+In this exercise, you create an Azure Database for PostgreSQL instance that serves as a tool backend for an AI agent. The database stores conversation context and task state that an agent can read and write during operation. You design a schema for agent memory, build Python functions that serve as agent tools, and test the complete workflow. This pattern provides a foundation for building AI agents that maintain persistent memory across sessions and can resume interrupted tasks.
 
 Tasks performed in this exercise:
 
@@ -200,11 +200,96 @@ Design and create tables to store conversation history and task state.
 
 ## Build Python tool functions
 
-In this section you complete the *agent_tools.py* app to create....
+In this section you complete the *agent_tools.py* file by adding functions that an AI agent can call to persist and retrieve state. These functions serve as the agent's interface to the database. The *test_workflow.py* script, which you run later in this exercise, imports these functions to demonstrate how an agent would use them.
 
-1. Search for the XXX comment and add the following code
+1. Open the *agent-backend/agent_tools.py* file in VS Code.
 
-1. The **save_task_state** function uses **ON CONFLICT**, which requires a unique constraint. Run the following command in your **pssql** session in the terminal to add it.
+1. Search for the **BEGIN CREATE CONVERSATION FUNCTION** comment and add the following code directly after the comment. This function creates a new conversation record with a unique session ID and stores optional metadata as JSONB.
+
+    ```python
+    def create_conversation(user_id: str, metadata: dict = None) -> dict:
+        """Create a new conversation and return its details."""
+        session_id = uuid.uuid4()
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO conversations (session_id, user_id, metadata)
+                    VALUES (%s, %s, %s)
+                    RETURNING id, session_id, started_at
+                    """,
+                    (str(session_id), user_id, psycopg.types.json.Json(metadata or {}))
+                )
+                row = cur.fetchone()
+                conn.commit()
+                return {
+                    "conversation_id": row[0],
+                    "session_id": str(row[1]),
+                    "started_at": row[2].isoformat()
+                }
+    ```
+
+1. Search for the **BEGIN RETRIEVE CONVERSATION HISTORY FUNCTION** comment and add the following code directly after the comment. This function retrieves messages from a conversation, ordered chronologically.
+
+    ```python
+    def get_conversation_history(conversation_id: int, limit: int = 50) -> list:
+        """Retrieve recent messages from a conversation."""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, role, content, created_at, metadata
+                    FROM messages
+                    WHERE conversation_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (conversation_id, limit)
+                )
+                rows = cur.fetchall()
+                return [
+                    {
+                        "id": row[0],
+                        "role": row[1],
+                        "content": row[2],
+                        "created_at": row[3].isoformat(),
+                        "metadata": row[4]
+                    }
+                    for row in reversed(rows)  # Return in chronological order
+                ]
+    ```
+
+1. Search for the **BEGIN TASK CHECKPOINT FUNCTIONS** comment and add the following code directly after the comment. This function uses an upsert pattern to save or update task state, allowing the agent to resume interrupted tasks.
+
+    ```python
+    def save_task_state(conversation_id: int, task_name: str, status: str, checkpoint_data: dict) -> dict:
+        """Save or update a task checkpoint."""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO task_checkpoints (conversation_id, task_name, status, checkpoint_data)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (conversation_id, task_name)
+                    DO UPDATE SET
+                        status = EXCLUDED.status,
+                        checkpoint_data = EXCLUDED.checkpoint_data,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id, updated_at
+                    """,
+                    (conversation_id, task_name, status, psycopg.types.json.Json(checkpoint_data))
+                )
+                row = cur.fetchone()
+                conn.commit()
+                return {
+                    "checkpoint_id": row[0],
+                    "updated_at": row[1].isoformat()
+                }
+    ```
+
+1. Save the *agent_tools.py* file.
+
+1. The **save_task_state** function uses **ON CONFLICT**, which requires a unique constraint. Run the following command in your **psql** session in the terminal to add it.
 
     ```sql
     ALTER TABLE task_checkpoints
@@ -215,6 +300,31 @@ In this section you complete the *agent_tools.py* app to create....
 ## Test the agent memory workflow
 
 In this section you run a test script to verify the tool functions work correctly. The *test_workflow.py* script is included in the project files and demonstrates creating conversations, storing messages, and managing task checkpoints.
+
+1. Run the following command to create a virtual environment for the *test_workflow.py*  app. Depending on your environment the command might be **python** or **python3**.
+
+    ```python
+    python -m venv agent-backend/.venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** The virtual environment directory structure varies by platform. On Linux/macOS, activation scripts are in **.venv/bin/**. On Windows, they're in **.venv/Scripts/**.
+
+    **Bash**
+    ```bash
+    source agent-backend/.venv/bin/activate
+    ```
+
+    **PowerShell**
+    ```powershell
+    agent-backend\.venv\Scripts\Activate.ps1
+    ```
+
+1. Run the following command to install the dependencies for the client app.
+
+    ```bash
+    pip install -r client/requirements.txt
+    ```
+
 
 1. Run the following command to execute the test script. This script exercises all the agent tool functions you created.
 
@@ -295,5 +405,3 @@ In this exercise, you:
 - Built Python functions that serve as tools for an AI agent to read and write state
 - Tested the complete workflow of creating conversations, storing messages, and managing task checkpoints
 - Queried the data to support agent context retrieval and decision-making
-
-This pattern provides a foundation for building AI agents that maintain persistent memory across sessions and can resume interrupted tasks.

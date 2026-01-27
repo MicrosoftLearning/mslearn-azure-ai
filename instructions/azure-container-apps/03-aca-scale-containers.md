@@ -195,7 +195,7 @@ In this section you run a local Flask dashboard that can both generate concurren
 
     **PowerShell**
     ```powershell
-    client\.venv\Scripts\Activate.ps1
+    .\client\.venv\Scripts\Activate.ps1
     ```
 
 1. Run the following command to install the dependencies for the client app.

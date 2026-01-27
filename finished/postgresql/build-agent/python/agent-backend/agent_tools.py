@@ -44,8 +44,6 @@ def create_conversation(user_id: str, metadata: dict = None) -> dict:
 
 # END CREATE CONVERSATION FUNCTION
 
-# BEGIN STORE MESSAGE FUNCTION
-
 def store_message(conversation_id: int, role: str, content: str, metadata: dict = None) -> dict:
     """Store a message in a conversation."""
     with get_connection() as conn:
@@ -64,8 +62,6 @@ def store_message(conversation_id: int, role: str, content: str, metadata: dict 
                 "message_id": row[0],
                 "created_at": row[1].isoformat()
             }
-
-# END STORE MESSAGE FUNCTION
 
 # BEGIN RETRIEVE CONVERSATION HISTORY FUNCTION
 
@@ -126,8 +122,6 @@ def save_task_state(conversation_id: int, task_name: str, status: str, checkpoin
 
 # END TASK CHECKPOINT FUNCTIONS
 
-# BEGIN RETRIEVE TASK STATE FUNCTION
-
 def get_task_state(conversation_id: int, task_name: str) -> Optional[dict]:
     """Retrieve the current state of a task."""
     with get_connection() as conn:
@@ -153,4 +147,4 @@ def get_task_state(conversation_id: int, task_name: str) -> Optional[dict]:
                 }
             return None
 
-# END RETRIEVE TASK STATE FUNCTION
+
