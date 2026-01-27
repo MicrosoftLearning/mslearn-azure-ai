@@ -186,7 +186,7 @@ In this section you run a local Flask dashboard that can both generate concurren
     python -m venv client/.venv
     ```
 
-1. Run the following command to activate the Python environment. **Note:** The virtual environment directory structure varies by platform. On Linux/macOS, activation scripts are in **.venv/bin/**. On Windows, they're in **.venv/Scripts/**.
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source client/.venv/Scripts/activate**.
 
     **Bash**
     ```bash
@@ -321,7 +321,7 @@ If you encounter issues during this exercise, try these steps:
 
 **Python venv activation issues**
 - On Linux/macOS, use: **source client/.venv/bin/activate**
-- On Windows PowerShell, use: **client\.venv\Scripts\Activate.ps1**
+- On Windows PowerShell, use: **.\client\.venv\Scripts\Activate.ps1**
 - If **activate** script is missing, reinstall **python3-venv** package and recreate the venv
 
 **YAML update fails**
