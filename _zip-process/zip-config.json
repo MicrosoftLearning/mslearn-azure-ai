@@ -55,6 +55,11 @@
       "source": "starter/aca/aca-scale/python",
       "output": "downloads/python",
       "name": "aca-scale-python.zip"
+    },
+    {
+      "source": "starter/postgresql/build-agent/python",
+      "output": "downloads/python",
+      "name": "postgresql-build-agent-python.zip"
     }
   ]
 }
