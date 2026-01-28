@@ -25,7 +25,7 @@ To complete the exercise, you need:
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
-- PostgreSQL command-line tools (`psql`) installed
+- [PostgreSQL command-line tools](https://www.postgresql.org/download/) (**psql**)
 
 ## Download project starter files and deploy Azure services
 
