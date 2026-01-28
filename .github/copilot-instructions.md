@@ -101,3 +101,23 @@ When updating deployment scripts for new exercises:
    - Only modify service-specific logic (create, configure, status check functions)
    - Keep the menu loop structure, resource group function, and env file patterns intact
    - Update variable names and menu text to match the new exercise
+
+### Azure CLI Commands
+
+Before answering questions about Azure CLI commands, generating CLI commands, or updating content that includes CLI commands:
+
+1. **Always verify command syntax** - Use MCP tools or official documentation to confirm:
+   - Available parameters and their correct names
+   - Required vs optional parameters
+   - Valid parameter values (case sensitivity matters, e.g., `Enabled` not `enabled`)
+   - Whether parameters like `--no-wait` are actually supported for that specific command
+
+2. **Check for deprecated commands** - Azure CLI commands change over time:
+   - `ad-admin` commands were replaced by `microsoft-entra-admin`
+   - `--active-directory-auth` was replaced by `--microsoft-entra-auth`
+   - Always verify the current recommended command
+
+3. **Use available tools** - When in doubt:
+   - Run `az <command> --help` in the terminal to see actual available options
+   - Fetch the official Microsoft Learn documentation for the command
+   - Don't assume a parameter exists just because it seems logical
