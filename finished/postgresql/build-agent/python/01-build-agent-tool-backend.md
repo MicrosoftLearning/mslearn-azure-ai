@@ -342,13 +342,15 @@ In this section you run a test script to verify the tool functions work correctl
 
 1. You should see output showing each step completing successfully, demonstrating that the agent can create conversations, store messages, save task state, and retrieve history.
 
+1. Optional: Open the *test_workflow.py* file and review the code.
+
 ## Query conversation context
 
-Practice querying the data to support agent decision-making.
+In this section you practice querying the data an agent would use to make decisions.
 
-1. Return to your `psql` session connected to the `agent_memory` database.
+1. Return to terminal session where your **psql** session is connected to the **agent_memory** database.
 
-1. Find all conversations for a specific user:
+1. Run the following query to find all conversations for a specific user. The test script created a conversation with **user_id** set to **user_123**.
 
     ```sql
     SELECT id, session_id, started_at, metadata
@@ -357,7 +359,7 @@ Practice querying the data to support agent decision-making.
     ORDER BY started_at DESC;
     ```
 
-1. Get recent messages across all conversations:
+1. Run the following query to get recent messages across all conversations. This returns the messages stored by the test script.
 
     ```sql
     SELECT c.session_id, m.role, m.content, m.created_at
@@ -367,7 +369,7 @@ Practice querying the data to support agent decision-making.
     LIMIT 10;
     ```
 
-1. Find in-progress tasks that might need attention:
+1. Run the following query to find completed tasks. The test script updated the task status to **completed** at the end of the workflow.
 
     ```sql
     SELECT
@@ -378,11 +380,10 @@ Practice querying the data to support agent decision-making.
         t.updated_at
     FROM task_checkpoints t
     JOIN conversations c ON t.conversation_id = c.id
-    WHERE t.status = 'in_progress'
-      AND t.updated_at < NOW() - INTERVAL '1 hour';
+    WHERE t.status = 'completed';
     ```
 
-1. Count messages by role in each conversation:
+1. Run the following query to count messages by role in each conversation. This helps understand the distribution of user, assistant, system, and tool messages.
 
     ```sql
     SELECT
@@ -395,21 +396,45 @@ Practice querying the data to support agent decision-making.
     ORDER BY c.id, m.role;
     ```
 
-## Clean up resources
+# Clean up resources
 
-When you're finished with the exercise, delete the resource group to avoid ongoing charges:
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-```azurecli
-az group delete --name rg-agent-backend --yes --no-wait
-```
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
 
-## Summary
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
 
-In this exercise, you:
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
 
-- Created an Azure Database for PostgreSQL server with Microsoft Entra authentication
-- Configured passwordless access using Entra tokens
-- Designed a schema for storing agent conversation history and task state
-- Built Python functions that serve as tools for an AI agent to read and write state
-- Tested the complete workflow of creating conversations, storing messages, and managing task checkpoints
-- Queried the data to support agent context retrieval and decision-making
+## Troubleshooting
+
+If you encounter issues during this exercise, try these steps:
+
+**psql connection fails**
+- Ensure the *.env* file was created by running the deployment script option **4**
+- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables
+- The access token expires after approximately one hour; run the deployment script option **4** again to generate a new token
+- Verify the server is ready by running the deployment script option **3**
+
+**Access denied or authentication errors**
+- Ensure the Microsoft Entra administrator was configured by running the deployment script option **2**
+- Verify **PGPASSWORD** is set correctly in your terminal session
+- Ensure you're using the correct **DB_USER** value (your Azure account email)
+
+**Python test script fails**
+- Ensure Python virtual environment is activated (you should see **(.venv)** in your terminal prompt)
+- Ensure dependencies are installed: **pip install -r requirements.txt**
+- Ensure you created the **agent_memory** database and all tables in **psql**
+- Ensure you added the unique constraint on **task_checkpoints** table
+
+**Database or table not found errors**
+- Ensure you connected to the **agent_memory** database using **\c agent_memory** in **psql**
+- Verify tables exist by running **\dt** in **psql**
+- Re-run the CREATE TABLE statements if tables are missing
+
+**Python venv activation issues**
+- On Linux/macOS, use: **source .venv/bin/activate**
+- On Windows PowerShell, use: **.\.venv\Scripts\Activate.ps1**
+- If **activate** script is missing, reinstall **python3-venv** package and recreate the venv
