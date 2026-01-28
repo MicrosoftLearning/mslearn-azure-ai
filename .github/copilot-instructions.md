@@ -43,6 +43,17 @@ Example:
     ```
 ```
 
+### Section Introductions
+
+Each section (## heading) should begin with an introductory sentence that follows the pattern "In this section you..." followed by a clear explanation of what the student will accomplish and why.
+
+Example:
+```
+## Create the agent memory schema
+
+In this section you design and create the database schema that stores conversation history and task state. The schema includes three tables: one for conversations (agent sessions), one for messages within those conversations, and one for task checkpoints that enable the agent to resume interrupted work.
+```
+
 ### Clean Up Resources Section
 
 Always use the following exact verbiage for the clean up resources section at the end of exercises:

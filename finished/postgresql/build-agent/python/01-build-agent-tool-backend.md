@@ -132,16 +132,16 @@ In this section you test the connection using the **psql** command-line tool.
 
 ## Create the agent memory schema
 
-Design and create tables to store conversation history and task state.
+In this section you design and create the database schema that stores conversation history and task state. The schema includes three tables: one for conversations (agent sessions), one for messages within those conversations, and one for task checkpoints that enable the agent to resume interrupted work.
 
-1. In the `psql` session, create a database for the agent backend:
+1. In the **psql** session, run the following command to create a database for the agent backend. The **\c** command connects to the new database.
 
     ```sql
     CREATE DATABASE agent_memory;
     \c agent_memory
     ```
 
-1. Create a table for conversations (agent sessions):
+1. Run the following command to create a table for conversations (agent sessions). This table stores session metadata and links messages to a specific conversation.
 
     ```sql
     CREATE TABLE conversations (
@@ -154,7 +154,7 @@ Design and create tables to store conversation history and task state.
     );
     ```
 
-1. Create a table for messages within conversations:
+1. Run the following command to create a table for messages within conversations. This table stores the role (user, assistant, system, or tool) and content for each message.
 
     ```sql
     CREATE TABLE messages (
@@ -167,7 +167,7 @@ Design and create tables to store conversation history and task state.
     );
     ```
 
-1. Create a table for task checkpoints (agent state persistence):
+1. Run the following command to create a table for task checkpoints. This table enables agent state persistence so the agent can resume interrupted tasks.
 
     ```sql
     CREATE TABLE task_checkpoints (
@@ -181,7 +181,7 @@ Design and create tables to store conversation history and task state.
     );
     ```
 
-1. Create indexes to optimize common queries:
+1. Run the following command to create indexes that optimize common queries. These indexes improve performance when retrieving messages by conversation or timestamp.
 
     ```sql
     CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
@@ -190,7 +190,7 @@ Design and create tables to store conversation history and task state.
     CREATE INDEX idx_conversations_session_id ON conversations(session_id);
     ```
 
-1. Verify the schema:
+1. Run the following command to verify the schema was created correctly.
 
     ```sql
     \dt
