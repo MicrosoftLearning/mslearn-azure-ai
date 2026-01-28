@@ -6,21 +6,32 @@
 # location="<your-azure-region>"   # Azure region for the resources
 
 rg="rg-exercises"           # Resource Group name
-location="eastus2"          # Azure region for the resources
+location="canadacentral"          # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
 # ============================================================================
 
-# Generate consistent hash from username (always produces valid Azure resource name)
-user_hash=$(echo -n "$USER" | sha1sum | cut -c1-8)
+# Generate consistent hash from Azure user object ID (based on az login account)
+user_object_id=$(az ad signed-in-user show --query "id" -o tsv 2>/dev/null)
+if [ -z "$user_object_id" ]; then
+    echo "Error: Not authenticated with Azure. Please run: az login"
+    exit 1
+fi
+user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 server_name="psql-agent-${user_hash}"
 
-# Function to create resource group
+# Function to create resource group if it doesn't exist
 create_resource_group() {
-    echo "Creating resource group '$rg' in '$location'..."
-    az group create --name $rg --location $location --output none
-    echo "Resource group created."
+    echo "Checking/creating resource group '$rg'..."
+
+    local exists=$(az group exists --name $rg)
+    if [ "$exists" = "false" ]; then
+        az group create --name $rg --location $location > /dev/null 2>&1
+        echo "✓ Resource group created: $rg"
+    else
+        echo "✓ Resource group already exists: $rg"
+    fi
 }
 
 # Function to create Azure Database for PostgreSQL Flexible Server
@@ -28,27 +39,30 @@ create_postgres_server() {
     echo "Creating Azure Database for PostgreSQL Flexible Server '$server_name'..."
     echo "This may take several minutes..."
 
-    az postgres flexible-server create \
-        --resource-group $rg \
-        --name $server_name \
-        --location $location \
-        --sku-name Standard_B1ms \
-        --tier Burstable \
-        --storage-size 32 \
-        --version 16 \
-        --public-access 0.0.0.0-255.255.255.255 \
-        --active-directory-auth Enabled \
-        --password-auth Disabled \
-        --output none
+    local server_exists=$(az postgres flexible-server show --resource-group $rg --name $server_name 2>/dev/null)
+    if [ -z "$server_exists" ]; then
+        az postgres flexible-server create \
+            --resource-group $rg \
+            --name $server_name \
+            --location $location \
+            --sku-name Standard_B1ms \
+            --tier Burstable \
+            --storage-size 32 \
+            --version 16 \
+            --public-access 0.0.0.0-255.255.255.255 \
+            --microsoft-entra-auth Enabled \
+            --password-auth Disabled \
+            --no-wait > /dev/null 2>&1
 
-    if [ $? -eq 0 ]; then
-        echo ""
-        echo "PostgreSQL server created successfully."
-        echo "Server name: $server_name"
+        if [ $? -eq 0 ]; then
+            echo "✓ PostgreSQL server deployment started (running in background)"
+            echo "  Use option 3 to check deployment status."
+        else
+            echo "Error: Failed to start PostgreSQL server deployment"
+            return 1
+        fi
     else
-        echo ""
-        echo "Failed to create PostgreSQL server."
-        return 1
+        echo "✓ PostgreSQL server already exists: $server_name"
     fi
 }
 
@@ -56,47 +70,70 @@ create_postgres_server() {
 configure_entra_admin() {
     echo "Configuring Microsoft Entra administrator..."
 
-    # Get the signed-in user's object ID and UPN
-    user_object_id=$(az ad signed-in-user show --query id -o tsv 2>/dev/null)
-    user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
+    # Prereq check: PostgreSQL server must exist
+    local state=$(az postgres flexible-server show --resource-group $rg --name $server_name --query "state" -o tsv 2>/dev/null)
+    if [ -z "$state" ]; then
+        echo "Error: PostgreSQL server '$server_name' not found."
+        echo "Please run option 1 to create the PostgreSQL server, then try again."
+        return 1
+    fi
+
+    # Prereq check: Server must be in Ready state
+    if [ "$state" != "Ready" ]; then
+        echo "Error: PostgreSQL server is not ready (current state: $state)."
+        echo "Please wait for deployment to complete. Use option 3 to check status."
+        return 1
+    fi
+
+    # Get the signed-in user's UPN (object ID already retrieved at startup)
+    local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
 
     if [ -z "$user_object_id" ] || [ -z "$user_upn" ]; then
-        echo ""
-        echo "Unable to retrieve signed-in user information."
+        echo "Error: Unable to retrieve signed-in user information."
         echo "Please ensure you are logged in with 'az login'."
         return 1
     fi
 
     echo "Setting '$user_upn' as Entra administrator..."
 
-    az postgres flexible-server ad-admin create \
+    az postgres flexible-server microsoft-entra-admin create \
         --resource-group $rg \
         --server-name $server_name \
         --display-name "$user_upn" \
-        --object-id "$user_object_id" \
-        --type User \
-        --output none
+        --object-id "$user_object_id" > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
-        echo ""
-        echo "Microsoft Entra administrator configured successfully."
-        echo "Admin: $user_upn"
+        echo "✓ Microsoft Entra administrator configured: $user_upn"
     else
-        echo ""
-        echo "Failed to configure Entra administrator."
+        echo "Error: Failed to configure Entra administrator"
         return 1
     fi
 }
 
 # Function to check deployment status
 check_deployment_status() {
-    echo "Checking PostgreSQL server status..."
-    state=$(az postgres flexible-server show --resource-group $rg --name $server_name --query "state" -o tsv 2>/dev/null)
+    echo "Checking deployment status..."
+    echo ""
+
+    # Check PostgreSQL server
+    echo "PostgreSQL Server ($server_name):"
+    local state=$(az postgres flexible-server show --resource-group $rg --name $server_name --query "state" -o tsv 2>/dev/null)
 
     if [ -z "$state" ]; then
-        echo "Server not found. Please create the server first."
+        echo "  Status: Not created"
     else
-        echo "Server state: $state"
+        echo "  Status: $state"
+        if [ "$state" = "Ready" ]; then
+            echo "  ✓ PostgreSQL server is ready"
+        fi
+
+        # Check Entra admin configuration
+        local admin_name=$(az postgres flexible-server microsoft-entra-admin list --resource-group $rg --server-name $server_name --query "[0].principalName" -o tsv 2>/dev/null)
+        if [ -n "$admin_name" ]; then
+            echo "  ✓ Entra administrator: $admin_name"
+        else
+            echo "  ⚠ Entra administrator not configured"
+        fi
     fi
 }
 
@@ -104,40 +141,61 @@ check_deployment_status() {
 retrieve_connection_info() {
     echo "Retrieving connection information..."
 
+    # Prereq check: PostgreSQL server must exist
+    local state=$(az postgres flexible-server show --resource-group $rg --name $server_name --query "state" -o tsv 2>/dev/null)
+    if [ -z "$state" ]; then
+        echo "Error: PostgreSQL server '$server_name' not found."
+        echo "Please run option 1 to create the PostgreSQL server, then try again."
+        return 1
+    fi
+
+    # Prereq check: Server must be in Ready state
+    if [ "$state" != "Ready" ]; then
+        echo "Error: PostgreSQL server is not ready (current state: $state)."
+        echo "Please wait for deployment to complete. Use option 3 to check status."
+        return 1
+    fi
+
+    # Prereq check: Entra admin must be configured
+    local admin_name=$(az postgres flexible-server microsoft-entra-admin list --resource-group $rg --server-name $server_name --query "[0].principalName" -o tsv 2>/dev/null)
+    if [ -z "$admin_name" ]; then
+        echo "Error: Microsoft Entra administrator not configured on '$server_name'."
+        echo "Please run option 2 to configure the Entra administrator, then try again."
+        return 1
+    fi
+
     # Get the signed-in user's UPN for the database user
-    user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
+    local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
 
     if [ -z "$user_upn" ]; then
-        echo ""
-        echo "Unable to retrieve signed-in user information."
+        echo "Error: Unable to retrieve signed-in user information."
         echo "Please ensure you are logged in with 'az login'."
         return 1
     fi
 
     # Get access token for PostgreSQL
     echo "Retrieving access token..."
-    access_token=$(az account get-access-token --resource-type oss-rdbms --query accessToken -o tsv 2>/dev/null)
+    local access_token=$(az account get-access-token --resource-type oss-rdbms --query accessToken -o tsv 2>/dev/null)
 
     if [ -z "$access_token" ]; then
-        echo ""
-        echo "Unable to retrieve access token."
+        echo "Error: Unable to retrieve access token."
         return 1
     fi
 
     # Set connection variables
-    db_host="${server_name}.postgres.database.azure.com"
-    db_name="postgres"
-    db_user="$user_upn"
+    local db_host="${server_name}.postgres.database.azure.com"
+    local db_name="postgres"
+    local db_user="$user_upn"
+    local env_file="$(dirname "$0")/.env"
 
     # Create or update .env file with export statements
-    cat > .env << EOF
+    cat > "$env_file" << EOF
 export DB_HOST="$db_host"
 export DB_NAME="$db_name"
 export DB_USER="$db_user"
 export PGPASSWORD="$access_token"
 EOF
 
-    clear
     echo ""
     echo "PostgreSQL Connection Information"
     echo "==========================================================="
@@ -146,9 +204,8 @@ EOF
     echo "User: $db_user"
     echo "Password: (Entra token - expires in ~1 hour)"
     echo ""
-    echo "Environment variables saved to .env file."
-    echo ""
-    echo "Run 'source .env' to load the variables into your terminal."
+    echo "Environment variables saved to: $env_file"
+    echo "Run 'source .env' to load them into your shell."
     echo ""
     echo "To connect with psql:"
     echo "  psql \"host=\$DB_HOST port=5432 dbname=\$DB_NAME user=\$DB_USER sslmode=require\""

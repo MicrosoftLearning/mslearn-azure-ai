@@ -71,3 +71,33 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 
 > **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
 ```
+
+### Deployment Scripts (azdeploy.sh / azdeploy.ps1)
+
+When updating deployment scripts for new exercises:
+
+1. **Never modify the first 11 lines** - The header section with variable declarations (`rg`, `location`) and comments must remain unchanged.
+
+2. **Preserve existing patterns** - Do not rewrite functions that don't need changes. Only modify:
+   - Resource names and variables below line 11
+   - Service-specific creation/configuration functions
+   - Menu items and descriptions
+   - Status check logic for the new services
+
+3. **Follow established conventions**:
+   - Use `> /dev/null 2>&1` for output suppression (not `--output none`)
+   - Check if resources exist before creating them
+   - Use checkmarks (✓) for success and warnings (⚠) for incomplete states
+   - Use "Error: ..." prefix for error messages
+   - Use `local` for function-scoped variables
+   - Generate unique resource names using Azure user object ID hash
+   - Include Azure auth check at script startup
+
+4. **Reference scripts** - Use existing scripts in the repository as templates. Good examples:
+   - *finished/azure-container-apps/scale-container-aca/python/azdeploy.sh*
+
+5. **When asked to update a copied script**:
+   - First review the source script to understand existing patterns
+   - Only modify service-specific logic (create, configure, status check functions)
+   - Keep the menu loop structure, resource group function, and env file patterns intact
+   - Update variable names and menu text to match the new exercise

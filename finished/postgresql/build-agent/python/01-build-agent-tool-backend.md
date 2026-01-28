@@ -2,7 +2,7 @@
 lab:
     topic: Azure Database for PostgreSQL
     title: 'Build an agent tool backend'
-    description: 'Learn how to ...'
+    description: 'Learn how to build a PostgreSQL-based tool backend for AI agents'
 ---
 
 # Build an agent tool backend
@@ -11,9 +11,12 @@ In this exercise, you create an Azure Database for PostgreSQL instance that serv
 
 Tasks performed in this exercise:
 
-- Download the project starter files and deploy Azure services
-- Deploy resources...
-- ...
+- Download project starter files and configure the deployment script
+- Deploy an Azure Database for PostgreSQL Flexible Server with Microsoft Entra authentication
+- Build Python tool functions for conversation and task state management
+- Create a database schema for agent memory with tables for conversations, messages, and task checkpoints
+- Test the agent memory workflow using a provided test script
+- Query conversation context using SQL
 
 This exercise takes approximately **30** minutes to complete.
 
@@ -64,7 +67,7 @@ In this section you download the project starter files and use a script to deplo
 
 ### Create resources in Azure
 
-In this section you run the deployment script to deploy the necessary services to your Azure subscription.
+In this section you run the deployment script to start the PostgreSQL server deployment. The server deploys as an Azure background task, allowing you to continue with other steps while it completes.
 
 1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
 
@@ -82,121 +85,11 @@ In this section you run the deployment script to deploy the necessary services t
 
 1. When the script menu appears, enter **1** to launch the **Create PostgreSQL server with Entra authentication** option. This creates the server with Entra-only authentication enabled.
 
-    >**Note:** The server deployment takes several minutes to complete.
-
-1. When the server deployment completes, enter **2** to launch the **Configure Microsoft Entra administrator** option. This sets your Azure account as the database administrator.
-
-1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
-
-1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a *.env* file with the necessary environment variables.
+    >**Note:** The server deployment runs as an Azure background task and takes 5-10 minutes to complete.
 
 1. Enter **5** to exit the deployment script.
 
-1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
-
-    **Bash**
-    ```bash
-    source .env
-    ```
-
-    **PowerShell**
-    ```powershell
-    . .\.env.ps1
-    ```
-
-    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
-
-## Connect using psql and verify connectivity
-
-In this section you test the connection using the **psql** command-line tool.
-
-1. Run the following command to connect to the server using the environment variables. The **PGPASSWORD** environment variable is automatically used for authentication.
-
-    **Bash**
-    ```bash
-    psql "host=$DB_HOST port=5432 dbname=$DB_NAME user=$DB_USER sslmode=require"
-    ```
-
-    **PowerShell**
-    ```powershell
-    psql "host=$env:DB_HOST port=5432 dbname=$env:DB_NAME user=$env:DB_USER sslmode=require"
-    ```
-
-1. Run the following command to verify the connection by checking the PostgreSQL version.
-
-    ```sql
-    SELECT version();
-    ```
-
-    You should see output showing the PostgreSQL version. Keep this connection open for the next steps.
-
-## Create the agent memory schema
-
-In this section you design and create the database schema that stores conversation history and task state. The schema includes three tables: one for conversations (agent sessions), one for messages within those conversations, and one for task checkpoints that enable the agent to resume interrupted work.
-
-1. In the **psql** session, run the following command to create a database for the agent backend. The **\c** command connects to the new database.
-
-    ```sql
-    CREATE DATABASE agent_memory;
-    \c agent_memory
-    ```
-
-1. Run the following command to create a table for conversations (agent sessions). This table stores session metadata and links messages to a specific conversation.
-
-    ```sql
-    CREATE TABLE conversations (
-        id BIGSERIAL PRIMARY KEY,
-        session_id UUID NOT NULL UNIQUE,
-        user_id VARCHAR(255) NOT NULL,
-        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        ended_at TIMESTAMP WITH TIME ZONE,
-        metadata JSONB DEFAULT '{}'::jsonb
-    );
-    ```
-
-1. Run the following command to create a table for messages within conversations. This table stores the role (user, assistant, system, or tool) and content for each message.
-
-    ```sql
-    CREATE TABLE messages (
-        id BIGSERIAL PRIMARY KEY,
-        conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-        role VARCHAR(50) NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
-        content TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        metadata JSONB DEFAULT '{}'::jsonb
-    );
-    ```
-
-1. Run the following command to create a table for task checkpoints. This table enables agent state persistence so the agent can resume interrupted tasks.
-
-    ```sql
-    CREATE TABLE task_checkpoints (
-        id BIGSERIAL PRIMARY KEY,
-        conversation_id BIGINT REFERENCES conversations(id) ON DELETE CASCADE,
-        task_name VARCHAR(255) NOT NULL,
-        status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
-        checkpoint_data JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    ```
-
-1. Run the following command to create indexes that optimize common queries. These indexes improve performance when retrieving messages by conversation or timestamp.
-
-    ```sql
-    CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
-    CREATE INDEX idx_messages_created_at ON messages(created_at);
-    CREATE INDEX idx_task_checkpoints_conversation_id ON task_checkpoints(conversation_id);
-    CREATE INDEX idx_conversations_session_id ON conversations(session_id);
-    ```
-
-1. Run the following command to verify the schema was created correctly.
-
-    ```sql
-    \dt
-    ```
-
-    You should see the three tables listed.
+Next you complete the *agent_tools.py* app while the deployment completes.
 
 ## Build Python tool functions
 
@@ -287,9 +180,126 @@ In this section you complete the *agent_tools.py* file by adding functions that 
                 }
     ```
 
-1. Save the *agent_tools.py* file.
+1. Save your changes to the *agent_tools.py* file.
 
-1. The **save_task_state** function uses **ON CONFLICT**, which requires a unique constraint. Run the following command in your **psql** session in the terminal to add it.
+## Complete PostgreSQL deployment tasks
+
+In this section you complete the remaining deployment configuration now that the PostgreSQL server has finished provisioning. You configure Microsoft Entra authentication, verify the deployment status, and retrieve connection information.
+
+1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+
+    **Bash**
+    ```bash
+    bash azdeploy.sh
+    ```
+
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
+    ```
+
+1. Enter **2** to launch the **Configure Microsoft Entra administrator** option. This sets your Azure account as the database administrator.
+
+1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
+
+1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a *.env* file with the necessary environment variables.
+
+1. Enter **5** to exit the deployment script.
+
+1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
+
+    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
+
+## Connect using psql and create the agent memory schema
+
+In this section you connect to the PostgreSQL server using the **psql** command-line tool and create the database schema for agent memory. The schema includes three tables: one for conversations (agent sessions), one for messages within those conversations, and one for task checkpoints that enable the agent to resume interrupted work.
+
+1. Run the following command to connect to the server using the environment variables. The **PGPASSWORD** environment variable is automatically used for authentication.
+
+    **Bash**
+    ```bash
+    psql "host=$DB_HOST port=5432 dbname=$DB_NAME user=$DB_USER sslmode=require"
+    ```
+
+    **PowerShell**
+    ```powershell
+    psql "host=$env:DB_HOST port=5432 dbname=$env:DB_NAME user=$env:DB_USER sslmode=require"
+    ```
+
+1. Run the following command to verify the connection by checking the PostgreSQL version.
+
+    ```sql
+    SELECT version();
+    ```
+1. Run the following command to create a database for the agent backend. The **\c** command connects to the new database.
+
+    ```sql
+    CREATE DATABASE agent_memory;
+    \c agent_memory
+    ```
+
+1. Run the following command to create a table for conversations (agent sessions). This table stores session metadata and links messages to a specific conversation.
+
+    ```sql
+    CREATE TABLE conversations (
+        id BIGSERIAL PRIMARY KEY,
+        session_id UUID NOT NULL UNIQUE,
+        user_id VARCHAR(255) NOT NULL,
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        ended_at TIMESTAMP WITH TIME ZONE,
+        metadata JSONB DEFAULT '{}'::jsonb
+    );
+    ```
+
+1. Run the following command to create a table for messages within conversations. This table stores the role (user, assistant, system, or tool) and content for each message.
+
+    ```sql
+    CREATE TABLE messages (
+        id BIGSERIAL PRIMARY KEY,
+        conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        role VARCHAR(50) NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+        content TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        metadata JSONB DEFAULT '{}'::jsonb
+    );
+    ```
+
+1. Run the following command to create a table for task checkpoints. This table enables agent state persistence so the agent can resume interrupted tasks.
+
+    ```sql
+    CREATE TABLE task_checkpoints (
+        id BIGSERIAL PRIMARY KEY,
+        conversation_id BIGINT REFERENCES conversations(id) ON DELETE CASCADE,
+        task_name VARCHAR(255) NOT NULL,
+        status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
+        checkpoint_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    ```
+
+1. Run the following command to create indexes that optimize common queries. These indexes improve performance when retrieving messages by conversation or timestamp.
+
+    ```sql
+    CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
+    CREATE INDEX idx_messages_created_at ON messages(created_at);
+    CREATE INDEX idx_task_checkpoints_conversation_id ON task_checkpoints(conversation_id);
+    CREATE INDEX idx_conversations_session_id ON conversations(session_id);
+    ```
+
+1. The app you build later in the exercise uses **ON CONFLICT**, which requires a unique constraint. Run the following command in your **psql** session in the terminal to add it.
 
     ```sql
     ALTER TABLE task_checkpoints
@@ -297,11 +307,19 @@ In this section you complete the *agent_tools.py* file by adding functions that 
     UNIQUE (conversation_id, task_name);
     ```
 
+1. Run the following command to verify the schema was created correctly.
+
+    ```sql
+    \dt
+    ```
+
+    You should see the three tables listed.
+
+1. Enter `exit` to close the **psql** session and return to the terminal.
+
 ## Test the agent memory workflow
 
 In this section you run a test script to verify the tool functions work correctly. The *test_workflow.py* script is included in the project files and demonstrates creating conversations, storing messages, and managing task checkpoints.
-
-1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code. This keeps your **psql** session active.
 
 1. Run the following command to navigate to the *agent-backend* directory.
 
@@ -327,12 +345,11 @@ In this section you run a test script to verify the tool functions work correctl
     .\.venv\Scripts\Activate.ps1
     ```
 
-1. Run the following command to install the dependencies for the client app.
+1. Run the following command to install the Python dependencies for the app. This installs the **psycopg** library for PostgreSQL connectivity and **azure-identity** for Microsoft Entra authentication.
 
     ```bash
     pip install -r requirements.txt
     ```
-
 
 1. Run the following command to execute the test script. This script exercises all the agent tool functions you created.
 
@@ -348,7 +365,17 @@ In this section you run a test script to verify the tool functions work correctl
 
 In this section you practice querying the data an agent would use to make decisions.
 
-1. Return to terminal session where your **psql** session is connected to the **agent_memory** database.
+1. Run the following command to connect to the **agent_memory** database using the environment variables.
+
+    **Bash**
+    ```bash
+    psql "host=$DB_HOST port=5432 dbname=agent_memory user=$DB_USER sslmode=require"
+    ```
+
+    **PowerShell**
+    ```powershell
+    psql "host=$env:DB_HOST port=5432 dbname=agent_memory user=$env:DB_USER sslmode=require"
+    ```
 
 1. Run the following query to find all conversations for a specific user. The test script created a conversation with **user_id** set to **user_123**.
 
