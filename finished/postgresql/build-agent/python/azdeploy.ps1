@@ -55,12 +55,11 @@ function Create-PostgresServer {
             --version 16 `
             --public-access 0.0.0.0-255.255.255.255 `
             --microsoft-entra-auth Enabled `
-            --password-auth Disabled `
-            --no-wait 2>&1 | Out-Null
+            --password-auth Disabled 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ PostgreSQL server deployment started (running in background)"
-            Write-Host "  Use option 3 to check deployment status."
+            Write-Host "✓ PostgreSQL server created successfully"
+            Write-Host "  Use option 2 to configure Microsoft Entra administrator."
         }
         else {
             Write-Host "Error: Failed to start PostgreSQL server deployment"
@@ -215,10 +214,6 @@ function Retrieve-ConnectionInfo {
     Write-Host "Password: (Entra token - expires in ~1 hour)"
     Write-Host ""
     Write-Host "Environment variables saved to: $envFile"
-    Write-Host "Run '. .\.env.ps1' to load them into your shell."
-    Write-Host ""
-    Write-Host "To connect with psql:"
-    Write-Host "  psql `"host=`$env:DB_HOST port=5432 dbname=`$env:DB_NAME user=`$env:DB_USER sslmode=require`""
 }
 
 # Display menu

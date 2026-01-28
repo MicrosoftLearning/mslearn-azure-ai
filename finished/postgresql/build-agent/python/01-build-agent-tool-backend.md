@@ -67,7 +67,7 @@ In this section you download the project starter files and use a script to deplo
 
 ### Create resources in Azure
 
-In this section you run the deployment script to start the PostgreSQL server deployment. The server deploys as an Azure background task, allowing you to continue with other steps while it completes.
+In this section you run the deployment script to deploy the PostgreSQL server and configure authentication.
 
 1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
 
@@ -81,13 +81,31 @@ In this section you run the deployment script to start the PostgreSQL server dep
     ./azdeploy.ps1
     ```
 
-    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
+1. When the script menu appears, enter **1** to launch the **Create PostgreSQL server with Entra authentication** option. This creates the server with Entra-only authentication enabled. **Note:** Deployment can take 5-10 minutes to complete.
 
-1. When the script menu appears, enter **1** to launch the **Create PostgreSQL server with Entra authentication** option. This creates the server with Entra-only authentication enabled.
+1. Enter **2** to launch the **Configure Microsoft Entra administrator** option. This sets your Azure account as the database administrator.
 
-    >**Note:** The server deployment runs as an Azure background task and takes 5-10 minutes to complete.
+1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
+
+1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a *.env* file with the necessary environment variables.
 
 1. Enter **5** to exit the deployment script.
+
+1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
+
+    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
 
 Next you complete the *agent_tools.py* app while the deployment completes.
 
@@ -181,46 +199,6 @@ In this section you complete the *agent_tools.py* file by adding functions that 
     ```
 
 1. Save your changes to the *agent_tools.py* file.
-
-## Complete PostgreSQL deployment tasks
-
-In this section you complete the remaining deployment configuration now that the PostgreSQL server has finished provisioning. You configure Microsoft Entra authentication, verify the deployment status, and retrieve connection information.
-
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
-
-    **Bash**
-    ```bash
-    bash azdeploy.sh
-    ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-1. Enter **2** to launch the **Configure Microsoft Entra administrator** option. This sets your Azure account as the database administrator.
-
-1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
-
-1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a *.env* file with the necessary environment variables.
-
-1. Enter **5** to exit the deployment script.
-
-1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
-
-    **Bash**
-    ```bash
-    source .env
-    ```
-
-    **PowerShell**
-    ```powershell
-    . .\.env.ps1
-    ```
-
-    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
-
-    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
 
 ## Connect using psql and create the agent memory schema
 

@@ -51,12 +51,11 @@ create_postgres_server() {
             --version 16 \
             --public-access 0.0.0.0-255.255.255.255 \
             --microsoft-entra-auth Enabled \
-            --password-auth Disabled \
-            --no-wait > /dev/null 2>&1
+            --password-auth Disabled > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ PostgreSQL server deployment started (running in background)"
-            echo "  Use option 3 to check deployment status."
+            echo "✓ PostgreSQL server created successfully"
+            echo "  Use option 2 to configure Microsoft Entra administrator."
         else
             echo "Error: Failed to start PostgreSQL server deployment"
             return 1
@@ -205,10 +204,6 @@ EOF
     echo "Password: (Entra token - expires in ~1 hour)"
     echo ""
     echo "Environment variables saved to: $env_file"
-    echo "Run 'source .env' to load them into your shell."
-    echo ""
-    echo "To connect with psql:"
-    echo "  psql \"host=\$DB_HOST port=5432 dbname=\$DB_NAME user=\$DB_USER sslmode=require\""
 }
 
 # Display menu
