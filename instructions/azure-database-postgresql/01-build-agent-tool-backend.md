@@ -188,7 +188,7 @@ In this section you return to the deployment script to configure the Microsoft E
 
 1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
 
-1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a *.env* file with the necessary environment variables.
+1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
 
 1. Enter **5** to exit the deployment script.
 
@@ -365,6 +365,8 @@ In this section you practice querying the data an agent would use to make decisi
     psql "host=$env:DB_HOST port=5432 dbname=agent_memory user=$env:DB_USER sslmode=require"
     ```
 
+    >**Tip:** When query results are displayed, psql uses a pager if it can't fit the results in the current terminal window. If it does, press **q** to exit the pager and return to the psql prompt. Maximizing the terminal window will reduce this from happening, and make it easier to review the results from the commands.
+
 1. Run the following query to find all conversations for a specific user. The test script created a conversation with **user_id** set to **user_123**.
 
     ```sql
@@ -410,6 +412,12 @@ In this section you practice querying the data an agent would use to make decisi
     GROUP BY c.id, m.role
     ORDER BY c.id, m.role;
     ```
+
+1. Enter **quit** in the psql prompt to exit.
+
+## Summary
+
+In this exercise, you built a PostgreSQL-based tool backend for AI agents. You deployed an Azure Database for PostgreSQL Flexible Server with Microsoft Entra authentication, created Python functions that agents can call to manage conversations and task state, and designed a database schema with tables for conversations, messages, and task checkpoints. You tested the workflow by running a script that simulated agent operations, then queried the stored data using SQL. This pattern enables AI agents to maintain persistent memory across sessions and resume interrupted tasks.
 
 # Clean up resources
 
