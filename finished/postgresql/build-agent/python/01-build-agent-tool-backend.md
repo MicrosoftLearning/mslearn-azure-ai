@@ -37,7 +37,7 @@ In this section you download the project starter files and use a script to deplo
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
     ```
-    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/postgresql-agent-python.zip
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/postgresql-build-agent-python.zip
     ```
 
 1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
@@ -83,33 +83,9 @@ In this section you run the deployment script to deploy the PostgreSQL server an
 
 1. When the script menu appears, enter **1** to launch the **Create PostgreSQL server with Entra authentication** option. This creates the server with Entra-only authentication enabled. **Note:** Deployment can take 5-10 minutes to complete.
 
-1. Enter **2** to launch the **Configure Microsoft Entra administrator** option. This sets your Azure account as the database administrator.
+    >**IMPORTANT:** Leave the terminal running the deployment open for the duration of the exercise. You can move on to the next section of the exercise while the deployment continues in the terminal.
 
-1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
-
-1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a *.env* file with the necessary environment variables.
-
-1. Enter **5** to exit the deployment script.
-
-1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
-
-    **Bash**
-    ```bash
-    source .env
-    ```
-
-    **PowerShell**
-    ```powershell
-    . .\.env.ps1
-    ```
-
-    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
-
-    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
-
-Next you complete the *agent_tools.py* app while the deployment completes.
-
-## Build Python tool functions
+## Complete the tool function app
 
 In this section you complete the *agent_tools.py* file by adding functions that an AI agent can call to persist and retrieve state. These functions serve as the agent's interface to the database. The *test_workflow.py* script, which you run later in this exercise, imports these functions to demonstrate how an agent would use them.
 
@@ -200,7 +176,41 @@ In this section you complete the *agent_tools.py* file by adding functions that 
 
 1. Save your changes to the *agent_tools.py* file.
 
-## Connect using psql and create the agent memory schema
+1. Take a few minutes to review all of the code in the app.
+
+Next, you finalize the Azure resource deployment.
+
+## Complete the Azure resource deployment
+
+In this section you return to the deployment script to configure the Microsoft Entra administrator and retrieve the connection information for the PostgreSQL server.
+
+1. When the **Create PostgreSQL server with Entra authentication** operation has completed, enter **2** to launch the **Configure Microsoft Entra administrator** option. This sets your Azure account as the database administrator.
+
+1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
+
+1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a *.env* file with the necessary environment variables.
+
+1. Enter **5** to exit the deployment script.
+
+1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
+
+    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
+
+Next, you create the schema to support the agent.
+
+## Create the agent memory schema with **psql**
 
 In this section you connect to the PostgreSQL server using the **psql** command-line tool and create the database schema for agent memory. The schema includes three tables: one for conversations (agent sessions), one for messages within those conversations, and one for task checkpoints that enable the agent to resume interrupted work.
 
@@ -277,7 +287,7 @@ In this section you connect to the PostgreSQL server using the **psql** command-
     CREATE INDEX idx_conversations_session_id ON conversations(session_id);
     ```
 
-1. The app you build later in the exercise uses **ON CONFLICT**, which requires a unique constraint. Run the following command in your **psql** session in the terminal to add it.
+1. The app you completed earlier in the exercise uses **ON CONFLICT**, which requires a unique constraint. Run the following command in your **psql** session in the terminal to add it.
 
     ```sql
     ALTER TABLE task_checkpoints
