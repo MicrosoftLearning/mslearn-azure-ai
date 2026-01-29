@@ -75,6 +75,7 @@ def index():
     new_products = get_new_products()
     return render_template("index.html", products=products, new_products=new_products, results=None)
 
+# BEGIN LOAD DATA SECTION
 
 @app.route("/load-data", methods=["POST"])
 def load_data():
@@ -90,7 +91,7 @@ def load_data():
                     if cur.fetchone():
                         continue
 
-                    # Format embedding as PostgreSQL array
+                    # Format embedding as PostgreSQL array (pgvector expects bracket notation)
                     embedding_str = "[" + ",".join(str(x) for x in product["embedding"]) + "]"
 
                     cur.execute("""
@@ -103,6 +104,7 @@ def load_data():
                         product["price"],
                         embedding_str
                     ))
+                # Commit all inserts in a single transaction
                 conn.commit()
 
         flash(f"Successfully loaded {len(products)} sample products!", "success")
@@ -111,6 +113,9 @@ def load_data():
 
     return redirect(url_for("index"))
 
+# END LOAD DATA SECTION
+
+# BEGIN SEARCH SECTION
 
 @app.route("/search", methods=["POST"])
 def search():
@@ -133,6 +138,8 @@ def search():
                     return redirect(url_for("index"))
 
                 # Find similar products using cosine distance
+                # The <=> operator is pgvector's cosine distance operator
+                # Lower distance = more similar (0 = identical, 2 = opposite)
                 cur.execute("""
                     SELECT id, name, category, description, price, embedding <=> %s AS distance
                     FROM products
@@ -154,6 +161,9 @@ def search():
         flash(f"Error searching: {str(e)}", "error")
         return redirect(url_for("index"))
 
+# END SEARCH SECTION
+
+# BEGIN ADD PRODUCT SECTION
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
@@ -197,6 +207,7 @@ def add_product():
 
     return redirect(url_for("index"))
 
+# END ADD PRODUCT SECTION
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
