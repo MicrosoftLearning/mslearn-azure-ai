@@ -19,7 +19,7 @@ if [ -z "$user_object_id" ]; then
     exit 1
 fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
-server_name="psql-optimize-${user_hash}"
+server_name="psql-vector-${user_hash}"
 
 # Function to create resource group if it doesn't exist
 create_resource_group() {

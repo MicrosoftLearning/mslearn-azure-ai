@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($script:userObjectId)) 
 $sha1 = [System.Security.Cryptography.SHA1]::Create()
 $hashBytes = $sha1.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($script:userObjectId))
 $userHash = ([System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower())
-$serverName = "psql-optimize-$userHash"
+$serverName = "psql-vector-$userHash"
 
 # Function to create resource group if it doesn't exist
 function Create-ResourceGroup {

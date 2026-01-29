@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vector Search Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .card { background: white; padding: 20px; margin: 15px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .product { border-left: 4px solid #0078d4; }
+        .result { border-left: 4px solid #107c10; }
+        .product h3, .result h3 { margin-top: 0; color: #0078d4; }
+        .result h3 { color: #107c10; }
+        .category { background: #e1e1e1; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; }
+        .price { color: #107c10; font-weight: bold; font-size: 1.2em; }
+        .distance { color: #666; font-size: 0.9em; }
+        button, select { padding: 10px 20px; font-size: 1em; cursor: pointer; border-radius: 4px; }
+        button { background: #0078d4; color: white; border: none; margin: 5px; }
+        button:hover { background: #005a9e; }
+        select { border: 1px solid #ccc; min-width: 250px; }
+        .actions { margin: 20px 0; }
+        .flash { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .flash.success { background: #dff6dd; color: #107c10; }
+        .flash.error { background: #fde7e9; color: #a80000; }
+        .section { margin: 30px 0; }
+        form { display: inline-block; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Vector Search Demo</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+
+    <div class="section">
+        <h2>Database Actions</h2>
+        <div class="actions">
+            <form action="/load-data" method="post">
+                <button type="submit">Load Sample Products</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Find Similar Products</h2>
+        <form action="/search" method="post">
+            <select name="product_id" required>
+                <option value="">-- Select a product --</option>
+                {% for product in products %}
+                    <option value="{{ product.id }}">{{ product.name }} ({{ product.category }})</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Find Similar</button>
+        </form>
+    </div>
+
+    {% if results %}
+    <div class="section">
+        <h2>Similar Products</h2>
+        {% for result in results %}
+        <div class="card result">
+            <h3>{{ result.name }}</h3>
+            <p><span class="category">{{ result.category }}</span></p>
+            <p>{{ result.description }}</p>
+            <p class="price">${{ "%.2f"|format(result.price) }}</p>
+            <p class="distance">Similarity distance: {{ "%.4f"|format(result.distance) }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <h2>Add New Product</h2>
+        <form action="/add-product" method="post">
+            <select name="product_index" required>
+                <option value="">-- Select a product to add --</option>
+                {% for idx, product in new_products %}
+                    <option value="{{ idx }}">{{ product.name }} ({{ product.category }}) - ${{ "%.2f"|format(product.price) }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Add Product</button>
+        </form>
+    </div>
+
+    <div class="section">
+        <h2>Current Products ({{ products|length }})</h2>
+        {% for product in products %}
+        <div class="card product">
+            <h3>{{ product.name }}</h3>
+            <p><span class="category">{{ product.category }}</span></p>
+            <p>{{ product.description }}</p>
+            <p class="price">${{ "%.2f"|format(product.price) }}</p>
+        </div>
+        {% endfor %}
+        {% if not products %}
+        <p>No products loaded. Click "Load Sample Products" to get started.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
