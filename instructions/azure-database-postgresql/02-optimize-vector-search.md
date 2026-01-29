@@ -18,7 +18,7 @@ Tasks performed in this exercise:
 - Create and compare IVFFlat and HNSW vector indexes
 - Tune index parameters to balance speed and recall
 
-This exercise takes approximately **XX** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 ## Before you start
 
