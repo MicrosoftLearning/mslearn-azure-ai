@@ -19,7 +19,7 @@ if [ -z "$user_object_id" ]; then
     exit 1
 fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
-server_name="psql-agent-${user_hash}"
+server_name="psql-optimize-${user_hash}"
 
 # Function to create resource group if it doesn't exist
 create_resource_group() {
@@ -37,20 +37,16 @@ create_resource_group() {
 # Function to create Azure Database for PostgreSQL Flexible Server
 create_postgres_server() {
     echo "Creating Azure Database for PostgreSQL Flexible Server '$server_name'..."
-    echo "This may take 5-10 minutes..."
+    echo "This may take several minutes..."
 
     local server_exists=$(az postgres flexible-server show --resource-group $rg --name $server_name 2>/dev/null)
     if [ -z "$server_exists" ]; then
-        # General Purpose tier required for:
-        # - PgBouncer connection pooling support (not available on Burstable)
-        # - Sustained CPU for building vector indexes on large datasets
-        # - Memory for HNSW index operations
         az postgres flexible-server create \
             --resource-group $rg \
             --name $server_name \
             --location $location \
-            --sku-name Standard_D2ds_v4 \
-            --tier GeneralPurpose \
+            --sku-name Standard_B1ms \
+            --tier Burstable \
             --storage-size 32 \
             --version 16 \
             --public-access 0.0.0.0-255.255.255.255 \
@@ -59,6 +55,19 @@ create_postgres_server() {
 
         if [ $? -eq 0 ]; then
             echo "✓ PostgreSQL server created successfully"
+
+            # Allow-list the vector extension
+            echo "Configuring vector extension..."
+            az postgres flexible-server parameter set \
+                --resource-group $rg \
+                --server-name $server_name \
+                --name azure.extensions \
+                --value vector > /dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+                echo "✓ Vector extension allowed"
+            fi
+
             echo "  Use option 2 to configure Microsoft Entra administrator."
         else
             echo "Error: Failed to start PostgreSQL server deployment"

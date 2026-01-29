@@ -7,7 +7,7 @@ lab:
 
 # Optimize vector search performance
 
-In this exercise, you deploy an Azure Database for PostgreSQL instance and optimize it for vector search workloads. You create test data with vector embeddings, analyze baseline performance, build and compare IVFFlat and HNSW indexes, tune search parameters, and configure PgBouncer connection pooling. These techniques are essential for production AI applications that require fast similarity search across large datasets.
+In this exercise, you deploy an Azure Database for PostgreSQL instance and optimize it for vector search workloads. You create test data with vector embeddings, analyze baseline performance, build and compare IVFFlat and HNSW indexes, and tune search parameters. These techniques are essential for production AI applications that require fast similarity search across large datasets.
 
 Tasks performed in this exercise:
 
@@ -17,7 +17,6 @@ Tasks performed in this exercise:
 - Analyze baseline vector search performance without indexes
 - Create and compare IVFFlat and HNSW vector indexes
 - Tune index parameters to balance speed and recall
-- Configure PgBouncer connection pooling
 - Monitor performance using Azure Monitor
 
 This exercise takes approximately **XX** minutes to complete.
@@ -167,13 +166,15 @@ In this section you connect to the PostgreSQL server and create a table with pro
     psql "host=$env:DB_HOST port=5432 dbname=$env:DB_NAME user=$env:DB_USER sslmode=require"
     ```
 
-1. Run the following command to enable the pgvector extension.
+    >**Tip:** When query results are displayed, psql uses a pager if it can't fit the results in the current terminal window. If it does, press **q** to exit the pager and return to the psql prompt. Maximizing the terminal window will reduce this from happening, and make it easier to review the results from the commands.
+
+1. Run the following command to enable the pgvector extension. PostgreSQL extensions must be explicitly enabled before use. The pgvector extension adds the **vector** data type and operators like **<=>** (cosine distance) that you use throughout this exercise. Azure Database for PostgreSQL includes pgvector but doesn't enable it by default.
 
     ```sql
     CREATE EXTENSION IF NOT EXISTS vector;
     ```
 
-1. Run the following command to create the products table with a vector column. The `vector(384)` data type stores 384-dimensional embeddings, a common size for sentence embedding models.
+1. Run the following command to create the products table with a vector column. The **vector(384)** data type stores 384-dimensional embeddings, a common size for sentence embedding models.
 
     ```sql
     CREATE TABLE products (
@@ -262,27 +263,10 @@ In this section you create both index types and compare their performance.
 
 1. Verify the plan shows **Index Scan using idx_products_embedding_ivfflat**. Record the execution time.
 
-1. Run the following commands to test different probe values. Higher probes search more clusters, improving recall at the cost of speed.
+1. Run the following command to test with low probes (fast, lower recall). Record the execution time.
 
     ```sql
-    -- Low probes (fast, lower recall)
     SET ivfflat.probes = 1;
-    EXPLAIN ANALYZE
-    SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
-    FROM products
-    ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
-    LIMIT 10;
-
-    -- Medium probes (balanced)
-    SET ivfflat.probes = 10;
-    EXPLAIN ANALYZE
-    SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
-    FROM products
-    ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
-    LIMIT 10;
-
-    -- High probes (slower, higher recall)
-    SET ivfflat.probes = 50;
     EXPLAIN ANALYZE
     SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
     FROM products
@@ -290,7 +274,27 @@ In this section you create both index types and compare their performance.
     LIMIT 10;
     ```
 
-1. Record the execution times for each probe setting.
+1. Run the following command to test with medium probes (balanced). Record the execution time.
+
+    ```sql
+    SET ivfflat.probes = 10;
+    EXPLAIN ANALYZE
+    SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+    FROM products
+    ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+    LIMIT 10;
+    ```
+
+1. Run the following command to test with high probes (slower, higher recall). Record the execution time.
+
+    ```sql
+    SET ivfflat.probes = 50;
+    EXPLAIN ANALYZE
+    SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+    FROM products
+    ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+    LIMIT 10;
+    ```
 
 ### Create an HNSW index
 
@@ -318,26 +322,31 @@ In this section you create both index types and compare their performance.
     LIMIT 10;
     ```
 
-1. Run the following commands to test different ef_search values. Higher values improve recall but increase latency.
+1. Run the following command to test with low ef_search (faster). Record the execution time.
 
     ```sql
-    -- Low ef_search (faster)
     SET hnsw.ef_search = 20;
     EXPLAIN ANALYZE
     SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
     FROM products
     ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
     LIMIT 10;
+    ```
 
-    -- Default ef_search
+1. Run the following command to test with the default ef_search. Record the execution time.
+
+    ```sql
     SET hnsw.ef_search = 40;
     EXPLAIN ANALYZE
     SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
     FROM products
     ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
     LIMIT 10;
+    ```
 
-    -- High ef_search (higher recall)
+1. Run the following command to test with high ef_search (higher recall). Record the execution time.
+
+    ```sql
     SET hnsw.ef_search = 100;
     EXPLAIN ANALYZE
     SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
@@ -346,25 +355,18 @@ In this section you create both index types and compare their performance.
     LIMIT 10;
     ```
 
-1. Record the execution times for each setting.
-
 ### Compare your results
 
-Fill in the following table with your measurements:
+Compare your execution times across the different configurations. You should observe:
 
-| Configuration | Execution time | Notes |
-|---------------|----------------|-------|
-| Sequential scan (no index) | | Baseline |
-| IVFFlat, probes=1 | | Fastest indexed |
-| IVFFlat, probes=10 | | Balanced |
-| IVFFlat, probes=50 | | Higher recall |
-| HNSW, ef_search=20 | | Fast |
-| HNSW, ef_search=40 | | Default |
-| HNSW, ef_search=100 | | Higher recall |
+- **Sequential scan** is the slowest since it examines all 100,000 rows
+- **IVFFlat with probes=1** is the fastest indexed option but may miss some true nearest neighbors
+- **HNSW** generally provides faster queries than IVFFlat at similar recall levels
+- Increasing **probes** (IVFFlat) or **ef_search** (HNSW) improves accuracy but increases latency
 
 ## Implement metadata filtering with indexes
 
-In this section you test queries that combine vector similarity with metadata filters.
+In this section you test queries that combine vector similarity with metadata filters. In production applications, pure vector search is rare - you typically filter by category, date range, price, or other attributes before finding similar items. Optimizing these combined queries requires understanding how PostgreSQL uses multiple index types together.
 
 1. Run the following command to create a B-tree index on the category column.
 
@@ -372,7 +374,7 @@ In this section you test queries that combine vector similarity with metadata fi
     CREATE INDEX idx_products_category ON products (category_id);
     ```
 
-1. Run the following command to execute a filtered vector search.
+1. Run the following command to execute a filtered vector search. Examine the execution plan - you should see PostgreSQL using the HNSW index for vector similarity and then applying the category filter. Note the execution time.
 
     ```sql
     EXPLAIN ANALYZE
@@ -383,9 +385,7 @@ In this section you test queries that combine vector similarity with metadata fi
     LIMIT 10;
     ```
 
-1. Examine the plan to see how PostgreSQL combines the filters. You may see a **Bitmap And** operation or the planner may filter first and then sort.
-
-1. Run the following command to test with a more selective filter.
+1. Run the following command to test with a more selective filter. With multiple filter conditions, you may see a **Bitmap Index Scan** on the B-tree index combined with post-filtering, or the planner may choose a different strategy. Compare the execution time to the previous query.
 
     ```sql
     EXPLAIN ANALYZE
@@ -402,75 +402,16 @@ In this section you test queries that combine vector similarity with metadata fi
     CREATE INDEX idx_products_category_price ON products (category_id, price);
     ```
 
-1. Re-run the previous query and compare the execution plan.
-
-## Configure PgBouncer connection pooling
-
-In this section you enable and configure PgBouncer for connection pooling. PgBouncer reduces connection overhead for applications that frequently open and close database connections.
-
-1. Open a new terminal in VS Code. Keep the psql session open in the original terminal.
-
-1. Run the following command to load the environment variables in the new terminal.
-
-    **Bash**
-    ```bash
-    source .env
-    ```
-
-    **PowerShell**
-    ```powershell
-    . .\.env.ps1
-    ```
-
-1. Run the following command to enable PgBouncer. Replace **\<rg-name>** with your resource group name and **\<server-name>** with the server name from your deployment (shown in the deployment script menu).
-
-    ```azurecli
-    az postgres flexible-server parameter set \
-        --resource-group <rg-name> \
-        --server-name <server-name> \
-        --name pgbouncer.enabled \
-        --value true
-    ```
-
-1. Run the following command to configure transaction pooling mode, which is recommended for most workloads.
-
-    ```azurecli
-    az postgres flexible-server parameter set \
-        --resource-group <rg-name> \
-        --server-name <server-name> \
-        --name pgbouncer.default_pool_mode \
-        --value transaction
-    ```
-
-1. Run the following command to set the pool size.
-
-    ```azurecli
-    az postgres flexible-server parameter set \
-        --resource-group <rg-name> \
-        --server-name <server-name> \
-        --name pgbouncer.default_pool_size \
-        --value 50
-    ```
-
-1. Run the following command to connect through PgBouncer on port 6432.
-
-    **Bash**
-    ```bash
-    psql "host=$DB_HOST port=6432 dbname=$DB_NAME user=$DB_USER sslmode=require"
-    ```
-
-    **PowerShell**
-    ```powershell
-    psql "host=$env:DB_HOST port=6432 dbname=$env:DB_NAME user=$env:DB_USER sslmode=require"
-    ```
-
-1. Run a test query to verify PgBouncer is working.
+1. Re-run the previous query and compare the execution plan. The composite index may allow PostgreSQL to filter more efficiently before or alongside the vector search, potentially reducing execution time.
 
     ```sql
-    SELECT COUNT(*) FROM products;
+    EXPLAIN ANALYZE
+    SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+    FROM products
+    WHERE category_id = 5 AND price BETWEEN 100 AND 200
+    ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+    LIMIT 10;
     ```
-
-1. Enter `exit` to close the PgBouncer psql session.
 
 ## Monitor performance with Azure Monitor
 
@@ -505,7 +446,6 @@ In this exercise, you:
 - Created and compared IVFFlat and HNSW indexes
 - Tuned index parameters (**probes** and **ef_search**) to balance accuracy and speed
 - Implemented metadata filtering with B-tree indexes
-- Configured PgBouncer for connection pooling
 - Monitored performance metrics in Azure Monitor
 
 These techniques enable you to optimize Azure Database for PostgreSQL for production vector search workloads.
@@ -541,8 +481,3 @@ If you encounter issues during this exercise, try these steps:
 - HNSW indexes take longer to build than IVFFlat; allow 1-2 minutes for 100,000 vectors
 - If the build times out, check CPU and memory metrics in Azure Monitor
 - Consider reducing the dataset size for testing
-
-**PgBouncer connection fails**
-- Ensure PgBouncer is enabled by checking deployment script option **3**
-- Use port **6432** instead of **5432** for PgBouncer connections
-- PgBouncer requires General Purpose or Memory Optimized tier (not Burstable)
