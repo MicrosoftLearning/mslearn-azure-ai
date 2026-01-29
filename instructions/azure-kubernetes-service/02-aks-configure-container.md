@@ -244,19 +244,17 @@ In this section, you create the Python environment and install the dependencies.
     python -m venv .venv
     ```
 
-1. Run the following command in the VS Code terminal to activate the Python environment.
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
 
     **Bash**
     ```bash
-    source .venv/Scripts/activate
+    source .venv/bin/activate
     ```
 
     **PowerShell**
     ```powershell
-    .venv\Scripts\Activate.ps1
+    .\.venv\Scripts\Activate.ps1
     ```
-
-    >**Note:** You may need to modify the commands for your environment. The *Scripts* folder may be *bin* depending on your operating system.
 
 1. Run the following command in the VS Code terminal to install the dependencies.
 
