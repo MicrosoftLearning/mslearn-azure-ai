@@ -71,9 +71,6 @@ function Create-PostgresServer {
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "✓ Vector extension allowed"
             }
-            else {
-                Write-Host "⚠ Warning: Failed to allow-list vector extension. You may need to add it manually."
-            }
 
             Write-Host "  Use option 2 to configure Microsoft Entra administrator."
         }
