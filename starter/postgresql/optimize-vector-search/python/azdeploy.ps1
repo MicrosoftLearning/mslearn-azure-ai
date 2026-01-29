@@ -19,7 +19,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($script:userObjectId)) 
 $sha1 = [System.Security.Cryptography.SHA1]::Create()
 $hashBytes = $sha1.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($script:userObjectId))
 $userHash = ([System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower())
-$serverName = "psql-agent-$userHash"
+$serverName = "psql-optimize-$userHash"
 
 # Function to create resource group if it doesn't exist
 function Create-ResourceGroup {
@@ -42,16 +42,12 @@ function Create-PostgresServer {
 
     az postgres flexible-server show --resource-group $rg --name $serverName 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        # General Purpose tier required for:
-        # - PgBouncer connection pooling support (not available on Burstable)
-        # - Sustained CPU for building vector indexes on large datasets
-        # - Memory for HNSW index operations
         az postgres flexible-server create `
             --resource-group $rg `
             --name $serverName `
             --location $location `
-            --sku-name Standard_D2ds_v4 `
-            --tier GeneralPurpose `
+            --sku-name Standard_B1ms `
+            --tier Burstable `
             --storage-size 32 `
             --version 16 `
             --public-access 0.0.0.0-255.255.255.255 `
@@ -60,6 +56,19 @@ function Create-PostgresServer {
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✓ PostgreSQL server created successfully"
+
+            # Allow-list the vector extension
+            Write-Host "Configuring vector extension..."
+            az postgres flexible-server parameter set `
+                --resource-group $rg `
+                --server-name $serverName `
+                --name azure.extensions `
+                --value vector 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "✓ Vector extension allowed"
+            }
+
             Write-Host "  Use option 2 to configure Microsoft Entra administrator."
         }
         else {
