@@ -60,6 +60,11 @@
       "source": "starter/postgresql/build-agent/python",
       "output": "downloads/python",
       "name": "postgresql-build-agent-python.zip"
+    },
+    {
+      "source": "starter/postgresql/optimize-vector-search/python",
+      "output": "downloads/python",
+      "name": "postgresql-optimize-vector-search-python.zip"
     }
   ]
 }
