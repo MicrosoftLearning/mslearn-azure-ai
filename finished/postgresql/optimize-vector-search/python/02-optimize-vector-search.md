@@ -17,7 +17,6 @@ Tasks performed in this exercise:
 - Analyze baseline vector search performance without indexes
 - Create and compare IVFFlat and HNSW vector indexes
 - Tune index parameters to balance speed and recall
-- Monitor performance using Azure Monitor
 
 This exercise takes approximately **XX** minutes to complete.
 
@@ -235,7 +234,7 @@ In this section you measure vector search performance without any indexes to est
 
 1. Examine the output. You should see a **Seq Scan** in the plan, indicating PostgreSQL is scanning all 100,000 rows. Note the **Execution Time** value at the bottom.
 
-1. Run the query two more times to get consistent measurements. The first run may be slower due to cold caches. Record the average execution time as your baseline.
+1. Run the query two more times to get consistent measurements. The first run might be slower due to cold caches. Record the last execution time as your baseline.
 
 ## Create and compare IVFFlat and HNSW indexes
 
@@ -251,7 +250,7 @@ In this section you create both index types and compare their performance.
     WITH (lists = 100);
     ```
 
-1. Run the following command to execute the same query with the IVFFlat index.
+1. Run the following command to execute the same query with the IVFFlat index. Verify the plan shows **Index Scan using idx_products_embedding_ivfflat**. Record the execution time.
 
     ```sql
     EXPLAIN ANALYZE
@@ -261,23 +260,10 @@ In this section you create both index types and compare their performance.
     LIMIT 10;
     ```
 
-1. Verify the plan shows **Index Scan using idx_products_embedding_ivfflat**. Record the execution time.
-
-1. Run the following command to test with low probes (fast, lower recall). Record the execution time.
+1. Run the following command to test with low probes. This is faster but might miss the true nearest neighbors than a full scan since it only searches one cluster. The recall impact isn't visible in timing output - you'd need to compare actual results to measure it.
 
     ```sql
     SET ivfflat.probes = 1;
-    EXPLAIN ANALYZE
-    SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
-    FROM products
-    ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
-    LIMIT 10;
-    ```
-
-1. Run the following command to test with medium probes (balanced). Record the execution time.
-
-    ```sql
-    SET ivfflat.probes = 10;
     EXPLAIN ANALYZE
     SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
     FROM products
@@ -304,6 +290,12 @@ In this section you create both index types and compare their performance.
     DROP INDEX idx_products_embedding_ivfflat;
     ```
 
+1. Run the following command to increase the memory available for index building. HNSW indexes require more memory during construction than IVFFlat.
+
+    ```sql
+    SET maintenance_work_mem = '256MB';
+    ```
+
 1. Run the following command to create an HNSW index. Note the build time, which is typically longer than IVFFlat.
 
     ```sql
@@ -322,21 +314,10 @@ In this section you create both index types and compare their performance.
     LIMIT 10;
     ```
 
-1. Run the following command to test with low ef_search (faster). Record the execution time.
+1. Run the following command to test with low ef_search. This is faster but might miss some true nearest neighbors since the search explores fewer candidate paths. The recall impact isn't visible in timing output.
 
     ```sql
     SET hnsw.ef_search = 20;
-    EXPLAIN ANALYZE
-    SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
-    FROM products
-    ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
-    LIMIT 10;
-    ```
-
-1. Run the following command to test with the default ef_search. Record the execution time.
-
-    ```sql
-    SET hnsw.ef_search = 40;
     EXPLAIN ANALYZE
     SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
     FROM products
@@ -360,7 +341,7 @@ In this section you create both index types and compare their performance.
 Compare your execution times across the different configurations. You should observe:
 
 - **Sequential scan** is the slowest since it examines all 100,000 rows
-- **IVFFlat with probes=1** is the fastest indexed option but may miss some true nearest neighbors
+- **IVFFlat with probes=1** is the fastest indexed option but might miss some true nearest neighbors
 - **HNSW** generally provides faster queries than IVFFlat at similar recall levels
 - Increasing **probes** (IVFFlat) or **ef_search** (HNSW) improves accuracy but increases latency
 
@@ -385,7 +366,7 @@ In this section you test queries that combine vector similarity with metadata fi
     LIMIT 10;
     ```
 
-1. Run the following command to test with a more selective filter. With multiple filter conditions, you may see a **Bitmap Index Scan** on the B-tree index combined with post-filtering, or the planner may choose a different strategy. Compare the execution time to the previous query.
+1. Run the following command to test with a more selective filter. With multiple filter conditions, you might see a **Bitmap Index Scan** on the B-tree index combined with post-filtering, or the planner might choose a different strategy. Compare the execution time to the previous query.
 
     ```sql
     EXPLAIN ANALYZE
@@ -402,7 +383,7 @@ In this section you test queries that combine vector similarity with metadata fi
     CREATE INDEX idx_products_category_price ON products (category_id, price);
     ```
 
-1. Re-run the previous query and compare the execution plan. The composite index may allow PostgreSQL to filter more efficiently before or alongside the vector search, potentially reducing execution time.
+1. Re-run the previous query and compare the execution plan. The composite index might allow PostgreSQL to filter more efficiently before or alongside the vector search, potentially reducing execution time.
 
     ```sql
     EXPLAIN ANALYZE
@@ -412,29 +393,6 @@ In this section you test queries that combine vector similarity with metadata fi
     ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
     LIMIT 10;
     ```
-
-## Monitor performance with Azure Monitor
-
-In this section you review the metrics generated during your testing using the Azure portal.
-
-1. Open a browser and navigate to the [Azure portal](https://portal.azure.com).
-
-1. Navigate to your Azure Database for PostgreSQL resource.
-
-1. Select **Monitoring** > **Metrics** from the left menu.
-
-1. Add the following metrics to your view:
-    - CPU percent
-    - Memory percent
-    - Active connections
-    - Storage IO percent
-
-1. Set the time range to cover your testing period.
-
-1. Observe how different operations affected resource utilization:
-    - Index creation shows CPU spikes
-    - Query execution shows brief CPU activity
-    - Memory utilization increases when indexes are loaded
 
 ## Summary
 
@@ -446,7 +404,6 @@ In this exercise, you:
 - Created and compared IVFFlat and HNSW indexes
 - Tuned index parameters (**probes** and **ef_search**) to balance accuracy and speed
 - Implemented metadata filtering with B-tree indexes
-- Monitored performance metrics in Azure Monitor
 
 These techniques enable you to optimize Azure Database for PostgreSQL for production vector search workloads.
 
