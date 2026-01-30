@@ -227,7 +227,7 @@ In this section you complete the *app.py* file by adding route handlers that int
 
 1. Save your changes to the *app.py* file.
 
-1. Take a few minutes to review all of the code in the app. Notice how each route uses the `get_connection()` function to connect to PostgreSQL with Microsoft Entra authentication, and how the `<=>` operator performs cosine distance calculations for similarity search.
+1. Take a few minutes to review all of the code in the app. Notice how each route uses the **get_connection()** function to connect to PostgreSQL with Microsoft Entra authentication, and how the **\<=>** operator performs cosine distance calculations for similarity search.
 
 ## Complete the Azure resource deployment and create the schema
 
@@ -377,7 +377,7 @@ In this section you add new products to the database and observe how they appear
 
 ## Summary
 
-In this exercise, you built a product similarity search application using Azure Database for PostgreSQL and the pgvector extension. You deployed a PostgreSQL Flexible Server with Microsoft Entra authentication, enabled the pgvector extension, and created a products table with a 384-dimensional vector column for storing embeddings. You added an HNSW index to optimize similarity queries, then used a Flask web application to load sample products and perform vector similarity searches using the cosine distance operator (`<=>`). This pattern demonstrates how to build recommendation systems and semantic search features that find related items based on their semantic meaning rather than exact keyword matches.
+In this exercise, you built a product similarity search application using Azure Database for PostgreSQL and the pgvector extension. You deployed a PostgreSQL Flexible Server with Microsoft Entra authentication, enabled the pgvector extension, and created a products table with a 384-dimensional vector column for storing embeddings. You added an HNSW index to optimize similarity queries, then used a Flask web application to load sample products and perform vector similarity searches using the cosine distance operator (**\<=>**). This pattern demonstrates how to build recommendation systems and semantic search features that find related items based on their semantic meaning rather than exact keyword matches.
 
 ## Clean up resources
 
