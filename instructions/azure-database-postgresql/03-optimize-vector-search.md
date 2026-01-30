@@ -1,11 +1,11 @@
 ---
 lab:
     topic: Azure Database for PostgreSQL
-    title: 'Optimize vector search performance'
+    title: 'Optimize vector search performance in Azure Database for PostgreSQL'
     description: 'Learn how to optimize vector search performance in Azure Database for PostgreSQL using indexes, parameter tuning, and connection pooling'
 ---
 
-# Optimize vector search performance
+# Optimize vector search performance in Azure Database for PostgreSQL
 
 In this exercise, you deploy an Azure Database for PostgreSQL instance and optimize it for vector search workloads. You create test data with vector embeddings, analyze baseline performance, build and compare IVFFlat and HNSW indexes, and tune search parameters. These techniques are essential for production AI applications that require fast similarity search across large datasets.
 

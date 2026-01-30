@@ -1,11 +1,11 @@
 ---
 lab:
     topic: Azure Database for PostgreSQL
-    title: 'Implement vector search'
+    title: 'Implement vector search on Azure Database for PostgreSQL'
     description: 'Learn how to implement vector similarity search using PostgreSQL and the pgvector extension'
 ---
 
-# Implement vector search
+# Implement vector search on Azure Database for PostgreSQL
 
 In this exercise, you build a product similarity search application using Azure Database for PostgreSQL and the pgvector extension. You enable vector storage capabilities, create a database schema for products with embeddings, load sample data through a Flask web application, and perform similarity searches to find related products. This pattern provides a foundation for building recommendation systems, semantic search features, and other AI-powered applications.
 

@@ -1,11 +1,11 @@
 ---
 lab:
     topic: Azure Database for PostgreSQL
-    title: 'Build an agent tool backend'
+    title: 'Build an agent tool backend on Azure Database for PostgreSQL'
     description: 'Learn how to build a PostgreSQL-based tool backend for AI agents'
 ---
 
-# Build an agent tool backend
+# Build an agent tool backend on Azure Database for PostgreSQL
 
 In this exercise, you create an Azure Database for PostgreSQL instance that serves as a tool backend for an AI agent. The database stores conversation context and task state that an agent can read and write during operation. You design a schema for agent memory, build Python functions that serve as agent tools, and test the complete workflow. This pattern provides a foundation for building AI agents that maintain persistent memory across sessions and can resume interrupted tasks.
 
