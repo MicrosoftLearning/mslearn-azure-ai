@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Vector Search Demo</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background: #f5f5f5; font-size: 16px; }
+        h1 { color: #1a1a1a; margin-bottom: 15px; font-size: 1.5rem; }
+        .skip-link { position: absolute; top: -40px; left: 0; background: #0078d4; color: white; padding: 8px; z-index: 100; }
+        .skip-link:focus { top: 0; }
+        .container { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; }
+        .left-panel { flex: 1; min-width: 350px; }
+        .right-panel { flex: 1; min-width: 350px; }
+        .card { background: white; padding: 12px; margin: 8px 0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .product { border-left: 3px solid #0078d4; }
+        .result { border-left: 3px solid #0b6a0b; }
+        .searched { border-left: 3px solid #5c2d91; }
+        .product h3 { margin: 0 0 6px 0; font-size: 1rem; color: #005a9e; }
+        .result h3 { margin: 0 0 6px 0; font-size: 1rem; color: #0b6a0b; }
+        .searched h3 { margin: 0 0 6px 0; font-size: 1rem; color: #5c2d91; }
+        .card p { margin: 4px 0; }
+        .category { background: #e1e1e1; padding: 1px 6px; border-radius: 3px; font-size: 0.875rem; }
+        .price { color: #0b6a0b; font-weight: bold; }
+        .distance { color: #505050; font-size: 0.875rem; }
+        label { display: block; font-weight: bold; margin-bottom: 4px; }
+        button, select { padding: 8px 16px; font-size: 1rem; cursor: pointer; border-radius: 4px; }
+        button { background: #0078d4; color: white; border: none; margin: 4px 0; }
+        button:hover { background: #005a9e; }
+        button:focus, select:focus { outline: 2px solid #005a9e; outline-offset: 2px; }
+        select { border: 1px solid #505050; width: 100%; margin-bottom: 8px; }
+        .flash { padding: 8px; margin: 8px 0; border-radius: 4px; }
+        .flash.success { background: #dff6dd; color: #0b6a0b; border: 1px solid #0b6a0b; }
+        .flash.error { background: #fde7e9; color: #a80000; border: 1px solid #a80000; }
+        .section { margin: 15px 0; }
+        .section h2 { margin-top: 0; border-bottom: 2px solid #0078d4; padding-bottom: 8px; font-size: 1.1rem; }
+        .right-panel .section h2 { border-bottom-color: #0b6a0b; }
+        .product-list { max-height: 350px; overflow-y: auto; }
+        .no-results { color: #505050; font-style: italic; padding: 15px; text-align: center; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <h1>🔍 Vector Search Demo</h1>
+
+    <div aria-live="polite" aria-atomic="true">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="flash {{ category }}" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+    </div>
+
+    <main id="main-content" class="container">
+        <div class="left-panel">
+            <div class="section">
+                <h2>Load Sample Data</h2>
+                <form action="/load-data" method="post">
+                    <button type="submit">Load Sample Products</button>
+                </form>
+            </div>
+
+            <div class="section">
+                <h2>Find Similar Products</h2>
+                <form action="/search" method="post">
+                    <label for="product-select">Select a product</label>
+                    <select name="product_id" id="product-select" required>
+                        <option value="">-- Select a product --</option>
+                        {% for product in products %}
+                            <option value="{{ product.id }}">{{ product.name }} ({{ product.category }})</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">Find Similar</button>
+                </form>
+            </div>
+
+            <div class="section">
+                <h2>Add New Product</h2>
+                <form action="/add-product" method="post">
+                    <label for="new-product-select">Select a product to add</label>
+                    <select name="product_index" id="new-product-select" required>
+                        <option value="">-- Select a product to add --</option>
+                        {% for idx, product in new_products %}
+                            <option value="{{ idx }}">{{ product.name }} ({{ product.category }}) - ${{ "%.2f"|format(product.price) }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">Add Product</button>
+                </form>
+            </div>
+
+            <section class="section" aria-labelledby="products-heading">
+                <h2 id="products-heading">Current Products ({{ products|length }})</h2>
+                <div class="product-list">
+                    {% for product in products %}
+                    <article class="card product">
+                        <h3>{{ product.name }}</h3>
+                        <p><span class="category">{{ product.category }}</span></p>
+                        <p>{{ product.description }}</p>
+                        <p class="price">${{ "%.2f"|format(product.price) }}</p>
+                    </article>
+                    {% endfor %}
+                    {% if not products %}
+                    <p class="no-results">No products loaded. Click "Load Sample Products" to get started.</p>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <section class="section" aria-labelledby="results-heading">
+                <h2 id="results-heading">Similarity Results</h2>
+                {% if searched_product %}
+                    <p><strong>Products similar to:</strong></p>
+                    <article class="card searched">
+                        <h3>{{ searched_product.name }}</h3>
+                        <p><span class="category">{{ searched_product.category }}</span></p>
+                        <p>{{ searched_product.description }}</p>
+                        <p class="price">${{ "%.2f"|format(searched_product.price) }}</p>
+                    </article>
+                    <p style="margin-top: 16px;"><strong>Results ranked by similarity:</strong></p>
+                    {% for result in results %}
+                    <article class="card result">
+                        <h3>{{ result.name }}</h3>
+                        <p><span class="category">{{ result.category }}</span></p>
+                        <p>{{ result.description }}</p>
+                        <p class="price">${{ "%.2f"|format(result.price) }}</p>
+                        <p class="distance">Similarity distance: {{ "%.4f"|format(result.distance) }}</p>
+                    </article>
+                    {% endfor %}
+                {% else %}
+                    <p class="no-results">Select a product and click "Find Similar" to see results.</p>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>

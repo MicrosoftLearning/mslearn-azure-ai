@@ -67,7 +67,7 @@ In this section you download the project starter files and use a script to deplo
 
 ### Create resources in Azure
 
-In this section you run the deployment script to deploy the PostgreSQL server and configure authentication.
+In this section you run the deployment script to deploy the PostgreSQL.
 
 1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
 

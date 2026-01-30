@@ -65,6 +65,11 @@
       "source": "starter/postgresql/optimize-vector-search/python",
       "output": "downloads/python",
       "name": "postgresql-optimize-vector-search-python.zip"
+    },
+    {
+      "source": "starter/postgresql/vector-search/python",
+      "output": "downloads/python",
+      "name": "postgresql-vector-search-python.zip"
     }
   ]
 }
