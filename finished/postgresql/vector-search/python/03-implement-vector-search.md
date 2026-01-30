@@ -13,8 +13,9 @@ Tasks performed in this exercise:
 
 - Download project starter files and configure the deployment script
 - Deploy an Azure Database for PostgreSQL Flexible Server with Microsoft Entra authentication
+- Complete the Flask application code while the server deploys
 - Enable the pgvector extension and create the products table schema
-- Run a Flask application to load products and perform similarity searches
+- Run the Flask application to load products and perform similarity searches
 - Add new products and observe how similarity results change
 
 This exercise takes approximately **30** minutes to complete.
@@ -83,75 +84,6 @@ In this section you run the deployment script to deploy the PostgreSQL server an
 1. When the script menu appears, enter **1** to launch the **Create PostgreSQL server with Entra authentication** option. This creates the server with Entra-only authentication enabled. **Note:** Deployment can take 5-10 minutes to complete.
 
     >**IMPORTANT:** Leave the terminal running the deployment open for the duration of the exercise. You can move on to the next section of the exercise while the deployment continues in the terminal.
-
-## Enable pgvector and create the schema
-
-In this section you enable the pgvector extension and create the products table with a vector column for storing embeddings. The schema includes columns for product details and a 384-dimensional embedding vector used for similarity searches.
-
-1. Wait for the PostgreSQL server deployment to complete. When finished, the script displays the server hostname.
-
-1. In the deployment script menu, enter **2** to configure Microsoft Entra authentication. This sets your Azure account as the database administrator.
-
-1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
-
-1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
-
-1. Enter **5** to exit the deployment script.
-
-1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
-
-    **Bash**
-    ```bash
-    source .env
-    ```
-
-    **PowerShell**
-    ```powershell
-    . .\.env.ps1
-    ```
-
-1. Run the following command to connect to the PostgreSQL server using **psql**. The command uses the environment variables you loaded in the previous step.
-
-    ```bash
-    psql "host=$DB_HOST dbname=$DB_NAME user=$DB_USER sslmode=require"
-    ```
-
-1. Enable the pgvector extension. This extension must be enabled before you can use vector data types.
-
-    ```sql
-    CREATE EXTENSION IF NOT EXISTS vector;
-    ```
-
-1. Create the products table with a vector column for embeddings. The embeddings column uses 384 dimensions, which matches common sentence transformer models.
-
-    ```sql
-    CREATE TABLE products (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT,
-        description TEXT,
-        price NUMERIC(10, 2),
-        embedding vector(384)
-    );
-    ```
-
-1. Create an HNSW index to enable fast similarity searches. This index type is optimized for approximate nearest neighbor queries on vector data.
-
-    ```sql
-    CREATE INDEX products_embedding_idx
-    ON products USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
-    ```
-
-1. Verify the table and index were created by listing the table structure.
-
-    ```sql
-    \d products
-    ```
-
-    You should see the table structure with columns for id, name, category, description, price, and embedding, plus the HNSW index.
-
-1. Enter **quit** to exit the session.
 
 ## Complete the client application
 
@@ -297,6 +229,76 @@ In this section you complete the *app.py* file by adding route handlers that int
 
 1. Take a few minutes to review all of the code in the app. Notice how each route uses the `get_connection()` function to connect to PostgreSQL with Microsoft Entra authentication, and how the `<=>` operator performs cosine distance calculations for similarity search.
 
+## Complete the Azure resource deployment and create the schema
+
+In this section you enable the pgvector extension and create the products table with a vector column for storing embeddings. The schema includes columns for product details and a 384-dimensional embedding vector used for similarity searches.
+
+1. Wait for the PostgreSQL server to display the deployment is complete in the terminal.
+
+1. In the deployment script menu, enter **2** to configure Microsoft Entra authentication. This sets your Azure account as the database administrator.
+
+1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
+
+1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
+
+1. Enter **5** to exit the deployment script.
+
+1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+1. Run the following command to connect to the PostgreSQL server using **psql**. The command uses the environment variables you loaded in the previous step.
+
+    ```bash
+    psql "host=$DB_HOST dbname=$DB_NAME user=$DB_USER sslmode=require"
+    ```
+
+1. Enable the pgvector extension. This extension must be enabled before you can use vector data types.
+
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS vector;
+    ```
+
+1. Create the products table with a vector column for embeddings. The embeddings column uses 384 dimensions, which matches common sentence transformer models.
+
+    ```sql
+    CREATE TABLE products (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT,
+        description TEXT,
+        price NUMERIC(10, 2),
+        embedding vector(330)
+    );
+    ```
+
+1. Create an HNSW index to enable fast similarity searches. This index type is optimized for approximate nearest neighbor queries on vector data.
+
+    ```sql
+    CREATE INDEX products_embedding_idx
+    ON products USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+    ```
+
+1. Verify the table and index were created by listing the table structure.
+
+    ```sql
+    \d products
+    ```
+
+    You should see the table structure with columns for id, name, category, description, price, and embedding, plus the HNSW index.
+
+1. Enter **quit** to exit the session.
+
+
 ## Set up and run the Flask application
 
 In this section you install the Python dependencies and run the Flask web application. The application provides a browser interface for loading products, searching for similar items, and adding new products to the database.
@@ -349,11 +351,11 @@ In this section you install the Python dependencies and run the Flask web applic
 
 In this section you use the web application to load sample products into the database and perform similarity searches. The products include pre-computed embeddings that represent each product's semantic meaning, enabling the application to find similar items based on their descriptions.
 
-1. On the web page, click **Load Sample Products**. This inserts 10 products with their embeddings into the database.
+1. On the web page, select **Load Sample Products**. This inserts 10 products with their embeddings into the database.
 
     You should see a success message and the product list now displays items like "Wireless Bluetooth Headphones", "Gaming Laptop", and "Running Shoes".
 
-1. In the **Find Similar Products** section, select **Wireless Bluetooth Headphones** from the dropdown and click **Find Similar**.
+1. In the **Find Similar Products** section, select **Wireless Bluetooth Headphones** from the dropdown and select **Find Similar**.
 
     The application queries the database using vector similarity and returns products ordered by their semantic closeness to the selected item. You should see "Noise Cancelling Earbuds" near the top of the results since it's semantically similar (both are audio devices).
 
@@ -365,13 +367,17 @@ In this section you add new products to the database and observe how they appear
 
 1. Return to the web browser with the Flask application.
 
-1. In the **Add New Product** section, select **Espresso Machine** from the dropdown and click **Add Product**.
+1. In the **Add New Product** section, select **Espresso Machine** from the dropdown and select **Add Product**.
 
-1. Now search for products similar to **Coffee Maker** by selecting it in the **Find Similar Products** dropdown and clicking **Find Similar**.
+1. Now search for products similar to **Coffee Maker** by selecting it in the **Find Similar Products** dropdown and selecting **Find Similar**.
 
     Notice that "Espresso Machine" now appears in the results with a low distance score, since both products are semantically related (home coffee appliances).
 
 1. Add the remaining products from the dropdown (**Wireless Gaming Mouse** and **Fitness Tracker Band**) and observe how they appear in similarity searches for related products.
+
+## Summary
+
+In this exercise, you built a product similarity search application using Azure Database for PostgreSQL and the pgvector extension. You deployed a PostgreSQL Flexible Server with Microsoft Entra authentication, enabled the pgvector extension, and created a products table with a 384-dimensional vector column for storing embeddings. You added an HNSW index to optimize similarity queries, then used a Flask web application to load sample products and perform vector similarity searches using the cosine distance operator (`<=>`). This pattern demonstrates how to build recommendation systems and semantic search features that find related items based on their semantic meaning rather than exact keyword matches.
 
 ## Clean up resources
 
@@ -384,3 +390,38 @@ Now that you finished the exercise, you should delete the cloud resources you cr
     ```
 
 > **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
+
+## Troubleshooting
+
+If you encounter issues during this exercise, try these steps:
+
+**psql connection fails**
+- Ensure the *.env* file was created by running the deployment script option **4**
+- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables
+- The access token expires after approximately one hour; run the deployment script option **4** again to generate a new token
+- Verify the server is ready by running the deployment script option **3**
+
+**Access denied or authentication errors**
+- Ensure the Microsoft Entra administrator was configured by running the deployment script option **2**
+- Verify **PGPASSWORD** is set correctly in your terminal session
+- Ensure you're using the correct **DB_USER** value (your Azure account email)
+
+**Flask application fails to start**
+- Ensure Python virtual environment is activated (you should see **(.venv)** in your terminal prompt)
+- Ensure dependencies are installed: **pip install -r requirements.txt**
+- Verify all three route functions were added to *app.py* correctly
+
+**Database connection errors in Flask**
+- Ensure environment variables are loaded in the terminal running Flask
+- Verify the products table exists by connecting with **psql** and running **\d products**
+- Ensure the pgvector extension is enabled: **CREATE EXTENSION IF NOT EXISTS vector;**
+
+**No products appear after loading**
+- Check the Flask terminal for error messages
+- Verify the *sample_products.json* file exists in the *client* folder
+- Ensure the products table was created with the correct schema
+
+**Python venv activation issues**
+- On Linux/macOS, use: **source .venv/bin/activate**
+- On Windows PowerShell, use: **.\.venv\Scripts\Activate.ps1**
+- If using Git Bash on Windows, use: **source .venv/Scripts/activate**
