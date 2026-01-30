@@ -2,7 +2,7 @@
 lab:
     topic: Azure Database for PostgreSQL
     title: 'Optimize vector search performance in Azure Database for PostgreSQL'
-    description: 'Learn how to optimize vector search performance in Azure Database for PostgreSQL using indexes, parameter tuning, and connection pooling'
+    description: 'Learn how to optimize vector search performance in Azure Database for PostgreSQL using indexes and parameter tuning'
 ---
 
 # Optimize vector search performance in Azure Database for PostgreSQL

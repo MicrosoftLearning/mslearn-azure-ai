@@ -2,7 +2,7 @@
 lab:
     topic: Azure Database for PostgreSQL
     title: 'Implement vector search on Azure Database for PostgreSQL'
-    description: 'Learn how to implement vector similarity search using PostgreSQL and the pgvector extension'
+    description: 'Learn how to implement vector similarity search using Azure Database for PostgreSQL and the pgvector extension'
 ---
 
 # Implement vector search on Azure Database for PostgreSQL
