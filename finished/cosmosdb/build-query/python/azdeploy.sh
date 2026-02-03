@@ -19,7 +19,9 @@ if [ -z "$user_object_id" ]; then
     exit 1
 fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
-server_name="psql-agent-${user_hash}"
+account_name="cosmos-rag-${user_hash}"
+database_name="ragstore"
+container_name="chunks"
 
 # Function to create resource group if it doesn't exist
 create_resource_group() {
@@ -34,57 +36,95 @@ create_resource_group() {
     fi
 }
 
-# Function to create Azure Database for PostgreSQL Flexible Server
-create_postgres_server() {
-    echo "Creating Azure Database for PostgreSQL Flexible Server '$server_name'..."
+# Function to create Azure Cosmos DB for NoSQL account with database and container
+create_cosmosdb_account() {
+    echo "Creating Azure Cosmos DB for NoSQL account '$account_name'..."
     echo "This may take several minutes..."
 
-    local server_exists=$(az postgres flexible-server show --resource-group $rg --name $server_name 2>/dev/null)
-    if [ -z "$server_exists" ]; then
-        az postgres flexible-server create \
+    # Check if Cosmos DB account already exists
+    local account_exists=$(az cosmosdb show --resource-group $rg --name $account_name 2>/dev/null)
+    if [ -z "$account_exists" ]; then
+        # Create Cosmos DB account with serverless capacity mode (most cost-effective)
+        az cosmosdb create \
             --resource-group $rg \
-            --name $server_name \
-            --location $location \
-            --sku-name Standard_B1ms \
-            --tier Burstable \
-            --storage-size 32 \
-            --version 16 \
-            --public-access 0.0.0.0-255.255.255.255 \
-            --microsoft-entra-auth Enabled \
-            --password-auth Disabled > /dev/null 2>&1
+            --name $account_name \
+            --locations regionName=$location \
+            --capabilities EnableServerless \
+            --default-consistency-level Session > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ PostgreSQL server created successfully"
-            echo "  Use option 2 to configure Microsoft Entra administrator."
+            echo "✓ Cosmos DB account created successfully"
         else
-            echo "Error: Failed to start PostgreSQL server deployment"
+            echo "Error: Failed to create Cosmos DB account"
             return 1
         fi
     else
-        echo "✓ PostgreSQL server already exists: $server_name"
+        echo "✓ Cosmos DB account already exists: $account_name"
     fi
+
+    # Create database
+    echo "Creating database '$database_name'..."
+    local db_exists=$(az cosmosdb sql database show --resource-group $rg --account-name $account_name --name $database_name 2>/dev/null)
+    if [ -z "$db_exists" ]; then
+        az cosmosdb sql database create \
+            --resource-group $rg \
+            --account-name $account_name \
+            --name $database_name > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Database created: $database_name"
+        else
+            echo "Error: Failed to create database"
+            return 1
+        fi
+    else
+        echo "✓ Database already exists: $database_name"
+    fi
+
+    # Create container with documentId as partition key
+    echo "Creating container '$container_name'..."
+    local container_exists=$(az cosmosdb sql container show --resource-group $rg --account-name $account_name --database-name $database_name --name $container_name 2>/dev/null)
+    if [ -z "$container_exists" ]; then
+        az cosmosdb sql container create \
+            --resource-group $rg \
+            --account-name $account_name \
+            --database-name $database_name \
+            --name $container_name \
+            --partition-key-path "/documentId" > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Container created: $container_name (partition key: /documentId)"
+        else
+            echo "Error: Failed to create container"
+            return 1
+        fi
+    else
+        echo "✓ Container already exists: $container_name"
+    fi
+
+    echo ""
+    echo "Use option 2 to configure Entra ID access."
 }
 
-# Function to configure Microsoft Entra admin
-configure_entra_admin() {
-    echo "Configuring Microsoft Entra administrator..."
+# Function to configure Entra ID RBAC for the signed-in user
+configure_entra_access() {
+    echo "Configuring Microsoft Entra ID access..."
 
-    # Prereq check: PostgreSQL server must exist
-    local state=$(az postgres flexible-server show --resource-group $rg --name $server_name --query "state" -o tsv 2>/dev/null)
-    if [ -z "$state" ]; then
-        echo "Error: PostgreSQL server '$server_name' not found."
-        echo "Please run option 1 to create the PostgreSQL server, then try again."
+    # Prereq check: Cosmos DB account must exist
+    local status=$(az cosmosdb show --resource-group $rg --name $account_name --query "provisioningState" -o tsv 2>/dev/null)
+    if [ -z "$status" ]; then
+        echo "Error: Cosmos DB account '$account_name' not found."
+        echo "Please run option 1 to create the Cosmos DB account, then try again."
         return 1
     fi
 
-    # Prereq check: Server must be in Ready state
-    if [ "$state" != "Ready" ]; then
-        echo "Error: PostgreSQL server is not ready (current state: $state)."
-        echo "Please wait for deployment to complete. Use option 3 to check status."
+    if [ "$status" != "Succeeded" ]; then
+        echo "Error: Cosmos DB account is not ready (current state: $status)."
+        echo "Please wait for deployment to complete. Use option 4 to check status."
         return 1
     fi
 
-    # Get the signed-in user's UPN (object ID already retrieved at startup)
+    # Get the signed-in user's UPN
     local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
 
     if [ -z "$user_object_id" ] || [ -z "$user_upn" ]; then
@@ -93,20 +133,121 @@ configure_entra_admin() {
         return 1
     fi
 
-    echo "Setting '$user_upn' as Entra administrator..."
+    local account_id=$(az cosmosdb show --resource-group $rg --name $account_name --query "id" -o tsv)
 
-    az postgres flexible-server microsoft-entra-admin create \
-        --resource-group $rg \
-        --server-name $server_name \
-        --display-name "$user_upn" \
-        --object-id "$user_object_id" > /dev/null 2>&1
+    # Assign Azure RBAC Contributor role (for control plane: create/delete databases, containers)
+    echo "Assigning Azure RBAC 'Contributor' role to '$user_upn'..."
+    local azure_role_exists=$(az role assignment list \
+        --assignee $user_object_id \
+        --scope $account_id \
+        --role "Contributor" \
+        --query "[0].id" -o tsv 2>/dev/null)
 
-    if [ $? -eq 0 ]; then
-        echo "✓ Microsoft Entra administrator configured: $user_upn"
+    if [ -n "$azure_role_exists" ]; then
+        echo "✓ Azure RBAC Contributor role already assigned"
     else
-        echo "Error: Failed to configure Entra administrator"
+        az role assignment create \
+            --assignee $user_object_id \
+            --scope $account_id \
+            --role "Contributor" > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Azure RBAC Contributor role assigned"
+        else
+            echo "Error: Failed to assign Azure RBAC Contributor role"
+            return 1
+        fi
+    fi
+
+    # Assign Cosmos DB Built-in Data Contributor role (for data plane: read/write items)
+    echo "Assigning 'Cosmos DB Built-in Data Contributor' role to '$user_upn'..."
+
+    # Use the built-in role name for better maintainability
+    local cosmos_role_name="Cosmos DB Built-in Data Contributor"
+
+    # Check if role assignment already exists
+    local cosmos_role_exists=$(az cosmosdb sql role assignment list \
+        --resource-group $rg \
+        --account-name $account_name \
+        --query "[?principalId=='$user_object_id']" \
+        -o tsv 2>/dev/null)
+
+    if [ -n "$cosmos_role_exists" ]; then
+        echo "✓ Cosmos DB Data Contributor role already assigned"
+    else
+        az cosmosdb sql role assignment create \
+            --resource-group $rg \
+            --account-name $account_name \
+            --role-definition-name "$cosmos_role_name" \
+            --principal-id $user_object_id \
+            --scope $account_id > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Cosmos DB Data Contributor role assigned"
+        else
+            echo "Error: Failed to assign Cosmos DB Data Contributor role"
+            return 1
+        fi
+    fi
+
+    echo ""
+    echo "Entra ID access configured for: $user_upn"
+    echo "  - Azure RBAC Contributor: manage databases and containers"
+    echo "  - Cosmos DB Data Contributor: read/write data"
+}
+
+# Function to retrieve connection info and set environment variables
+retrieve_connection_info() {
+    echo "Retrieving connection information..."
+
+    # Prereq check: Cosmos DB account must exist
+    local account_exists=$(az cosmosdb show --resource-group $rg --name $account_name 2>/dev/null)
+    if [ -z "$account_exists" ]; then
+        echo "Error: Cosmos DB account '$account_name' not found."
+        echo "Please run option 1 to create the Cosmos DB account, then try again."
         return 1
     fi
+
+    # Prereq check: Both RBAC roles must be configured
+    local account_id=$(az cosmosdb show --resource-group $rg --name $account_name --query "id" -o tsv)
+    local cosmos_role=$(az cosmosdb sql role assignment list \
+        --resource-group $rg \
+        --account-name $account_name \
+        --query "[?principalId=='$user_object_id']" \
+        -o tsv 2>/dev/null)
+
+    if [ -z "$cosmos_role" ]; then
+        echo "Error: Entra ID access not configured for this account."
+        echo "Please run option 2 to configure Entra ID access, then try again."
+        return 1
+    fi
+
+    # Get endpoint
+    local endpoint=$(az cosmosdb show --resource-group $rg --name $account_name --query "documentEndpoint" -o tsv 2>/dev/null)
+
+    if [ -z "$endpoint" ]; then
+        echo "Error: Unable to retrieve connection information."
+        return 1
+    fi
+
+    local env_file="$(dirname "$0")/.env"
+
+    # Create or update .env file with export statements (no key needed for Entra auth)
+    cat > "$env_file" << EOF
+export COSMOS_ENDPOINT="$endpoint"
+export COSMOS_DATABASE="$database_name"
+export COSMOS_CONTAINER="$container_name"
+EOF
+
+    echo ""
+    echo "Cosmos DB Connection Information"
+    echo "==========================================================="
+    echo "Endpoint: $endpoint"
+    echo "Database: $database_name"
+    echo "Container: $container_name"
+    echo "Authentication: Microsoft Entra ID (DefaultAzureCredential)"
+    echo ""
+    echo "Environment variables saved to: $env_file"
 }
 
 # Function to check deployment status
@@ -114,112 +255,78 @@ check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
 
-    # Check PostgreSQL server
-    echo "PostgreSQL Server ($server_name):"
-    local state=$(az postgres flexible-server show --resource-group $rg --name $server_name --query "state" -o tsv 2>/dev/null)
+    # Check Cosmos DB account
+    echo "Cosmos DB Account ($account_name):"
+    local status=$(az cosmosdb show --resource-group $rg --name $account_name --query "provisioningState" -o tsv 2>/dev/null)
 
-    if [ -z "$state" ]; then
+    if [ -z "$status" ]; then
         echo "  Status: Not created"
     else
-        echo "  Status: $state"
-        if [ "$state" = "Ready" ]; then
-            echo "  ✓ PostgreSQL server is ready"
+        echo "  Status: $status"
+        if [ "$status" = "Succeeded" ]; then
+            echo "  ✓ Cosmos DB account is ready"
+
+            # Check database
+            local db_status=$(az cosmosdb sql database show --resource-group $rg --account-name $account_name --name $database_name 2>/dev/null)
+            if [ -n "$db_status" ]; then
+                echo "  ✓ Database: $database_name"
+            else
+                echo "  ⚠ Database not created"
+            fi
+
+            # Check container
+            local container_status=$(az cosmosdb sql container show --resource-group $rg --account-name $account_name --database-name $database_name --name $container_name 2>/dev/null)
+            if [ -n "$container_status" ]; then
+                echo "  ✓ Container: $container_name"
+            else
+                echo "  ⚠ Container not created"
+            fi
+
+            # Check Entra ID RBAC
+            local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
+            local account_id=$(az cosmosdb show --resource-group $rg --name $account_name --query "id" -o tsv)
+
+            # Check Azure RBAC
+            local azure_role=$(az role assignment list \
+                --assignee $user_object_id \
+                --scope $account_id \
+                --role "Contributor" \
+                --query "[0].id" -o tsv 2>/dev/null)
+
+            # Check Cosmos DB data plane RBAC
+            local cosmos_role=$(az cosmosdb sql role assignment list \
+                --resource-group $rg \
+                --account-name $account_name \
+                --query "[?principalId=='$user_object_id']" \
+                -o tsv 2>/dev/null)
+
+            if [ -n "$azure_role" ] && [ -n "$cosmos_role" ]; then
+                echo "  ✓ Entra ID access: $user_upn (full control)"
+            elif [ -n "$cosmos_role" ]; then
+                echo "  ⚠ Entra ID access: $user_upn (data only, missing Azure RBAC)"
+            elif [ -n "$azure_role" ]; then
+                echo "  ⚠ Entra ID access: $user_upn (control plane only, missing data role)"
+            else
+                echo "  ⚠ Entra ID access not configured"
+            fi
         fi
-
-        # Check Entra admin configuration
-        local admin_name=$(az postgres flexible-server microsoft-entra-admin list --resource-group $rg --server-name $server_name --query "[0].principalName" -o tsv 2>/dev/null)
-        if [ -n "$admin_name" ]; then
-            echo "  ✓ Entra administrator: $admin_name"
-        else
-            echo "  ⚠ Entra administrator not configured"
-        fi
     fi
-}
-
-# Function to retrieve connection info and set environment variables
-retrieve_connection_info() {
-    echo "Retrieving connection information..."
-
-    # Prereq check: PostgreSQL server must exist
-    local state=$(az postgres flexible-server show --resource-group $rg --name $server_name --query "state" -o tsv 2>/dev/null)
-    if [ -z "$state" ]; then
-        echo "Error: PostgreSQL server '$server_name' not found."
-        echo "Please run option 1 to create the PostgreSQL server, then try again."
-        return 1
-    fi
-
-    # Prereq check: Server must be in Ready state
-    if [ "$state" != "Ready" ]; then
-        echo "Error: PostgreSQL server is not ready (current state: $state)."
-        echo "Please wait for deployment to complete. Use option 3 to check status."
-        return 1
-    fi
-
-    # Prereq check: Entra admin must be configured
-    local admin_name=$(az postgres flexible-server microsoft-entra-admin list --resource-group $rg --server-name $server_name --query "[0].principalName" -o tsv 2>/dev/null)
-    if [ -z "$admin_name" ]; then
-        echo "Error: Microsoft Entra administrator not configured on '$server_name'."
-        echo "Please run option 2 to configure the Entra administrator, then try again."
-        return 1
-    fi
-
-    # Get the signed-in user's UPN for the database user
-    local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
-
-    if [ -z "$user_upn" ]; then
-        echo "Error: Unable to retrieve signed-in user information."
-        echo "Please ensure you are logged in with 'az login'."
-        return 1
-    fi
-
-    # Get access token for PostgreSQL
-    echo "Retrieving access token..."
-    local access_token=$(az account get-access-token --resource-type oss-rdbms --query accessToken -o tsv 2>/dev/null)
-
-    if [ -z "$access_token" ]; then
-        echo "Error: Unable to retrieve access token."
-        return 1
-    fi
-
-    # Set connection variables
-    local db_host="${server_name}.postgres.database.azure.com"
-    local db_name="postgres"
-    local db_user="$user_upn"
-    local env_file="$(dirname "$0")/.env"
-
-    # Create or update .env file with export statements
-    cat > "$env_file" << EOF
-export DB_HOST="$db_host"
-export DB_NAME="$db_name"
-export DB_USER="$db_user"
-export PGPASSWORD="$access_token"
-EOF
-
-    echo ""
-    echo "PostgreSQL Connection Information"
-    echo "==========================================================="
-    echo "Host: $db_host"
-    echo "Database: $db_name"
-    echo "User: $db_user"
-    echo "Password: (Entra token - expires in ~1 hour)"
-    echo ""
-    echo "Environment variables saved to: $env_file"
 }
 
 # Display menu
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    Azure Database for PostgreSQL Deployment Menu"
+    echo "    Azure Cosmos DB for NoSQL Deployment Menu"
     echo "====================================================================="
     echo "Resource Group: $rg"
-    echo "Server Name: $server_name"
+    echo "Account Name: $account_name"
     echo "Location: $location"
     echo "====================================================================="
-    echo "1. Create PostgreSQL server with Entra authentication"
-    echo "2. Configure Microsoft Entra administrator"
+    echo "1. Create Cosmos DB account"
+    echo "2. Configure Entra ID access"
     echo "3. Check deployment status"
-    echo "4. Retrieve connection info and access token"
+    echo "4. Retrieve connection info"
     echo "5. Exit"
     echo "====================================================================="
 }
@@ -234,13 +341,13 @@ while true; do
             echo ""
             create_resource_group
             echo ""
-            create_postgres_server
+            create_cosmosdb_account
             echo ""
             read -p "Press Enter to continue..."
             ;;
         2)
             echo ""
-            configure_entra_admin
+            configure_entra_access
             echo ""
             read -p "Press Enter to continue..."
             ;;
