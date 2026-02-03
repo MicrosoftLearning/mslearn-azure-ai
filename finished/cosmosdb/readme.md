@@ -1,0 +1,1 @@
+Contains completed files for Azure Cosmos DB exercises.
