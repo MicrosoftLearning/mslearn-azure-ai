@@ -14,8 +14,8 @@ Tasks performed in this exercise:
 - Download project starter files and configure the deployment script
 - Deploy an Azure Cosmos DB for NoSQL account with vector search capability
 - Build Python functions for vector similarity search
+- Create a container with vector embedding and indexing policies
 - Test vector search using a Flask web application
-- Execute filtered vector queries using the Cosmos DB SQL API
 
 This exercise takes approximately **30** minutes to complete.
 
@@ -252,17 +252,15 @@ Next, you finalize the Azure resource deployment.
 
 ## Complete the Azure resource deployment
 
-In this section you return to the deployment script to configure Entra ID access, create the vector container, and retrieve the connection information.
+In this section you return to the deployment script to configure Entra ID access and retrieve the connection information.
 
 1. When the **Create Cosmos DB account** operation has completed, enter **2** to launch the **Configure Entra ID access** option. This assigns your user account the necessary role to access the Cosmos DB data plane.
 
-1. Enter **3** to launch the **Create vector container** option. This creates a container with the vector embedding policy (256 dimensions, cosine distance) and a DiskANN vector index.
+1. Enter **3** to launch the **Check deployment status** option. Verify the Cosmos DB account shows as ready with the vector search capability enabled.
 
-1. Enter **4** to launch the **Check deployment status** option. This verifies all resources are ready, including the vector search capability.
+1. Enter **4** to launch the **Retrieve connection info** option. This creates a file with the necessary environment variables.
 
-1. Enter **5** to launch the **Retrieve connection info** option. This creates a file with the necessary environment variables.
-
-1. Enter **6** to exit the deployment script.
+1. Enter **5** to exit the deployment script.
 
 1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -278,33 +276,11 @@ In this section you return to the deployment script to configure Entra ID access
 
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
 
-Next, you explore the vector container configuration.
+Next, you set up the Python environment and create the vector container.
 
-## Understand the vector container configuration
+## Set up the Python environment
 
-In this section you learn about the vector embedding and indexing policies configured for the container. The deployment script created the container with specific settings that enable vector similarity search.
-
-The vector embedding policy defines how embeddings are stored:
-
-| Setting | Value | Description |
-|---------|-------|-------------|
-| **path** | /embedding | JSON path where vectors are stored |
-| **dataType** | float32 | Data type for vector components |
-| **distanceFunction** | cosine | Similarity metric (0=identical, 2=opposite) |
-| **dimensions** | 256 | Number of dimensions in each vector |
-
-The indexing policy includes a vector index:
-
-| Setting | Value | Description |
-|---------|-------|-------------|
-| **path** | /embedding | Path to index for vector search |
-| **type** | diskANN | Approximate nearest neighbor algorithm |
-
-The DiskANN index type provides efficient approximate nearest neighbor search, enabling fast similarity queries even with large datasets. The embedding path is excluded from standard indexing since vectors use their own specialized index.
-
-## Test the vector search functions with the Flask app
-
-In this section you start the Flask web application and use its interface to test the vector search functions you created. The app provides a visual way to load sample support tickets and execute vector similarity searches.
+In this section you create a Python virtual environment and install the dependencies needed for both the container setup script and the Flask application.
 
 1. Run the following command to navigate to the *client* directory.
 
@@ -312,7 +288,7 @@ In this section you start the Flask web application and use its interface to tes
     cd client
     ```
 
-1. Run the following command to create a virtual environment for the Flask app. Depending on your environment the command might be **python** or **python3**.
+1. Run the following command to create a virtual environment for the Python scripts. Depending on your environment the command might be **python** or **python3**.
 
     ```
     python -m venv .venv
@@ -330,11 +306,110 @@ In this section you start the Flask web application and use its interface to tes
     .\.venv\Scripts\Activate.ps1
     ```
 
-1. Run the following command to install the Python dependencies for the app. This installs the **flask**, **azure-cosmos**, and **azure-identity** libraries.
+1. Run the following command to install the Python dependencies. This installs the **flask**, **azure-cosmos**, and **azure-identity** libraries.
 
     ```bash
     pip install -r requirements.txt
     ```
+
+Next, you create the vector container with the required policies.
+
+## Create the vector container
+
+In this section you complete the *setup_container.py* script and run it to create a Cosmos DB container with vector embedding and indexing policies. These policies enable the **VectorDistance** function for similarity search.
+
+1. Open the *client/setup_container.py* file in VS Code.
+
+1. Search for the **BEGIN CREATE VECTOR CONTAINER FUNCTION** comment and review the code. This function creates a container configured for vector search:
+
+    ```python
+    def create_vector_container():
+        """
+        Create a container with vector embedding and indexing policies.
+
+        The vector embedding policy defines:
+        - path: JSON path where vector embeddings are stored
+        - dataType: Data type for vector components (float32)
+        - distanceFunction: Similarity metric (cosine: 0=identical, 2=opposite)
+        - dimensions: Number of dimensions in each vector (256)
+
+        The indexing policy includes:
+        - Standard indexing for all paths except embeddings
+        - DiskANN vector index for efficient similarity search
+        """
+        database = get_database()
+        container_name = os.environ.get("COSMOS_CONTAINER", "vectors")
+
+        # Define the vector embedding policy
+        # This tells Cosmos DB how to handle vector data at the /embedding path
+        vector_embedding_policy = {
+            "vectorEmbeddings": [
+                {
+                    "path": "/embedding",
+                    "dataType": "float32",
+                    "distanceFunction": "cosine",
+                    "dimensions": 256
+                }
+            ]
+        }
+
+        # Define the indexing policy with vector index
+        # - DiskANN provides efficient approximate nearest neighbor search
+        # - Exclude /embedding/* from standard indexing (vectors use their own index)
+        indexing_policy = {
+            "indexingMode": "consistent",
+            "automatic": True,
+            "includedPaths": [
+                {"path": "/*"}
+            ],
+            "excludedPaths": [
+                {"path": "/embedding/*"}
+            ],
+            "vectorIndexes": [
+                {
+                    "path": "/embedding",
+                    "type": "diskANN"
+                }
+            ]
+        }
+
+        # Create the container with vector policies
+        # partition_key determines how data is distributed across physical partitions
+        container = database.create_container_if_not_exists(
+            id=container_name,
+            partition_key=PartitionKey(path="/documentId"),
+            indexing_policy=indexing_policy,
+            vector_embedding_policy=vector_embedding_policy
+        )
+
+        return container
+    ```
+
+1. Take a moment to understand the key configuration elements:
+
+    | Policy | Setting | Purpose |
+    |--------|---------|---------|
+    | **vectorEmbeddings** | path: /embedding | Location where vector data is stored |
+    | **vectorEmbeddings** | dimensions: 256 | Must match your embedding model output |
+    | **vectorEmbeddings** | distanceFunction: cosine | Similarity metric for VectorDistance |
+    | **vectorIndexes** | type: diskANN | Efficient approximate nearest neighbor algorithm |
+    | **excludedPaths** | /embedding/* | Vectors use specialized index, not standard |
+
+1. Run the following command to execute the setup script and create the container. Ensure you are still in the *client* directory with the virtual environment activated.
+
+    ```bash
+    python setup_container.py
+    ```
+
+1. Verify the output shows the container was created successfully with the vector policies configured.
+
+Next, you test the vector search functions using the Flask application.
+
+## Test the vector search functions with the Flask app
+
+In this section you start the Flask web application and use its interface to test the vector search functions you created. The app provides a visual way to load sample support tickets and execute vector similarity searches.
+
+1. Ensure you are still in the *client* directory with the virtual environment activated. You should see **(.venv)** in your terminal prompt.
 
 1. Run the following command to start the Flask application.
 
@@ -378,39 +453,11 @@ In this section you combine metadata filtering with vector similarity ranking. T
 
 1. Try the same query with the **account** category to see different results that are still semantically relevant but limited to account-related issues.
 
-## Query vector data
-
-In this section you practice writing SQL queries that use the **VectorDistance** function. These queries demonstrate patterns that support applications commonly use to find similar tickets.
-
-1. In the **Query Explorer** section, enter the following query to retrieve all tickets with their metadata. This helps you understand the data structure.
-
-    ```sql
-    SELECT c.id, c.documentId, c.content, c.metadata
-    FROM c
-    OFFSET 0 LIMIT 5
-    ```
-
-1. Select **Execute Query** and review the results.
-
-1. Now enter a vector similarity query. Copy one of the query embeddings from *sample_vectors.json* (the embedding array for "query-database-nosql") and use it in this query pattern:
-
-    ```sql
-    SELECT TOP 3
-        c.id,
-        c.content,
-        c.metadata.category,
-        VectorDistance(c.embedding, [0.085, -0.026, ...]) AS score
-    FROM c
-    ORDER BY VectorDistance(c.embedding, [0.085, -0.026, ...])
-    ```
-
-    >**Note:** The query above uses a truncated embedding array for readability. In practice, you would include all 256 values.
-
 1. Return to the terminal and press **Ctrl+C** to stop the Flask application.
 
 ## Summary
 
-In this exercise, you implemented vector similarity search using Azure Cosmos DB for NoSQL. You deployed an Azure Cosmos DB account with the **EnableNoSQLVectorSearch** capability and created a container with vector embedding and indexing policies. You built Python functions that store support tickets with embeddings, perform vector similarity search using the **VectorDistance** function, and combine vector search with metadata filters. You tested the workflow using a Flask web application and explored vector queries using the SQL API. This pattern enables applications to perform semantic search over support data, finding similar tickets based on meaning rather than exact keyword matches.
+In this exercise, you implemented vector similarity search using Azure Cosmos DB for NoSQL. You deployed an Azure Cosmos DB account with the **EnableNoSQLVectorSearch** capability and configured Entra ID authentication. You created a container using the Python SDK with vector embedding and indexing policies that enable the **VectorDistance** function. You built Python functions that store support tickets with embeddings, perform vector similarity search, and combine vector search with metadata filters. You tested the workflow using a Flask web application. This pattern enables applications to perform semantic search over support data, finding similar tickets based on meaning rather than exact keyword matches.
 
 ## Clean up resources
 
@@ -440,13 +487,18 @@ If you encounter issues during this exercise, try these steps:
 - Ensure **COSMOS_ENDPOINT** is set correctly in your terminal session
 
 **Vector search returns no results or errors**
-- Verify the vector container was created by running the deployment script option **3**
-- Ensure the container has the vector embedding policy configured (check status with option **4**)
+- Verify the vector container was created by running **python setup_container.py**
+- Ensure the container has the vector embedding policy configured (check status with deployment script option **4**)
 - Verify sample tickets were loaded before running searches
+
+**setup_container.py fails**
+- Ensure Python virtual environment is activated
+- Ensure environment variables are set (**COSMOS_ENDPOINT**, **COSMOS_DATABASE**, **COSMOS_CONTAINER**)
+- If container already exists, the script will use the existing container
 
 **Cosmos DB operations fail**
 - Verify the Cosmos DB account is ready by running the deployment script option **4**
-- Ensure the database and container were created during deployment
+- Ensure the database was created during deployment
 - Check that the account has the **EnableNoSQLVectorSearch** capability
 
 **Environment variable issues**
