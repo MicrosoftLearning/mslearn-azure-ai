@@ -83,7 +83,11 @@ In this section you run the deployment script to deploy the Cosmos DB account wi
 
     >**IMPORTANT:** Leave the terminal running the deployment open for the duration of the exercise. You can move on to the next section of the exercise while the deployment continues in the terminal.
 
-## Complete the vector search functions
+## Complete the apps
+
+In this section you complete the Python code for both the vector search functions and the container setup script. The vector functions perform similarity searches using the **VectorDistance** function, while the setup script creates the container with the necessary vector policies.
+
+### Complete the vector search functions
 
 In this section you complete the *vector_functions.py* file by adding functions that perform vector similarity search. These functions use the **VectorDistance** function to calculate similarity between query vectors and ticket embeddings. A support application could use these functions to find similar tickets when a new issue is reported.
 
@@ -248,73 +252,7 @@ In this section you complete the *vector_functions.py* file by adding functions 
 
 1. Take a few minutes to review all of the code in the file.
 
-Next, you finalize the Azure resource deployment.
-
-## Complete the Azure resource deployment
-
-In this section you return to the deployment script to configure Entra ID access and retrieve the connection information.
-
-1. When the **Create Cosmos DB account** operation has completed, enter **2** to launch the **Configure Entra ID access** option. This assigns your user account the necessary role to access the Cosmos DB data plane.
-
-1. Enter **3** to launch the **Check deployment status** option. Verify the Cosmos DB account shows as ready with the vector search capability enabled.
-
-1. Enter **4** to launch the **Retrieve connection info** option. This creates a file with the necessary environment variables.
-
-1. Enter **5** to exit the deployment script.
-
-1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
-
-    **Bash**
-    ```bash
-    source .env
-    ```
-
-    **PowerShell**
-    ```powershell
-    . .\.env.ps1
-    ```
-
-    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
-
-Next, you set up the Python environment and create the vector container.
-
-## Set up the Python environment
-
-In this section you create a Python virtual environment and install the dependencies needed for both the container setup script and the Flask application.
-
-1. Run the following command to navigate to the *client* directory.
-
-    ```
-    cd client
-    ```
-
-1. Run the following command to create a virtual environment for the Python scripts. Depending on your environment the command might be **python** or **python3**.
-
-    ```
-    python -m venv .venv
-    ```
-
-1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
-
-    **Bash**
-    ```bash
-    source .venv/bin/activate
-    ```
-
-    **PowerShell**
-    ```powershell
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-1. Run the following command to install the Python dependencies. This installs the **flask**, **azure-cosmos**, and **azure-identity** libraries.
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-Next, you create the vector container with the required policies.
-
-## Create the vector container
+### Complete the setup container code
 
 In this section you complete the *setup_container.py* script and run it to create a Cosmos DB container with vector embedding and indexing policies. These policies enable the **VectorDistance** function for similarity search.
 
@@ -395,6 +333,77 @@ In this section you complete the *setup_container.py* script and run it to creat
     | **vectorIndexes** | type: diskANN | Efficient approximate nearest neighbor algorithm |
     | **excludedPaths** | /embedding/* | Vectors use specialized index, not standard |
 
+
+Next, you finalize the Azure resource deployment.
+
+## Complete the Azure resource deployment
+
+In this section you return to the deployment script to configure Entra ID access and retrieve the connection information.
+
+1. When the **Create Cosmos DB account** operation has completed, enter **2** to launch the **Configure Entra ID access** option. This assigns your user account the necessary role to access the Cosmos DB data plane.
+
+1. Enter **3** to launch the **Check deployment status** option. Verify the Cosmos DB account shows as ready with the vector search capability enabled.
+
+1. Enter **4** to launch the **Retrieve connection info** option. This creates a file with the necessary environment variables.
+
+1. Enter **5** to exit the deployment script.
+
+1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
+
+Next, you set up the Python environment and create the vector container.
+
+## Set up the Python environment
+
+In this section you create a Python virtual environment and install the dependencies needed for both the container setup script and the Flask application.
+
+1. Run the following command to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
+1. Run the following command to create a virtual environment for the Python scripts. Depending on your environment the command might be **python** or **python3**.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
+
+    **Bash**
+    ```bash
+    source .venv/bin/activate
+    ```
+
+    **PowerShell**
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+1. Run the following command to install the Python dependencies. This installs the **flask**, **azure-cosmos**, and **azure-identity** libraries.
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+Next, you create the vector container with the required policies.
+
+## Create the vector container
+
+In this section you run the setup script to create the Cosmos DB container with the vector policies you reviewed earlier.
+
 1. Run the following command to execute the setup script and create the container. Ensure you are still in the *client* directory with the virtual environment activated.
 
     ```bash
@@ -414,7 +423,7 @@ In this section you start the Flask web application and use its interface to tes
 1. Run the following command to start the Flask application.
 
     ```bash
-    flask run
+    python app.py
     ```
 
 1. Open a browser and navigate to `http://127.0.0.1:5000` to view the application.
@@ -479,7 +488,7 @@ If you encounter issues during this exercise, try these steps:
 - Ensure Python virtual environment is activated (you should see **(.venv)** in your terminal prompt)
 - Ensure dependencies are installed: **pip install -r requirements.txt**
 - Ensure environment variables are loaded by running **source .env** (Bash) or **. .\.env.ps1** (PowerShell)
-- Ensure you are in the *client* directory when running **flask run**
+- Ensure you are in the *client* directory when running **python app.py**
 
 **Authentication or access denied errors**
 - Ensure Entra ID access was configured by running the deployment script option **2**
@@ -488,7 +497,7 @@ If you encounter issues during this exercise, try these steps:
 
 **Vector search returns no results or errors**
 - Verify the vector container was created by running **python setup_container.py**
-- Ensure the container has the vector embedding policy configured (check status with deployment script option **4**)
+- Ensure the container has the vector embedding policy configured (check status with deployment script option **3**)
 - Verify sample tickets were loaded before running searches
 
 **setup_container.py fails**
@@ -497,12 +506,12 @@ If you encounter issues during this exercise, try these steps:
 - If container already exists, the script will use the existing container
 
 **Cosmos DB operations fail**
-- Verify the Cosmos DB account is ready by running the deployment script option **4**
+- Verify the Cosmos DB account is ready by running the deployment script option **3**
 - Ensure the database was created during deployment
 - Check that the account has the **EnableNoSQLVectorSearch** capability
 
 **Environment variable issues**
-- Ensure the *.env* file was created by running the deployment script option **5**
+- Ensure the *.env* file was created by running the deployment script option **4**
 - Run **source .env** (Bash) or **. .\.env.ps1** (PowerShell) after creating a new terminal
 - Verify variables are set by running **echo $COSMOS_ENDPOINT** (Bash) or **$env:COSMOS_ENDPOINT** (PowerShell)
 
