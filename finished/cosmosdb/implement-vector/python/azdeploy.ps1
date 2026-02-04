@@ -22,9 +22,9 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($script:userObjectId)) 
 $sha1 = [System.Security.Cryptography.SHA1]::Create()
 $hashBytes = $sha1.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($script:userObjectId))
 $userHash = ([System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower())
-$accountName = "cosmos-rag-$userHash"
-$databaseName = "ragstore"
-$containerName = "chunks"
+$accountName = "cosmos-vector-$userHash"
+$databaseName = "vectorstore"
+$containerName = "vectors"
 
 # Function to create resource group if it doesn't exist
 function Create-ResourceGroup {
@@ -40,7 +40,7 @@ function Create-ResourceGroup {
     }
 }
 
-# Function to create Azure Cosmos DB for NoSQL account with database and container
+# Function to create Azure Cosmos DB for NoSQL account with vector search capability
 function Create-CosmosDBAccount {
     Write-Host "Creating Azure Cosmos DB for NoSQL account '$accountName'..."
     Write-Host "This may take several minutes..."
@@ -48,16 +48,17 @@ function Create-CosmosDBAccount {
     # Check if Cosmos DB account already exists
     az cosmosdb show --resource-group $rg --name $accountName 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        # Create Cosmos DB account with serverless capacity mode (most cost-effective)
+        # Create Cosmos DB account with serverless capacity mode and vector search capability
+        # EnableNoSQLVectorSearch enables the VectorDistance function for similarity queries
         az cosmosdb create `
             --resource-group $rg `
             --name $accountName `
             --locations regionName=$location `
-            --capabilities EnableServerless `
+            --capabilities EnableServerless EnableNoSQLVectorSearch `
             --default-consistency-level Session 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Cosmos DB account created successfully"
+            Write-Host "✓ Cosmos DB account created with vector search capability"
         }
         else {
             Write-Host "Error: Failed to create Cosmos DB account"
@@ -87,29 +88,6 @@ function Create-CosmosDBAccount {
     }
     else {
         Write-Host "✓ Database already exists: $databaseName"
-    }
-
-    # Create container with documentId as partition key
-    Write-Host "Creating container '$containerName'..."
-    az cosmosdb sql container show --resource-group $rg --account-name $accountName --database-name $databaseName --name $containerName 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        az cosmosdb sql container create `
-            --resource-group $rg `
-            --account-name $accountName `
-            --database-name $databaseName `
-            --name $containerName `
-            --partition-key-path "/documentId" 2>&1 | Out-Null
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Container created: $containerName (partition key: /documentId)"
-        }
-        else {
-            Write-Host "Error: Failed to create container"
-            return
-        }
-    }
-    else {
-        Write-Host "✓ Container already exists: $containerName"
     }
 
     Write-Host ""
@@ -227,6 +205,15 @@ function Check-DeploymentStatus {
         if ($status -eq "Succeeded") {
             Write-Host "  ✓ Cosmos DB account is ready"
 
+            # Check for vector search capability
+            $capabilities = (az cosmosdb show --resource-group $rg --name $accountName --query "capabilities[].name" -o tsv 2>$null)
+            if ($capabilities -match "EnableNoSQLVectorSearch") {
+                Write-Host "  ✓ Vector search capability enabled"
+            }
+            else {
+                Write-Host "  ⚠ Vector search capability not enabled"
+            }
+
             # Check database
             az cosmosdb sql database show --resource-group $rg --account-name $accountName --name $databaseName 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
@@ -240,6 +227,15 @@ function Check-DeploymentStatus {
             az cosmosdb sql container show --resource-group $rg --account-name $accountName --database-name $databaseName --name $containerName 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "  ✓ Container: $containerName"
+
+                # Check vector policy
+                $vectorPolicy = (az cosmosdb sql container show --resource-group $rg --account-name $accountName --database-name $databaseName --name $containerName --query "resource.vectorEmbeddingPolicy" 2>$null)
+                if (-not [string]::IsNullOrWhiteSpace($vectorPolicy) -and $vectorPolicy -ne "null") {
+                    Write-Host "  ✓ Vector embedding policy configured"
+                }
+                else {
+                    Write-Host "  ⚠ Vector embedding policy not configured"
+                }
             }
             else {
                 Write-Host "  ⚠ Container not created"
@@ -338,13 +334,13 @@ function Retrieve-ConnectionInfo {
 function Show-Menu {
     Clear-Host
     Write-Host "====================================================================="
-    Write-Host "    Azure Cosmos DB for NoSQL Deployment Menu"
+    Write-Host "    Azure Cosmos DB Vector Search Deployment Menu"
     Write-Host "====================================================================="
     Write-Host "Resource Group: $rg"
     Write-Host "Account Name: $accountName"
     Write-Host "Location: $location"
     Write-Host "====================================================================="
-    Write-Host "1. Create Cosmos DB account"
+    Write-Host "1. Create Cosmos DB account (with vector search capability)"
     Write-Host "2. Configure Entra ID access"
     Write-Host "3. Check deployment status"
     Write-Host "4. Retrieve connection info"
