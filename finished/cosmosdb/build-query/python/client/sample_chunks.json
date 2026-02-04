@@ -1,0 +1,136 @@
+{
+    "chunks": [
+        {
+            "document_id": "doc-azure-overview",
+            "chunk_id": "doc-azure-overview-chunk-0",
+            "content": "Microsoft Azure is a cloud computing platform offering a wide range of services including compute, storage, networking, databases, analytics, and AI. Azure enables organizations to build, deploy, and manage applications through Microsoft's global network of data centers.",
+            "metadata": {
+                "source": "azure-fundamentals",
+                "category": "cloud-services",
+                "tags": ["azure", "cloud", "overview"],
+                "chunkIndex": 0
+            }
+        },
+        {
+            "document_id": "doc-azure-overview",
+            "chunk_id": "doc-azure-overview-chunk-1",
+            "content": "Azure provides infrastructure as a service (IaaS), platform as a service (PaaS), and software as a service (SaaS) options. This flexibility allows developers to choose the level of control they need over their infrastructure while leveraging managed services to reduce operational overhead.",
+            "metadata": {
+                "source": "azure-fundamentals",
+                "category": "cloud-services",
+                "tags": ["azure", "iaas", "paas", "saas"],
+                "chunkIndex": 1
+            }
+        },
+        {
+            "document_id": "doc-azure-overview",
+            "chunk_id": "doc-azure-overview-chunk-2",
+            "content": "Key Azure services include Azure Virtual Machines for compute workloads, Azure Blob Storage for object storage, Azure SQL Database for relational data, and Azure Cosmos DB for globally distributed NoSQL databases. These services integrate seamlessly to support modern application architectures.",
+            "metadata": {
+                "source": "azure-fundamentals",
+                "category": "cloud-services",
+                "tags": ["azure", "compute", "storage", "databases"],
+                "chunkIndex": 2
+            }
+        },
+        {
+            "document_id": "doc-cosmosdb-intro",
+            "chunk_id": "doc-cosmosdb-intro-chunk-0",
+            "content": "Azure Cosmos DB is a fully managed, globally distributed NoSQL database service designed for modern application development. It provides single-digit millisecond response times, automatic scalability, and guaranteed availability with industry-leading SLAs.",
+            "metadata": {
+                "source": "cosmosdb-docs",
+                "category": "databases",
+                "tags": ["cosmosdb", "nosql", "global-distribution"],
+                "chunkIndex": 0
+            }
+        },
+        {
+            "document_id": "doc-cosmosdb-intro",
+            "chunk_id": "doc-cosmosdb-intro-chunk-1",
+            "content": "Cosmos DB supports multiple data models through its multi-model architecture. You can use the NoSQL API for document storage, the MongoDB API for MongoDB compatibility, the Cassandra API for wide-column workloads, the Gremlin API for graph databases, and the Table API for key-value scenarios.",
+            "metadata": {
+                "source": "cosmosdb-docs",
+                "category": "databases",
+                "tags": ["cosmosdb", "nosql", "mongodb", "cassandra", "gremlin"],
+                "chunkIndex": 1
+            }
+        },
+        {
+            "document_id": "doc-cosmosdb-intro",
+            "chunk_id": "doc-cosmosdb-intro-chunk-2",
+            "content": "Partitioning in Cosmos DB is automatic and based on the partition key you define. Choosing the right partition key is critical for performance - it should have high cardinality and distribute requests evenly across partitions. Common patterns include using document ID, tenant ID, or category as the partition key.",
+            "metadata": {
+                "source": "cosmosdb-docs",
+                "category": "databases",
+                "tags": ["cosmosdb", "partitioning", "performance"],
+                "chunkIndex": 2
+            }
+        },
+        {
+            "document_id": "doc-rag-patterns",
+            "chunk_id": "doc-rag-patterns-chunk-0",
+            "content": "Retrieval-Augmented Generation (RAG) is a pattern that enhances large language model responses by retrieving relevant context from external knowledge sources. Instead of relying solely on the model's training data, RAG applications fetch relevant documents and include them in the prompt.",
+            "metadata": {
+                "source": "ai-patterns",
+                "category": "ai-applications",
+                "tags": ["rag", "llm", "ai"],
+                "chunkIndex": 0
+            }
+        },
+        {
+            "document_id": "doc-rag-patterns",
+            "chunk_id": "doc-rag-patterns-chunk-1",
+            "content": "Document chunking is essential for RAG applications. Large documents must be split into smaller chunks that fit within the model's context window. Common strategies include fixed-size chunking, sentence-based chunking, and semantic chunking based on topic boundaries.",
+            "metadata": {
+                "source": "ai-patterns",
+                "category": "ai-applications",
+                "tags": ["rag", "chunking", "documents"],
+                "chunkIndex": 1
+            }
+        },
+        {
+            "document_id": "doc-rag-patterns",
+            "chunk_id": "doc-rag-patterns-chunk-2",
+            "content": "Vector embeddings enable semantic search in RAG applications. Each chunk is converted to a high-dimensional vector using an embedding model. When a user asks a question, their query is also embedded, and the most similar chunks are retrieved using vector similarity search.",
+            "metadata": {
+                "source": "ai-patterns",
+                "category": "ai-applications",
+                "tags": ["rag", "embeddings", "vector-search"],
+                "chunkIndex": 2
+            }
+        },
+        {
+            "document_id": "doc-rag-patterns",
+            "chunk_id": "doc-rag-patterns-chunk-3",
+            "content": "Metadata filtering complements vector search by allowing applications to narrow results based on attributes like source, date, category, or custom tags. This hybrid approach combines the precision of metadata filters with the semantic understanding of vector similarity.",
+            "metadata": {
+                "source": "ai-patterns",
+                "category": "ai-applications",
+                "tags": ["rag", "metadata", "filtering"],
+                "chunkIndex": 3
+            }
+        },
+        {
+            "document_id": "doc-azure-functions",
+            "chunk_id": "doc-azure-functions-chunk-0",
+            "content": "Azure Functions is a serverless compute service that enables you to run event-driven code without managing infrastructure. Functions automatically scale based on demand and you only pay for the compute resources used during execution.",
+            "metadata": {
+                "source": "azure-compute",
+                "category": "compute",
+                "tags": ["functions", "serverless", "compute"],
+                "chunkIndex": 0
+            }
+        },
+        {
+            "document_id": "doc-azure-functions",
+            "chunk_id": "doc-azure-functions-chunk-1",
+            "content": "Functions support multiple programming languages including C#, JavaScript, Python, Java, and PowerShell. They can be triggered by HTTP requests, timers, message queues, blob storage events, Cosmos DB change feed, and many other Azure services.",
+            "metadata": {
+                "source": "azure-compute",
+                "category": "compute",
+                "tags": ["functions", "triggers", "languages"],
+                "chunkIndex": 1
+            }
+        }
+    ]
+}

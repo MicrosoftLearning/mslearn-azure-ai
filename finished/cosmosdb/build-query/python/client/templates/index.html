@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>RAG Document Store - Cosmos DB</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <h1>📄 RAG Document Store - Cosmos DB for NoSQL</h1>
+
+    <div aria-live="polite" aria-atomic="true">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="flash {{ category }}" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+    </div>
+
+    <main id="main-content" class="container">
+        <div class="left-panel">
+            <!-- Load Sample Data -->
+            <section class="section section-load">
+                <h2>Load Sample Data</h2>
+                <p>Load sample document chunks to populate the database.</p>
+                <form action="/load-data" method="post">
+                    <button type="submit" class="btn-success">Load Sample Chunks</button>
+                </form>
+            </section>
+
+            <!-- Store Chunk -->
+            <section class="section section-store">
+                <h2>Store Document Chunk</h2>
+                <form action="/store-chunk" method="post">
+                    <div class="form-row">
+                        <div>
+                            <label for="document_id">Document ID</label>
+                            <input type="text" id="document_id" name="document_id" placeholder="e.g., doc-my-document" required>
+                        </div>
+                        <div>
+                            <label for="chunk_id">Chunk ID</label>
+                            <input type="text" id="chunk_id" name="chunk_id" placeholder="e.g., doc-my-document-chunk-0" required>
+                        </div>
+                    </div>
+                    <label for="content">Content</label>
+                    <textarea id="content" name="content" placeholder="Enter the text content of this chunk..." required></textarea>
+                    <div class="form-row">
+                        <div>
+                            <label for="category">Category</label>
+                            <input type="text" id="category" name="category" placeholder="e.g., databases">
+                        </div>
+                        <div>
+                            <label for="chunk_index">Chunk Index</label>
+                            <input type="number" id="chunk_index" name="chunk_index" value="0" min="0">
+                        </div>
+                    </div>
+                    <label for="tags">Tags (comma-separated)</label>
+                    <input type="text" id="tags" name="tags" placeholder="e.g., nosql, azure, cosmosdb">
+                    <button type="submit" class="btn-primary">Store Chunk</button>
+                </form>
+            </section>
+
+            <!-- Get Chunks by Document -->
+            <section class="section section-get">
+                <h2>Get Chunks by Document</h2>
+                <form action="/get-chunks" method="post">
+                    <label for="get_document_id">Select Document ID</label>
+                    <select id="get_document_id" name="document_id" required>
+                        <option value="">-- Select a document --</option>
+                        {% for doc_id in document_ids %}
+                            <option value="{{ doc_id }}">{{ doc_id }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn-primary">Get Chunks</button>
+                </form>
+            </section>
+
+            <!-- Search by Metadata -->
+            <section class="section section-search">
+                <h2>Search by Metadata</h2>
+                <form action="/search-metadata" method="post">
+                    <label for="search_category">Category</label>
+                    <select id="search_category" name="category">
+                        <option value="">-- Any category --</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="search_tag">Tag</label>
+                    <input type="text" id="search_tag" name="tag" placeholder="e.g., nosql">
+                    <button type="submit" class="btn-primary">Search</button>
+                </form>
+            </section>
+
+            <!-- Run Tests -->
+            <section class="section section-test">
+                <h2>Run Test Workflow</h2>
+                <p>Execute automated tests to verify RAG functions.</p>
+                <form action="/run-tests" method="post">
+                    <button type="submit" class="btn-primary">Run Tests</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Query Explorer -->
+            <section class="section section-query">
+                <h2>Query Explorer</h2>
+                <p>Execute custom SQL queries against the Cosmos DB container.</p>
+
+                <div class="sample-queries">
+                    <span style="font-weight: 600; margin-right: 8px;">Sample queries:</span>
+                    {% for sq in sample_queries %}
+                        <button type="button" class="sample-query-btn" onclick="setQuery('{{ sq.query | e }}')">{{ sq.name }}</button>
+                    {% endfor %}
+                </div>
+
+                <form action="/execute-query" method="post">
+                    <label for="sql_query">SQL Query</label>
+                    <textarea id="sql_query" name="sql_query" placeholder="SELECT c.id, c.documentId, c.content FROM c OFFSET 0 LIMIT 10">{{ executed_query if executed_query else '' }}</textarea>
+                    <button type="submit" class="btn-primary">Execute Query</button>
+                </form>
+            </section>
+
+            <!-- Results Section -->
+            <section class="section section-results">
+                <h2>Results</h2>
+
+                <!-- Test Results -->
+                {% if test_results %}
+                    <h3>Test Results</h3>
+                    {% for result in test_results %}
+                        <div class="test-result {{ 'test-passed' if result.status == 'passed' else 'test-failed' }}">
+                            <div>
+                                <div class="test-name">{{ result.name }}</div>
+                                <div class="test-details">{{ result.details }}</div>
+                            </div>
+                            <div class="test-status">{{ result.status }}</div>
+                        </div>
+                    {% endfor %}
+
+                <!-- Get Chunks Results -->
+                {% elif chunks_result is defined %}
+                    <h3>Chunks for: {{ chunks_document_id }}</h3>
+                    <div class="query-info">Found {{ chunks_result | length }} chunk(s)</div>
+                    {% if chunks_result %}
+                        <div class="results-container">
+                            {% for chunk in chunks_result %}
+                                <div class="chunk-card">
+                                    <div class="chunk-id">{{ chunk.chunk_id }} (index: {{ chunk.chunk_index }})</div>
+                                    <div class="chunk-content">{{ chunk.content }}</div>
+                                    <div class="chunk-meta">
+                                        {% if chunk.metadata.category %}
+                                            <span class="tag tag-category">{{ chunk.metadata.category }}</span>
+                                        {% endif %}
+                                        {% for tag in chunk.metadata.tags or [] %}
+                                            <span class="tag">{{ tag }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">No chunks found for this document.</div>
+                    {% endif %}
+
+                <!-- Search Results -->
+                {% elif search_result is defined %}
+                    <h3>Search Results</h3>
+                    <div class="query-info">
+                        Filters:
+                        {% if search_filters.category %}category="{{ search_filters.category }}"{% endif %}
+                        {% if search_filters.tags %}tag="{{ search_filters.tags[0] }}"{% endif %}
+                        | Found {{ search_result | length }} chunk(s)
+                    </div>
+                    {% if search_result %}
+                        <div class="results-container">
+                            {% for chunk in search_result %}
+                                <div class="chunk-card">
+                                    <div class="chunk-id">{{ chunk.document_id }} / {{ chunk.chunk_id }}</div>
+                                    <div class="chunk-content">{{ chunk.content }}</div>
+                                    <div class="chunk-meta">
+                                        {% if chunk.metadata.category %}
+                                            <span class="tag tag-category">{{ chunk.metadata.category }}</span>
+                                        {% endif %}
+                                        {% for tag in chunk.metadata.tags or [] %}
+                                            <span class="tag">{{ tag }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">No chunks found matching the filters.</div>
+                    {% endif %}
+
+                <!-- Query Results -->
+                {% elif query_result is defined %}
+                    <h3>Query Results</h3>
+                    <div class="query-text">{{ executed_query }}</div>
+                    {% if query_result.success %}
+                        <div class="query-info">Returned {{ query_result.count }} row(s)</div>
+                        {% if query_result.results %}
+                            <div class="results-container">
+                                <table class="query-results-table">
+                                    <thead>
+                                        <tr>
+                                            {% for key in query_result.results[0].keys() %}
+                                                <th>{{ key }}</th>
+                                            {% endfor %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in query_result.results %}
+                                            <tr>
+                                                {% for value in row.values() %}
+                                                    <td title="{{ value }}">{{ value }}</td>
+                                                {% endfor %}
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="empty-state">Query returned no results.</div>
+                        {% endif %}
+                    {% else %}
+                        <div class="flash error">Error: {{ query_result.error }}</div>
+                    {% endif %}
+
+                {% else %}
+                    <div class="empty-state">
+                        Results will appear here after you perform an action.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+
+    <script>
+        function setQuery(query) {
+            document.getElementById('sql_query').value = query;
+        }
+    </script>
+</body>
+</html>
