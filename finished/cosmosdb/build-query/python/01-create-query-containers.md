@@ -366,7 +366,7 @@ In this section you start the Flask web application and use its interface to tes
 
 ### Load sample data
 
-In this section you use the app to load sample document chunks into the Cosmos DB container. The app calls the `store_document_chunk()` function you created in *rag_functions.py* to insert each chunk.
+In this section you use the app to load sample document chunks into the Cosmos DB container. The app calls the **store_document_chunk()** function you created in *rag_functions.py* to insert each chunk.
 
 1. In the **Load Sample Data** section, select **Load Sample Chunks**. This inserts 12 sample chunks across four documents, representing content from fictional Azure documentation articles.
 
@@ -387,7 +387,7 @@ In this section you run automated tests that verify the RAG functions you create
 
 ### Get chunks by document
 
-In this section you retrieve all chunks for a specific document. The app calls the `get_chunks_by_document()` function you created in *rag_functions.py*.
+In this section you retrieve all chunks for a specific document. The app calls the **get_chunks_by_document()** function you created in *rag_functions.py*.
 
 1. In the **Get Chunks by Document** section, select a document from the dropdown (for example, **doc-azure-overview**).
 
@@ -397,7 +397,7 @@ In this section you retrieve all chunks for a specific document. The app calls t
 
 ### Search by metadata
 
-In this section you search for chunks across all documents using metadata filters. The app calls the `search_chunks_by_metadata()` function you created in *rag_functions.py*. You observe how combining filters narrows the results.
+In this section you search for chunks across all documents using metadata filters. The app calls the **search_chunks_by_metadata()** function you created in *rag_functions.py*. You observe how combining filters narrows the results.
 
 1. In the **Search by Metadata** section, select **ai-applications** from the **Category** dropdown. Leave the **Tag** field empty.
 
