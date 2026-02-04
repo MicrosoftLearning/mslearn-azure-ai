@@ -13,7 +13,6 @@ from vector_functions import (
     get_all_document_ids,
     get_container
 )
-from test_workflow import run_test_workflow
 from query_executor import execute_query
 
 app = Flask(__name__)
@@ -71,7 +70,7 @@ def load_data():
             loaded_count += 1
             total_ru += result["ru_charge"]
 
-        flash(f"Successfully loaded {loaded_count} documents with embeddings! Total RU: {total_ru:.2f}", "success")
+        flash(f"Successfully loaded {loaded_count} tickets with embeddings! Total RU: {total_ru:.2f}", "success")
     except Exception as e:
         flash(f"Error loading data: {str(e)}", "error")
 
@@ -159,27 +158,6 @@ def search_filtered_vectors():
         )
     except Exception as e:
         flash(f"Error performing filtered search: {str(e)}", "error")
-        return redirect(url_for("index"))
-
-
-@app.route("/run-tests", methods=["POST"])
-def run_tests():
-    """Run the test workflow."""
-    try:
-        test_results = run_test_workflow()
-        document_ids = get_all_document_ids()
-        categories = get_all_categories()
-        queries = get_sample_queries()
-
-        return render_template(
-            "index.html",
-            document_ids=document_ids,
-            categories=categories,
-            queries=queries,
-            test_results=test_results
-        )
-    except Exception as e:
-        flash(f"Error running tests: {str(e)}", "error")
         return redirect(url_for("index"))
 
 

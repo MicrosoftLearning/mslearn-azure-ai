@@ -2,12 +2,12 @@
 lab:
     topic: Azure Cosmos DB
     title: 'Build a semantic search application with vector search'
-    description: 'Learn how to implement vector similarity search in Azure Cosmos DB for NoSQL to enable semantic search over document data'
+    description: 'Learn how to implement vector similarity search in Azure Cosmos DB for NoSQL to enable semantic search over support ticket data'
 ---
 
 # Build a semantic search application with vector search
 
-In this exercise, you implement vector similarity search using Azure Cosmos DB for NoSQL. Vector search enables semantic matching by comparing high-dimensional vector representations of text, finding relevant results even when exact terms don't match. You configure a container with vector embedding and indexing policies, load documents with pre-computed embeddings, and execute similarity queries using the **VectorDistance** function. This pattern provides a foundation for building AI applications that perform semantic search over document data.
+In this exercise, you implement vector similarity search using Azure Cosmos DB for NoSQL. Vector search enables semantic matching by comparing high-dimensional vector representations of text, finding relevant results even when exact terms don't match. You configure a container with vector embedding and indexing policies, load support tickets with pre-computed embeddings, and execute similarity queries using the **VectorDistance** function. This pattern provides a foundation for building AI applications that perform semantic search, such as finding similar support cases to help resolve customer issues faster.
 
 Tasks performed in this exercise:
 
@@ -85,11 +85,11 @@ In this section you run the deployment script to deploy the Cosmos DB account wi
 
 ## Complete the vector search functions
 
-In this section you complete the *vector_functions.py* file by adding functions that perform vector similarity search. These functions use the **VectorDistance** function to calculate similarity between query vectors and document embeddings. The *test_workflow.py* script, which you run later in this exercise, imports these functions to demonstrate how an AI application would use them.
+In this section you complete the *vector_functions.py* file by adding functions that perform vector similarity search. These functions use the **VectorDistance** function to calculate similarity between query vectors and ticket embeddings. A support application could use these functions to find similar tickets when a new issue is reported.
 
 1. Open the *client/vector_functions.py* file in VS Code.
 
-1. Search for the **BEGIN STORE VECTOR DOCUMENT FUNCTION** comment and add the following code directly after the comment. This function stores a document with its vector embedding for similarity search.
+1. Search for the **BEGIN STORE VECTOR DOCUMENT FUNCTION** comment and add the following code directly after the comment. This function stores a support ticket with its vector embedding for similarity search.
 
     ```python
     def store_vector_document(
@@ -132,7 +132,7 @@ In this section you complete the *vector_functions.py* file by adding functions 
         }
     ```
 
-1. Search for the **BEGIN VECTOR SIMILARITY SEARCH FUNCTION** comment and add the following code directly after the comment. This function finds documents most similar to a query using vector distance.
+1. Search for the **BEGIN VECTOR SIMILARITY SEARCH FUNCTION** comment and add the following code directly after the comment. This function finds tickets most similar to a query using vector distance.
 
     ```python
     def vector_similarity_search(
@@ -304,7 +304,7 @@ The DiskANN index type provides efficient approximate nearest neighbor search, e
 
 ## Test the vector search functions with the Flask app
 
-In this section you start the Flask web application and use its interface to test the vector search functions you created. The app provides a visual way to load data, run tests, and execute vector similarity searches.
+In this section you start the Flask web application and use its interface to test the vector search functions you created. The app provides a visual way to load sample support tickets and execute vector similarity searches.
 
 1. Run the following command to navigate to the *client* directory.
 
@@ -346,54 +346,43 @@ In this section you start the Flask web application and use its interface to tes
 
 ### Load sample data
 
-In this section you use the app to load sample documents with pre-computed embeddings into the Cosmos DB container. The sample data includes 12 documents about Azure services, each with a 256-dimensional embedding vector.
+In this section you use the app to load sample support tickets with pre-computed embeddings into the Cosmos DB container. The sample data includes 12 support tickets across different categories (billing, technical, account, shipping), each with a 256-dimensional embedding vector.
 
-1. In the **Load Sample Data** section, select **Load Vector Data**. This inserts documents with their pre-computed embeddings from the *sample_vectors.json* file.
+1. In the **Load Sample Data** section, select **Load Vector Data**. This inserts tickets with their pre-computed embeddings from the *sample_vectors.json* file.
 
-1. Verify that the success message appears showing the number of documents loaded and the total RU (Request Unit) charge.
-
-### Run test workflow
-
-In this section you run automated tests that verify the vector search functions you created in *vector_functions.py* work correctly.
-
-1. In the **Run Test Workflow** section, select **Run Tests**. This executes tests that exercise each vector search function.
-
-1. Review the test results in the **Results** panel. Each test should show a **passed** status:
-    - Store vector documents
-    - Vector similarity search
-    - Filtered vector search
+1. Verify that the success message appears showing the number of tickets loaded and the total RU (Request Unit) charge.
 
 ### Vector similarity search
 
 In this section you perform semantic searches using pre-computed query vectors. The app calls the **vector_similarity_search()** function you created in *vector_functions.py*.
 
-1. In the **Vector Similarity Search** section, select **What is a NoSQL database?** from the **Select Query** dropdown.
+1. In the **Vector Similarity Search** section, select **I can't login to my account** from the **Select Query** dropdown.
 
 1. Keep the default **Top 5** results and select **Search**.
 
-1. Review the results showing documents ranked by similarity score. Notice that documents about Cosmos DB and databases appear first, even though the query doesn't contain the exact words from those documents.
+1. Review the results showing tickets ranked by similarity score. Notice that tickets about authentication and account access appear first, even though they may use different terminology than the query.
 
-1. Try selecting different queries such as **How does vector similarity search work?** or **What is RAG and how is it used with AI?** to see how the semantic search finds relevant content.
+1. Try selecting different queries such as **My payment was charged twice** or **Package hasn't arrived yet** to see how the semantic search finds relevant support cases.
 
 ### Filtered vector search
 
 In this section you combine metadata filtering with vector similarity ranking. The app calls the **filtered_vector_search()** function you created in *vector_functions.py*. You observe how filtering narrows results to a specific category.
 
-1. In the **Filtered Vector Search** section, select **What is a NoSQL database?** from the **Select Query** dropdown.
+1. In the **Filtered Vector Search** section, select **I can't login to my account** from the **Select Query** dropdown.
 
-1. Select **databases** from the **Filter by Category** dropdown.
+1. Select **technical** from the **Filter by Category** dropdown.
 
 1. Select **Search with Filter** to execute the filtered search.
 
-1. Review the results. Notice that only documents with the **databases** category are returned, ranked by similarity to the query.
+1. Review the results. Notice that only tickets with the **technical** category are returned, ranked by similarity to the query.
 
-1. Try the same query with **ai-applications** category to see different results that are still semantically relevant but limited to AI-related content.
+1. Try the same query with the **account** category to see different results that are still semantically relevant but limited to account-related issues.
 
 ## Query vector data
 
-In this section you practice writing SQL queries that use the **VectorDistance** function. These queries demonstrate patterns that AI applications commonly use for semantic search.
+In this section you practice writing SQL queries that use the **VectorDistance** function. These queries demonstrate patterns that support applications commonly use to find similar tickets.
 
-1. In the **Query Explorer** section, enter the following query to retrieve all documents with their metadata. This helps you understand the data structure.
+1. In the **Query Explorer** section, enter the following query to retrieve all tickets with their metadata. This helps you understand the data structure.
 
     ```sql
     SELECT c.id, c.documentId, c.content, c.metadata
@@ -421,7 +410,7 @@ In this section you practice writing SQL queries that use the **VectorDistance**
 
 ## Summary
 
-In this exercise, you implemented vector similarity search using Azure Cosmos DB for NoSQL. You deployed an Azure Cosmos DB account with the **EnableNoSQLVectorSearch** capability and created a container with vector embedding and indexing policies. You built Python functions that store documents with embeddings, perform vector similarity search using the **VectorDistance** function, and combine vector search with metadata filters. You tested the workflow using a Flask web application and explored vector queries using the SQL API. This pattern enables AI applications to perform semantic search over document data, finding relevant results based on meaning rather than exact keyword matches.
+In this exercise, you implemented vector similarity search using Azure Cosmos DB for NoSQL. You deployed an Azure Cosmos DB account with the **EnableNoSQLVectorSearch** capability and created a container with vector embedding and indexing policies. You built Python functions that store support tickets with embeddings, perform vector similarity search using the **VectorDistance** function, and combine vector search with metadata filters. You tested the workflow using a Flask web application and explored vector queries using the SQL API. This pattern enables applications to perform semantic search over support data, finding similar tickets based on meaning rather than exact keyword matches.
 
 ## Clean up resources
 
@@ -453,7 +442,7 @@ If you encounter issues during this exercise, try these steps:
 **Vector search returns no results or errors**
 - Verify the vector container was created by running the deployment script option **3**
 - Ensure the container has the vector embedding policy configured (check status with option **4**)
-- Verify sample data was loaded before running searches
+- Verify sample tickets were loaded before running searches
 
 **Cosmos DB operations fail**
 - Verify the Cosmos DB account is ready by running the deployment script option **4**

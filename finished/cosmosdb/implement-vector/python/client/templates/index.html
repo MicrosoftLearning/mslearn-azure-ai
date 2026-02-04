@@ -23,25 +23,16 @@
             <!-- Load Sample Data -->
             <section class="section section-load">
                 <h2>Load Sample Data</h2>
-                <p>Load sample documents with pre-computed 256-dimensional embeddings.</p>
+                <p>Load sample support tickets with pre-computed 256-dimensional embeddings.</p>
                 <form action="/load-data" method="post">
                     <button type="submit" class="btn-success">Load Vector Data</button>
-                </form>
-            </section>
-
-            <!-- Run Tests -->
-            <section class="section section-test">
-                <h2>Run Test Workflow</h2>
-                <p>Execute automated tests to verify vector search functions.</p>
-                <form action="/run-tests" method="post">
-                    <button type="submit" class="btn-primary">Run Tests</button>
                 </form>
             </section>
 
             <!-- Vector Similarity Search -->
             <section class="section section-search">
                 <h2>Vector Similarity Search</h2>
-                <p>Find documents most similar to a query using VectorDistance.</p>
+                <p>Find tickets most similar to a query using VectorDistance.</p>
                 <form action="/vector-search" method="post">
                     <label for="query_id">Select Query</label>
                     <select id="query_id" name="query_id" required>
@@ -106,21 +97,8 @@
             <section class="section section-results">
                 <h2>Results</h2>
 
-                <!-- Test Results -->
-                {% if test_results %}
-                    <h3>Test Results</h3>
-                    {% for result in test_results %}
-                        <div class="test-result {{ 'test-passed' if result.status == 'passed' else 'test-failed' }}">
-                            <div>
-                                <div class="test-name">{{ result.name }}</div>
-                                <div class="test-details">{{ result.details }}</div>
-                            </div>
-                            <div class="test-status">{{ result.status }}</div>
-                        </div>
-                    {% endfor %}
-
                 <!-- Vector Search Results -->
-                {% elif vector_result is defined %}
+                {% if vector_result is defined %}
                     <h3>Vector Search Results</h3>
                     <div class="query-info">
                         Query: "{{ vector_query }}" | Top {{ vector_top_n }} results
@@ -146,7 +124,7 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <div class="empty-state">No similar documents found.</div>
+                        <div class="empty-state">No similar tickets found.</div>
                     {% endif %}
 
                 <!-- Filtered Vector Search Results -->
@@ -178,7 +156,7 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <div class="empty-state">No documents found matching the filter.</div>
+                        <div class="empty-state">No tickets found matching the filter.</div>
                     {% endif %}
 
                 <!-- Query Results -->
