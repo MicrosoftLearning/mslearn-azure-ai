@@ -320,7 +320,7 @@ This schema supports common RAG patterns:
 - **Point reads**: Retrieve a specific chunk by ID and document ID (lowest latency)
 - **Single-partition queries**: Get all chunks for a document efficiently
 - **Cross-partition queries**: Search across documents by metadata
-- **Vector search**: When combined with vector indexing (covered in a later exercise)
+- **Vector search**: When combined with vector indexing
 
 ## Test the RAG functions with the Flask app
 
