@@ -29,35 +29,12 @@
                 </form>
             </section>
 
-            <!-- Store Chunk -->
-            <section class="section section-store">
-                <h2>Store Document Chunk</h2>
-                <form action="/store-chunk" method="post">
-                    <div class="form-row">
-                        <div>
-                            <label for="document_id">Document ID</label>
-                            <input type="text" id="document_id" name="document_id" placeholder="e.g., doc-my-document" required>
-                        </div>
-                        <div>
-                            <label for="chunk_id">Chunk ID</label>
-                            <input type="text" id="chunk_id" name="chunk_id" placeholder="e.g., doc-my-document-chunk-0" required>
-                        </div>
-                    </div>
-                    <label for="content">Content</label>
-                    <textarea id="content" name="content" placeholder="Enter the text content of this chunk..." required></textarea>
-                    <div class="form-row">
-                        <div>
-                            <label for="category">Category</label>
-                            <input type="text" id="category" name="category" placeholder="e.g., databases">
-                        </div>
-                        <div>
-                            <label for="chunk_index">Chunk Index</label>
-                            <input type="number" id="chunk_index" name="chunk_index" value="0" min="0">
-                        </div>
-                    </div>
-                    <label for="tags">Tags (comma-separated)</label>
-                    <input type="text" id="tags" name="tags" placeholder="e.g., nosql, azure, cosmosdb">
-                    <button type="submit" class="btn-primary">Store Chunk</button>
+            <!-- Run Tests -->
+            <section class="section section-test">
+                <h2>Run Test Workflow</h2>
+                <p>Execute automated tests to verify RAG functions.</p>
+                <form action="/run-tests" method="post">
+                    <button type="submit" class="btn-primary">Run Tests</button>
                 </form>
             </section>
 
@@ -90,15 +67,6 @@
                     <label for="search_tag">Tag</label>
                     <input type="text" id="search_tag" name="tag" placeholder="e.g., nosql">
                     <button type="submit" class="btn-primary">Search</button>
-                </form>
-            </section>
-
-            <!-- Run Tests -->
-            <section class="section section-test">
-                <h2>Run Test Workflow</h2>
-                <p>Execute automated tests to verify RAG functions.</p>
-                <form action="/run-tests" method="post">
-                    <button type="submit" class="btn-primary">Run Tests</button>
                 </form>
             </section>
         </div>

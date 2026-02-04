@@ -94,42 +94,6 @@ def load_data():
     return redirect(url_for("index"))
 
 
-@app.route("/store-chunk", methods=["POST"])
-def store_chunk():
-    """Store a new document chunk."""
-    document_id = request.form.get("document_id", "").strip()
-    chunk_id = request.form.get("chunk_id", "").strip()
-    content = request.form.get("content", "").strip()
-    category = request.form.get("category", "").strip()
-    tags_str = request.form.get("tags", "").strip()
-    chunk_index = request.form.get("chunk_index", "0").strip()
-
-    if not document_id or not chunk_id or not content:
-        flash("Document ID, Chunk ID, and Content are required", "error")
-        return redirect(url_for("index"))
-
-    try:
-        tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
-        metadata = {
-            "category": category,
-            "tags": tags,
-            "chunkIndex": int(chunk_index)
-        }
-
-        result = store_document_chunk(
-            document_id=document_id,
-            chunk_id=chunk_id,
-            content=content,
-            metadata=metadata
-        )
-
-        flash(f"Chunk stored successfully! RU charge: {result['ru_charge']:.2f}", "success")
-    except Exception as e:
-        flash(f"Error storing chunk: {str(e)}", "error")
-
-    return redirect(url_for("index"))
-
-
 @app.route("/get-chunks", methods=["POST"])
 def get_chunks():
     """Get all chunks for a specific document."""
