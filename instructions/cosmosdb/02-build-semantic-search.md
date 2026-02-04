@@ -256,7 +256,7 @@ In this section you complete the *vector_functions.py* file by adding functions 
 
 ### Complete the setup container code
 
-In this section you complete the *setup_container.py* script and run it to create a Cosmos DB container with vector embedding and indexing policies. These policies enable the **VectorDistance** function for similarity search.
+In this section you complete the *setup_container.py* script used to create a Cosmos DB container with vector embedding and indexing policies. These policies enable the **VectorDistance** function for similarity search.
 
 1. Open the *client/setup_container.py* file in VS Code.
 
