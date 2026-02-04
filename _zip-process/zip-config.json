@@ -70,6 +70,11 @@
       "source": "starter/postgresql/vector-search/python",
       "output": "downloads/python",
       "name": "postgresql-vector-search-python.zip"
+    },
+    {
+      "source": "starter/cosmosdb/build-query/python",
+      "output": "downloads/python",
+      "name": "cosmosdb-build-query-python.zip"
     }
   ]
 }
