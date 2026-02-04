@@ -19,9 +19,9 @@ if [ -z "$user_object_id" ]; then
     exit 1
 fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
-account_name="cosmos-rag-${user_hash}"
-database_name="ragstore"
-container_name="chunks"
+account_name="cosmos-vector-${user_hash}"
+database_name="vectorstore"
+container_name="vectors"
 
 # Function to create resource group if it doesn't exist
 create_resource_group() {
@@ -36,7 +36,7 @@ create_resource_group() {
     fi
 }
 
-# Function to create Azure Cosmos DB for NoSQL account with database and container
+# Function to create Azure Cosmos DB for NoSQL account with vector search capability
 create_cosmosdb_account() {
     echo "Creating Azure Cosmos DB for NoSQL account '$account_name'..."
     echo "This may take several minutes..."
@@ -44,16 +44,17 @@ create_cosmosdb_account() {
     # Check if Cosmos DB account already exists
     local account_exists=$(az cosmosdb show --resource-group $rg --name $account_name 2>/dev/null)
     if [ -z "$account_exists" ]; then
-        # Create Cosmos DB account with serverless capacity mode (most cost-effective)
+        # Create Cosmos DB account with serverless capacity mode and vector search capability
+        # EnableNoSQLVectorSearch enables the VectorDistance function for similarity queries
         az cosmosdb create \
             --resource-group $rg \
             --name $account_name \
             --locations regionName=$location \
-            --capabilities EnableServerless \
+            --capabilities EnableServerless EnableNoSQLVectorSearch \
             --default-consistency-level Session > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ Cosmos DB account created successfully"
+            echo "✓ Cosmos DB account created with vector search capability"
         else
             echo "Error: Failed to create Cosmos DB account"
             return 1
@@ -81,29 +82,95 @@ create_cosmosdb_account() {
         echo "✓ Database already exists: $database_name"
     fi
 
-    # Create container with documentId as partition key
-    echo "Creating container '$container_name'..."
-    local container_exists=$(az cosmosdb sql container show --resource-group $rg --account-name $account_name --database-name $database_name --name $container_name 2>/dev/null)
-    if [ -z "$container_exists" ]; then
-        az cosmosdb sql container create \
-            --resource-group $rg \
-            --account-name $account_name \
-            --database-name $database_name \
-            --name $container_name \
-            --partition-key-path "/documentId" > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ Container created: $container_name (partition key: /documentId)"
-        else
-            echo "Error: Failed to create container"
-            return 1
-        fi
-    else
-        echo "✓ Container already exists: $container_name"
-    fi
-
     echo ""
     echo "Use option 2 to configure Entra ID access."
+}
+
+# Function to create container with vector embedding and indexing policies
+create_vector_container() {
+    echo "Creating container '$container_name' with vector search policies..."
+
+    # Prereq check: Cosmos DB account must exist
+    local status=$(az cosmosdb show --resource-group $rg --name $account_name --query "provisioningState" -o tsv 2>/dev/null)
+    if [ -z "$status" ]; then
+        echo "Error: Cosmos DB account '$account_name' not found."
+        echo "Please run option 1 to create the Cosmos DB account, then try again."
+        return 1
+    fi
+
+    if [ "$status" != "Succeeded" ]; then
+        echo "Error: Cosmos DB account is not ready (current state: $status)."
+        echo "Please wait for deployment to complete. Use option 4 to check status."
+        return 1
+    fi
+
+    # Check if container already exists
+    local container_exists=$(az cosmosdb sql container show --resource-group $rg --account-name $account_name --database-name $database_name --name $container_name 2>/dev/null)
+    if [ -n "$container_exists" ]; then
+        echo "✓ Container already exists: $container_name"
+        return 0
+    fi
+
+    # Define vector embedding policy for the /embedding path
+    # - path: JSON path where embeddings are stored
+    # - dataType: float32 for standard embedding values
+    # - distanceFunction: cosine for semantic similarity (0=identical, 2=opposite)
+    # - dimensions: 256 to match our pre-computed embeddings
+    local vector_embedding_policy='{
+        "vectorEmbeddings": [
+            {
+                "path": "/embedding",
+                "dataType": "float32",
+                "distanceFunction": "cosine",
+                "dimensions": 256
+            }
+        ]
+    }'
+
+    # Define indexing policy with vector index using DiskANN
+    # - DiskANN provides efficient approximate nearest neighbor search
+    # - Excludes embedding path from standard indexing (vectors use their own index)
+    local indexing_policy='{
+        "indexingMode": "consistent",
+        "automatic": true,
+        "includedPaths": [
+            {
+                "path": "/*"
+            }
+        ],
+        "excludedPaths": [
+            {
+                "path": "/embedding/*"
+            }
+        ],
+        "vectorIndexes": [
+            {
+                "path": "/embedding",
+                "type": "diskANN"
+            }
+        ]
+    }'
+
+    # Create container with vector policies
+    az cosmosdb sql container create \
+        --resource-group $rg \
+        --account-name $account_name \
+        --database-name $database_name \
+        --name $container_name \
+        --partition-key-path "/documentId" \
+        --vector-embedding-policy "$vector_embedding_policy" \
+        --idx "$indexing_policy" > /dev/null 2>&1
+
+    if [ $? -eq 0 ]; then
+        echo "✓ Container created with vector search policies"
+        echo "  - Path: /embedding"
+        echo "  - Dimensions: 256"
+        echo "  - Distance function: cosine"
+        echo "  - Index type: DiskANN"
+    else
+        echo "Error: Failed to create container with vector policies"
+        return 1
+    fi
 }
 
 # Function to configure Entra ID RBAC for the signed-in user
@@ -266,6 +333,14 @@ check_deployment_status() {
         if [ "$status" = "Succeeded" ]; then
             echo "  ✓ Cosmos DB account is ready"
 
+            # Check for vector search capability
+            local capabilities=$(az cosmosdb show --resource-group $rg --name $account_name --query "capabilities[].name" -o tsv 2>/dev/null)
+            if echo "$capabilities" | grep -q "EnableNoSQLVectorSearch"; then
+                echo "  ✓ Vector search capability enabled"
+            else
+                echo "  ⚠ Vector search capability not enabled"
+            fi
+
             # Check database
             local db_status=$(az cosmosdb sql database show --resource-group $rg --account-name $account_name --name $database_name 2>/dev/null)
             if [ -n "$db_status" ]; then
@@ -278,6 +353,14 @@ check_deployment_status() {
             local container_status=$(az cosmosdb sql container show --resource-group $rg --account-name $account_name --database-name $database_name --name $container_name 2>/dev/null)
             if [ -n "$container_status" ]; then
                 echo "  ✓ Container: $container_name"
+
+                # Check vector policy
+                local vector_policy=$(az cosmosdb sql container show --resource-group $rg --account-name $account_name --database-name $database_name --name $container_name --query "resource.vectorEmbeddingPolicy" 2>/dev/null)
+                if [ -n "$vector_policy" ] && [ "$vector_policy" != "null" ]; then
+                    echo "  ✓ Vector embedding policy configured"
+                else
+                    echo "  ⚠ Vector embedding policy not configured"
+                fi
             else
                 echo "  ⚠ Container not created"
             fi
@@ -317,24 +400,25 @@ check_deployment_status() {
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    Azure Cosmos DB for NoSQL Deployment Menu"
+    echo "    Azure Cosmos DB Vector Search Deployment Menu"
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Account Name: $account_name"
     echo "Location: $location"
     echo "====================================================================="
-    echo "1. Create Cosmos DB account"
+    echo "1. Create Cosmos DB account (with vector search capability)"
     echo "2. Configure Entra ID access"
-    echo "3. Check deployment status"
-    echo "4. Retrieve connection info"
-    echo "5. Exit"
+    echo "3. Create vector container (with embedding policies)"
+    echo "4. Check deployment status"
+    echo "5. Retrieve connection info"
+    echo "6. Exit"
     echo "====================================================================="
 }
 
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-5): " choice
+    read -p "Please select an option (1-6): " choice
 
     case $choice in
         1)
@@ -353,24 +437,30 @@ while true; do
             ;;
         3)
             echo ""
-            check_deployment_status
+            create_vector_container
             echo ""
             read -p "Press Enter to continue..."
             ;;
         4)
             echo ""
-            retrieve_connection_info
+            check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
         5)
+            echo ""
+            retrieve_connection_info
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        6)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
             echo ""
-            echo "Invalid option. Please select 1-5."
+            echo "Invalid option. Please select 1-6."
             echo ""
             read -p "Press Enter to continue..."
             ;;

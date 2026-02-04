@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Vector Search - Cosmos DB</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <h1>🔍 Vector Search - Cosmos DB for NoSQL</h1>
+
+    <div aria-live="polite" aria-atomic="true">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="flash {{ category }}" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+    </div>
+
+    <main id="main-content" class="container">
+        <div class="left-panel">
+            <!-- Load Sample Data -->
+            <section class="section section-load">
+                <h2>Load Sample Data</h2>
+                <p>Load sample documents with pre-computed 256-dimensional embeddings.</p>
+                <form action="/load-data" method="post">
+                    <button type="submit" class="btn-success">Load Vector Data</button>
+                </form>
+            </section>
+
+            <!-- Run Tests -->
+            <section class="section section-test">
+                <h2>Run Test Workflow</h2>
+                <p>Execute automated tests to verify vector search functions.</p>
+                <form action="/run-tests" method="post">
+                    <button type="submit" class="btn-primary">Run Tests</button>
+                </form>
+            </section>
+
+            <!-- Vector Similarity Search -->
+            <section class="section section-search">
+                <h2>Vector Similarity Search</h2>
+                <p>Find documents most similar to a query using VectorDistance.</p>
+                <form action="/vector-search" method="post">
+                    <label for="query_id">Select Query</label>
+                    <select id="query_id" name="query_id" required>
+                        <option value="">-- Select a query --</option>
+                        {% for query in queries %}
+                            <option value="{{ query.id }}">{{ query.description }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="top_n">Number of Results</label>
+                    <select id="top_n" name="top_n">
+                        <option value="3">Top 3</option>
+                        <option value="5" selected>Top 5</option>
+                        <option value="10">Top 10</option>
+                    </select>
+                    <button type="submit" class="btn-primary">Search</button>
+                </form>
+            </section>
+
+            <!-- Filtered Vector Search -->
+            <section class="section section-get">
+                <h2>Filtered Vector Search</h2>
+                <p>Combine metadata filtering with vector similarity ranking.</p>
+                <form action="/filtered-vector-search" method="post">
+                    <label for="filtered_query_id">Select Query</label>
+                    <select id="filtered_query_id" name="filtered_query_id" required>
+                        <option value="">-- Select a query --</option>
+                        {% for query in queries %}
+                            <option value="{{ query.id }}">{{ query.description }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="filter_category">Filter by Category</label>
+                    <select id="filter_category" name="filter_category">
+                        <option value="">-- Any category --</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="filtered_top_n">Number of Results</label>
+                    <select id="filtered_top_n" name="filtered_top_n">
+                        <option value="3">Top 3</option>
+                        <option value="5" selected>Top 5</option>
+                        <option value="10">Top 10</option>
+                    </select>
+                    <button type="submit" class="btn-primary">Search with Filter</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Query Explorer -->
+            <section class="section section-query">
+                <h2>Query Explorer</h2>
+                <p>Execute custom SQL queries including VectorDistance functions.</p>
+                <form action="/execute-query" method="post">
+                    <label for="sql_query">SQL Query</label>
+                    <textarea id="sql_query" name="sql_query" placeholder="SELECT TOP 5 c.id, c.content, VectorDistance(c.embedding, [0.1, 0.2, ...]) AS score FROM c ORDER BY VectorDistance(c.embedding, [0.1, 0.2, ...])">{{ executed_query if executed_query else '' }}</textarea>
+                    <button type="submit" class="btn-primary">Execute Query</button>
+                </form>
+            </section>
+
+            <!-- Results Section -->
+            <section class="section section-results">
+                <h2>Results</h2>
+
+                <!-- Test Results -->
+                {% if test_results %}
+                    <h3>Test Results</h3>
+                    {% for result in test_results %}
+                        <div class="test-result {{ 'test-passed' if result.status == 'passed' else 'test-failed' }}">
+                            <div>
+                                <div class="test-name">{{ result.name }}</div>
+                                <div class="test-details">{{ result.details }}</div>
+                            </div>
+                            <div class="test-status">{{ result.status }}</div>
+                        </div>
+                    {% endfor %}
+
+                <!-- Vector Search Results -->
+                {% elif vector_result is defined %}
+                    <h3>Vector Search Results</h3>
+                    <div class="query-info">
+                        Query: "{{ vector_query }}" | Top {{ vector_top_n }} results
+                    </div>
+                    {% if vector_result %}
+                        <div class="results-container">
+                            {% for item in vector_result %}
+                                <div class="chunk-card">
+                                    <div class="chunk-id">
+                                        {{ item.document_id }} / {{ item.chunk_id }}
+                                        <span class="similarity-score">Score: {{ "%.4f"|format(item.similarity_score) }}</span>
+                                    </div>
+                                    <div class="chunk-content">{{ item.content }}</div>
+                                    <div class="chunk-meta">
+                                        {% if item.metadata.category %}
+                                            <span class="tag tag-category">{{ item.metadata.category }}</span>
+                                        {% endif %}
+                                        {% for tag in item.metadata.tags or [] %}
+                                            <span class="tag">{{ tag }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">No similar documents found.</div>
+                    {% endif %}
+
+                <!-- Filtered Vector Search Results -->
+                {% elif filtered_result is defined %}
+                    <h3>Filtered Vector Search Results</h3>
+                    <div class="query-info">
+                        Query: "{{ filtered_query }}" |
+                        {% if filtered_category %}Category: "{{ filtered_category }}" | {% endif %}
+                        Top {{ filtered_top_n }} results
+                    </div>
+                    {% if filtered_result %}
+                        <div class="results-container">
+                            {% for item in filtered_result %}
+                                <div class="chunk-card">
+                                    <div class="chunk-id">
+                                        {{ item.document_id }} / {{ item.chunk_id }}
+                                        <span class="similarity-score">Score: {{ "%.4f"|format(item.similarity_score) }}</span>
+                                    </div>
+                                    <div class="chunk-content">{{ item.content }}</div>
+                                    <div class="chunk-meta">
+                                        {% if item.metadata.category %}
+                                            <span class="tag tag-category">{{ item.metadata.category }}</span>
+                                        {% endif %}
+                                        {% for tag in item.metadata.tags or [] %}
+                                            <span class="tag">{{ tag }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">No documents found matching the filter.</div>
+                    {% endif %}
+
+                <!-- Query Results -->
+                {% elif query_result is defined %}
+                    <h3>Query Results</h3>
+                    <div class="query-text">{{ executed_query }}</div>
+                    {% if query_result.success %}
+                        <div class="query-info">Returned {{ query_result.count }} row(s)</div>
+                        {% if query_result.results %}
+                            <div class="results-container">
+                                <table class="query-results-table">
+                                    <thead>
+                                        <tr>
+                                            {% for key in query_result.results[0].keys() %}
+                                                {% if key != 'embedding' %}
+                                                    <th>{{ key }}</th>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in query_result.results %}
+                                            <tr>
+                                                {% for key, value in row.items() %}
+                                                    {% if key != 'embedding' %}
+                                                        <td title="{{ value }}">{{ value }}</td>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="empty-state">Query returned no results.</div>
+                        {% endif %}
+                    {% else %}
+                        <div class="flash error">Error: {{ query_result.error }}</div>
+                    {% endif %}
+
+                {% else %}
+                    <div class="empty-state">
+                        Results will appear here after you perform an action.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>
