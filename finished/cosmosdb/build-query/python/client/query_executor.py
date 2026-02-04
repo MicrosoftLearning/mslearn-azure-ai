@@ -50,33 +50,3 @@ def execute_query(sql_query: str, enable_cross_partition: bool = True) -> dict:
             "count": 0,
             "error": str(e)
         }
-
-
-def get_sample_queries() -> list:
-    """Return a list of sample queries for the UI."""
-    return [
-        {
-            "name": "All chunks (limit 10)",
-            "query": "SELECT c.id, c.documentId, c.content, c.metadata FROM c OFFSET 0 LIMIT 10"
-        },
-        {
-            "name": "Chunks by document ID",
-            "query": "SELECT c.id, c.chunkIndex, c.content FROM c WHERE c.documentId = 'doc-azure-overview' ORDER BY c.chunkIndex"
-        },
-        {
-            "name": "Search by category",
-            "query": "SELECT c.documentId, c.id, c.content, c.metadata.category FROM c WHERE c.metadata.category = 'cloud-services'"
-        },
-        {
-            "name": "Count chunks by document",
-            "query": "SELECT c.documentId, COUNT(1) as chunkCount FROM c GROUP BY c.documentId"
-        },
-        {
-            "name": "Search by tag",
-            "query": "SELECT c.documentId, c.id, c.content, c.metadata.tags FROM c WHERE ARRAY_CONTAINS(c.metadata.tags, 'compute')"
-        },
-        {
-            "name": "Chunks with embeddings",
-            "query": "SELECT c.id, c.documentId, ARRAY_LENGTH(c.embedding) as embeddingSize FROM c WHERE ARRAY_LENGTH(c.embedding) > 0"
-        }
-    ]

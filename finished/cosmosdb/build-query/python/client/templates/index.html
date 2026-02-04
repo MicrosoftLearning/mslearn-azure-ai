@@ -76,14 +76,6 @@
             <section class="section section-query">
                 <h2>Query Explorer</h2>
                 <p>Execute custom SQL queries against the Cosmos DB container.</p>
-
-                <div class="sample-queries">
-                    <span style="font-weight: 600; margin-right: 8px;">Sample queries:</span>
-                    {% for sq in sample_queries %}
-                        <button type="button" class="sample-query-btn" onclick="setQuery('{{ sq.query | e }}')">{{ sq.name }}</button>
-                    {% endfor %}
-                </div>
-
                 <form action="/execute-query" method="post">
                     <label for="sql_query">SQL Query</label>
                     <textarea id="sql_query" name="sql_query" placeholder="SELECT c.id, c.documentId, c.content FROM c OFFSET 0 LIMIT 10">{{ executed_query if executed_query else '' }}</textarea>
@@ -205,11 +197,5 @@
             </section>
         </div>
     </main>
-
-    <script>
-        function setQuery(query) {
-            document.getElementById('sql_query').value = query;
-        }
-    </script>
 </body>
 </html>

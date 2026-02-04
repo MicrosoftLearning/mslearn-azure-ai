@@ -13,7 +13,7 @@ from rag_functions import (
     get_container
 )
 from test_workflow import run_test_workflow
-from query_executor import execute_query, get_sample_queries
+from query_executor import execute_query
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -60,12 +60,10 @@ def index():
     """Display the main page."""
     document_ids = get_all_document_ids()
     categories = get_all_categories()
-    sample_queries = get_sample_queries()
     return render_template(
         "index.html",
         document_ids=document_ids,
-        categories=categories,
-        sample_queries=sample_queries
+        categories=categories
     )
 
 
@@ -107,13 +105,11 @@ def get_chunks():
         chunks = get_chunks_by_document(document_id)
         document_ids = get_all_document_ids()
         categories = get_all_categories()
-        sample_queries = get_sample_queries()
 
         return render_template(
             "index.html",
             document_ids=document_ids,
             categories=categories,
-            sample_queries=sample_queries,
             chunks_result=chunks,
             chunks_document_id=document_id
         )
@@ -142,13 +138,11 @@ def search_metadata():
         chunks = search_chunks_by_metadata(filters)
         document_ids = get_all_document_ids()
         categories = get_all_categories()
-        sample_queries = get_sample_queries()
 
         return render_template(
             "index.html",
             document_ids=document_ids,
             categories=categories,
-            sample_queries=sample_queries,
             search_result=chunks,
             search_filters=filters
         )
@@ -164,13 +158,11 @@ def run_tests():
         test_results = run_test_workflow()
         document_ids = get_all_document_ids()
         categories = get_all_categories()
-        sample_queries = get_sample_queries()
 
         return render_template(
             "index.html",
             document_ids=document_ids,
             categories=categories,
-            sample_queries=sample_queries,
             test_results=test_results
         )
     except Exception as e:
@@ -190,13 +182,11 @@ def run_query():
     result = execute_query(sql_query)
     document_ids = get_all_document_ids()
     categories = get_all_categories()
-    sample_queries = get_sample_queries()
 
     return render_template(
         "index.html",
         document_ids=document_ids,
         categories=categories,
-        sample_queries=sample_queries,
         query_result=result,
         executed_query=sql_query
     )

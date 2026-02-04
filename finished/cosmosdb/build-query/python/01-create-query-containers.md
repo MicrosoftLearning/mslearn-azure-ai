@@ -7,15 +7,14 @@ lab:
 
 # Build a RAG document store on Azure Cosmos DB for NoSQL
 
-In this exercise, you create an Azure Cosmos DB for NoSQL database that serves as a document store for retrieval-augmented generation (RAG) applications. The database stores chunked documents with metadata that an AI application can retrieve to provide context to language models. You design a schema optimized for document retrieval, build Python functions that store and query document chunks, and test the complete workflow. This pattern provides a foundation for building AI applications that ground language model responses in your organization's documents.
+In this exercise, you create an Azure Cosmos DB for NoSQL database that serves as a document store for retrieval-augmented generation (RAG) applications. The database stores chunked documents with metadata that an AI application can retrieve to provide context to language models. You design a schema optimized for document retrieval, build Python functions that store and query document chunks, and test the complete workflow using a Flask web application. This pattern provides a foundation for building AI applications that ground language model responses in your organization's documents.
 
 Tasks performed in this exercise:
 
 - Download project starter files and configure the deployment script
 - Deploy an Azure Cosmos DB for NoSQL account with a database and container
 - Build Python functions for storing and retrieving document chunks
-- Create a document schema optimized for RAG retrieval patterns
-- Test the RAG document workflow using a provided test script
+- Test the RAG functions using a Flask web application
 - Query document context using the Cosmos DB SQL API
 
 This exercise takes approximately **30** minutes to complete.
@@ -247,13 +246,15 @@ Next, you finalize the Azure resource deployment.
 
 ## Complete the Azure resource deployment
 
-In this section you return to the deployment script to retrieve the connection information for the Cosmos DB account.
+In this section you return to the deployment script to configure Entra ID access and retrieve the connection information for the Cosmos DB account.
 
-1. When the **Create Cosmos DB account** operation has completed, enter **2** to launch the **Retrieve connection info** option. This creates a file with the necessary environment variables.
+1. When the **Create Cosmos DB account** operation has completed, enter **2** to launch the **Configure Entra ID access** option. This assigns your user account the necessary role to access the Cosmos DB data plane.
 
 1. Enter **3** to launch the **Check deployment status** option. This verifies all resources are ready.
 
-1. Enter **4** to exit the deployment script.
+1. Enter **4** to launch the **Retrieve connection info** option. This creates a file with the necessary environment variables.
+
+1. Enter **5** to exit the deployment script.
 
 1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -294,17 +295,17 @@ This schema supports common RAG patterns:
 - **Cross-partition queries**: Search across documents by metadata
 - **Vector search**: When combined with vector indexing (covered in a later exercise)
 
-## Test the RAG document workflow
+## Test the RAG functions with the Flask app
 
-In this section you run a test script to verify the RAG functions work correctly. The *test_workflow.py* script is included in the project files and demonstrates storing document chunks, retrieving them by document, and searching by metadata.
+In this section you start the Flask web application and use its interface to test the RAG functions you created. The app provides a visual way to load data, run tests, query chunks, and execute custom SQL queries.
 
-1. Run the following command to navigate to the *rag-backend* directory.
+1. Run the following command to navigate to the *client* directory.
 
     ```
-    cd rag-backend
+    cd client
     ```
 
-1. Run the following command to create a virtual environment for the *test_workflow.py* app. Depending on your environment the command might be **python** or **python3**.
+1. Run the following command to create a virtual environment for the Flask app. Depending on your environment the command might be **python** or **python3**.
 
     ```
     python -m venv .venv
@@ -322,113 +323,154 @@ In this section you run a test script to verify the RAG functions work correctly
     .\.venv\Scripts\Activate.ps1
     ```
 
-1. Run the following command to install the Python dependencies for the app. This installs the **azure-cosmos** library for Cosmos DB connectivity.
+1. Run the following command to install the Python dependencies for the app. This installs the **flask** and **azure-cosmos** libraries.
 
     ```bash
     pip install -r requirements.txt
     ```
 
-1. Run the following command to execute the test script. This script exercises all the RAG functions you created.
+1. Run the following command to start the Flask application.
 
     ```bash
-    python test_workflow.py
+    flask run
     ```
 
-1. You should see output showing each step completing successfully, demonstrating that the application can store document chunks, retrieve them by document ID, search by metadata, and perform point reads.
+1. Open a browser and navigate to `http://127.0.0.1:5000` to view the application.
 
-1. Optional: Open the *test_workflow.py* file and review the code.
+### Load sample data
+
+In this section you use the app to load sample document chunks into the Cosmos DB container. The app calls the `store_document_chunk()` function you created in *rag_functions.py* to insert each chunk.
+
+1. In the **Load Sample Data** section, select **Load Sample Chunks**. This inserts 12 sample chunks across four documents, representing content from fictional Azure documentation articles.
+
+1. Verify that the success message appears showing the number of chunks loaded and the total RU (Request Unit) charge.
+
+### Run test workflow
+
+In this section you run automated tests that verify the RAG functions you created in *rag_functions.py* work correctly.
+
+1. In the **Run Test Workflow** section, select **Run Tests**. This executes five tests that exercise each function.
+
+1. Review the test results in the **Results** panel. Each test should show a **passed** status:
+    - Store document chunks
+    - Get chunks by document ID
+    - Search by category
+    - Search by tag
+    - Point read by ID
+
+### Get chunks by document
+
+In this section you retrieve all chunks for a specific document. The app calls the `get_chunks_by_document()` function you created in *rag_functions.py*.
+
+1. In the **Get Chunks by Document** section, select a document from the dropdown (for example, **doc-azure-overview**).
+
+1. Select **Get Chunks** to retrieve all chunks for that document.
+
+1. Review the results showing the chunks ordered by their index, along with their content and metadata tags.
+
+### Search by metadata
+
+In this section you search for chunks across all documents using metadata filters. The app calls the `search_chunks_by_metadata()` function you created in *rag_functions.py*. You observe how combining filters narrows the results.
+
+1. In the **Search by Metadata** section, select **ai-applications** from the **Category** dropdown. Leave the **Tag** field empty.
+
+1. Select **Search** to find all chunks with that category.
+
+1. Review the results in the **Results** panel. You should see 4 chunks returned, each with different tags such as **rag**, **embeddings**, **chunking**, and **metadata**.
+
+1. Now add a tag filter to narrow the results. Enter **embeddings** in the **Tag** field and select **Search** again.
+
+1. Notice that fewer results are returned - only chunks that match both the **ai-applications** category and contain the **embeddings** tag. This demonstrates how combining metadata filters helps RAG applications retrieve more targeted context.
 
 ## Query document context
 
-In this section you practice querying document chunks using patterns that RAG applications commonly use.
+In this section you practice writing SQL queries against the Cosmos DB container using the Query Explorer. These queries demonstrate patterns that RAG applications commonly use to retrieve document context.
 
-1. Run the following command to start an interactive Python session.
+1. In the **Query Explorer** section, enter the following query in the **SQL Query** field to find all chunks for a specific document. This query retrieves chunks ordered by their index for sequential reading.
 
-    ```bash
-    python
+    ```sql
+    SELECT c.id, c.chunkIndex, c.content, c.metadata
+    FROM c
+    WHERE c.documentId = 'doc-azure-overview'
+    ORDER BY c.chunkIndex
     ```
 
-1. Run the following commands to set up the Cosmos DB client. This connects using the environment variables loaded earlier.
+1. Select **Execute Query** and review the results.
 
-    ```python
-    import os
-    from azure.cosmos import CosmosClient
+1. Enter the following query in the **SQL Query** field to search for chunks with a specific category across all documents. This demonstrates a cross-partition query that searches metadata.
 
-    client = CosmosClient(os.environ["COSMOS_ENDPOINT"], credential=os.environ["COSMOS_KEY"])
-    database = client.get_database_client(os.environ["COSMOS_DATABASE"])
-    container = database.get_container_client(os.environ["COSMOS_CONTAINER"])
+    ```sql
+    SELECT c.documentId, c.id, c.content, c.metadata.category
+    FROM c
+    WHERE c.metadata.category = 'cloud-services'
     ```
 
-1. Run the following query to find all chunks for a specific document. The test script created chunks with **documentId** set to **doc-azure-overview**.
+1. Select **Execute Query** and review the results.
 
-    ```python
-    query = """
-        SELECT c.id, c.chunkIndex, c.content, c.metadata
-        FROM chunks c
-        WHERE c.documentId = @docId
-        ORDER BY c.chunkIndex
-    """
-    items = container.query_items(
-        query=query,
-        parameters=[{"name": "@docId", "value": "doc-azure-overview"}],
-        partition_key="doc-azure-overview"
-    )
-    for item in items:
-        print(f"Chunk {item['chunkIndex']}: {item['content'][:50]}...")
+1. Enter the following query in the **SQL Query** field to count chunks by document. This helps understand the distribution of content across source documents.
+
+    ```sql
+    SELECT c.documentId, COUNT(1) as chunkCount
+    FROM c
+    GROUP BY c.documentId
     ```
 
-1. Run the following query to search for chunks with a specific category across all documents. This demonstrates a cross-partition query that searches metadata.
+1. Select **Execute Query** and review the results.
 
-    ```python
-    query = """
-        SELECT c.documentId, c.id, c.content, c.metadata.category
-        FROM chunks c
-        WHERE c.metadata.category = @category
-    """
-    items = container.query_items(
-        query=query,
-        parameters=[{"name": "@category", "value": "cloud-services"}],
-        enable_cross_partition_query=True
-    )
-    for item in items:
-        print(f"[{item['documentId']}] {item['content'][:60]}...")
+1. Enter the following query in the **SQL Query** field to find chunks that contain a specific tag in their metadata. This demonstrates searching within arrays using **ARRAY_CONTAINS**.
+
+    ```sql
+    SELECT c.documentId, c.id, c.content, c.metadata.tags
+    FROM c
+    WHERE ARRAY_CONTAINS(c.metadata.tags, 'compute')
     ```
 
-1. Run the following query to count chunks by document. This helps understand the distribution of content across source documents.
+1. Select **Execute Query** and review the results.
 
-    ```python
-    query = """
-        SELECT c.documentId, COUNT(1) as chunkCount
-        FROM chunks c
-        GROUP BY c.documentId
-    """
-    items = container.query_items(
-        query=query,
-        enable_cross_partition_query=True
-    )
-    for item in items:
-        print(f"{item['documentId']}: {item['chunkCount']} chunks")
-    ```
-
-1. Run the following query to find chunks that contain a specific tag in their metadata. This demonstrates searching within arrays using **ARRAY_CONTAINS**.
-
-    ```python
-    query = """
-        SELECT c.documentId, c.id, c.content, c.metadata.tags
-        FROM chunks c
-        WHERE ARRAY_CONTAINS(c.metadata.tags, @tag)
-    """
-    items = container.query_items(
-        query=query,
-        parameters=[{"name": "@tag", "value": "compute"}],
-        enable_cross_partition_query=True
-    )
-    for item in items:
-        print(f"[{item['documentId']}] Tags: {item['tags']}")
-    ```
-
-1. Enter **exit()** to close the Python session.
+1. Return to the terminal and press **Ctrl+C** to stop the Flask application.
 
 ## Summary
 
-In this exercise, you built a Cosmos DB-based document store for RAG applications. You deployed an Azure Cosmos DB for NoSQL account with a database and container optimized for document retrieval patterns. You created Python functions that store document chunks with metadata, retrieve chunks by document ID, search across documents using metadata filters, and perform efficient point reads. You tested the workflow by running a script that simulated storing and retrieving document chunks, then queried the stored data using the Cosmos DB SQL API. This pattern enables AI applications to store chunked documents and retrieve relevant context to ground language model responses.
+In this exercise, you built a Cosmos DB-based document store for RAG applications. You deployed an Azure Cosmos DB for NoSQL account with a database and container optimized for document retrieval patterns. You created Python functions that store document chunks with metadata, retrieve chunks by document ID, search across documents using metadata filters, and perform efficient point reads. You tested the workflow using a Flask web application that exercised each function, then queried the stored data using the Cosmos DB SQL API. This pattern enables AI applications to store chunked documents and retrieve relevant context to ground language model responses.
+
+## Clean up resources
+
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
+
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you chose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
+
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
+
+## Troubleshooting
+
+If you encounter issues during this exercise, try these steps:
+
+**Flask app fails to start**
+- Ensure Python virtual environment is activated (you should see **(.venv)** in your terminal prompt)
+- Ensure dependencies are installed: **pip install -r requirements.txt**
+- Ensure environment variables are loaded by running **source .env** (Bash) or **. .\.env.ps1** (PowerShell)
+- Ensure you are in the *client* directory when running **flask run**
+
+**Authentication or access denied errors**
+- Ensure Entra ID access was configured by running the deployment script option **2**
+- Verify your user has both the **Contributor** role and the **Cosmos DB Built-in Data Contributor** role
+- Ensure **COSMOS_ENDPOINT** is set correctly in your terminal session
+
+**Cosmos DB operations fail**
+- Verify the Cosmos DB account is ready by running the deployment script option **3**
+- Ensure the database and container were created during deployment
+- Check that the container uses **/documentId** as the partition key
+
+**Environment variable issues**
+- Ensure the *.env* file was created by running the deployment script option **4**
+- Run **source .env** (Bash) or **. .\.env.ps1** (PowerShell) after creating a new terminal
+- Verify variables are set by running **echo $COSMOS_ENDPOINT** (Bash) or **$env:COSMOS_ENDPOINT** (PowerShell)
+
+**Python venv activation issues**
+- On Linux/macOS, use: **source .venv/bin/activate**
+- On Windows PowerShell, use: **.\venv\Scripts\Activate.ps1**
+- If **activate** script is missing, reinstall **python3-venv** package and recreate the venv
