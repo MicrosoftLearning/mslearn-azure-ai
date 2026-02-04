@@ -370,7 +370,7 @@ In this section you use the app to load sample document chunks into the Cosmos D
 
 1. In the **Load Sample Data** section, select **Load Sample Chunks**. This inserts 12 sample chunks across four documents, representing content from fictional Azure documentation articles.
 
-1. Verify that the success message appears showing the number of chunks loaded and the total RU (Request Unit) charge.
+1. Verify that the success message appears in the **Results** section showing the number of chunks loaded and the total RU (Request Unit) charge.
 
 ### Run test workflow
 
