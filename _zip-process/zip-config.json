@@ -75,6 +75,11 @@
       "source": "starter/cosmosdb/build-query/python",
       "output": "downloads/python",
       "name": "cosmosdb-build-query-python.zip"
+    },
+    {
+      "source": "starter/cosmosdb/implement-vector/python",
+      "output": "downloads/python",
+      "name": "cosmosdb-implement-vector-python.zip"
     }
   ]
 }

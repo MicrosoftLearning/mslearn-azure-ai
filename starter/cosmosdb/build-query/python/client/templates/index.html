@@ -8,22 +8,14 @@
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
-    <h1>📄 RAG Document Store - Cosmos DB for NoSQL</h1>
-
-    <div aria-live="polite" aria-atomic="true">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-            <div class="flash {{ category }}" role="alert">{{ message }}</div>
-        {% endfor %}
-    {% endwith %}
-    </div>
 
     <main id="main-content" class="container">
+        <h1>RAG Document Store - Cosmos DB for NoSQL</h1>
         <div class="left-panel">
             <!-- Load Sample Data -->
             <section class="section section-load">
                 <h2>Load Sample Data</h2>
-                <p>Load sample document chunks to populate the database.</p>
+                <p>Upload sample document chunks to the Cosmos DB container to populate the database.</p>
                 <form action="/load-data" method="post">
                     <button type="submit" class="btn-success">Load Sample Chunks</button>
                 </form>
@@ -84,8 +76,15 @@
             </section>
 
             <!-- Results Section -->
-            <section class="section section-results">
+            <section class="section section-results" aria-live="polite" aria-atomic="true">
                 <h2>Results</h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
 
                 <!-- Test Results -->
                 {% if test_results %}

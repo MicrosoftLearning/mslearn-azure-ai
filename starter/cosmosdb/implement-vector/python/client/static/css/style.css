@@ -176,7 +176,7 @@ button:focus {
 
 /* Results display */
 .results-container {
-    max-height: 400px;
+    max-height: 500px;
     overflow-y: auto;
     border: 1px solid #e1dfdd;
     border-radius: 4px;
@@ -201,6 +201,18 @@ button:focus {
     font-size: 0.875rem;
     color: #605e5c;
     margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.similarity-score {
+    background: #0078d4;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
 .chunk-content {
