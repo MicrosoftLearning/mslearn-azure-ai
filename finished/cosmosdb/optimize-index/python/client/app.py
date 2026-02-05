@@ -10,7 +10,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 
 from index_functions import (
-    store_to_all_containers,
+    bulk_load_documents,
     compare_index_performance,
     compare_filtered_performance,
     get_all_categories,
@@ -58,27 +58,15 @@ def index():
 
 @app.route("/load-data", methods=["POST"])
 def load_data():
-    """Load sample documents with embeddings into all three containers."""
+    """Load sample documents with embeddings into all three containers using parallel processing."""
     try:
         data = load_json_file("sample_vectors.json")
         documents = data.get("documents", [])
-        loaded_count = 0
-        total_ru = {"flat": 0, "quantizedFlat": 0, "diskANN": 0}
 
-        for doc in documents:
-            results = store_to_all_containers(
-                document_id=doc["document_id"],
-                chunk_id=doc["chunk_id"],
-                content=doc["content"],
-                embedding=doc["embedding"],
-                metadata=doc["metadata"]
-            )
-            loaded_count += 1
-
-            # Track RU by container
-            total_ru["flat"] += results[CONTAINER_FLAT]["ru_charge"]
-            total_ru["quantizedFlat"] += results[CONTAINER_QUANTIZED]["ru_charge"]
-            total_ru["diskANN"] += results[CONTAINER_DISKANN]["ru_charge"]
+        # Use bulk loader with parallel processing for faster uploads
+        result = bulk_load_documents(documents)
+        loaded_count = result["loaded_count"]
+        total_ru = result["total_ru"]
 
         flash(
             f"Loaded {loaded_count} documents to all containers. "

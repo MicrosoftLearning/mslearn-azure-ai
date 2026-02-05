@@ -87,9 +87,9 @@ In this section you run the deployment script to deploy the Cosmos DB account wi
 
 ## Complete the index comparison functions
 
-In this section you complete the Python code for comparing vector index performance across different indexing strategies. The functions perform similarity searches and track RU consumption and execution time for each container.
+In this section you complete the Python code for comparing vector index performance and review the container setup script. You add functions that perform similarity searches and track RU consumption and execution time. You also examine the different vector indexing configurations to understand how each index type is created.
 
-### Complete the vector similarity search function
+### Complete the vector similarity search script
 
 In this section you complete the *index_functions.py* file by adding the function that performs vector similarity search with performance tracking. This function is called for each container to compare how different index types handle the same query.
 
@@ -235,7 +235,7 @@ In this section you complete the *index_functions.py* file by adding the functio
 
 ### Review the container setup code
 
-In this section you review the *setup_containers.py* script that creates containers with different vector indexing strategies. Understanding these configurations helps you select the right index type for your workloads.
+In this section you review the *setup_containers.py* script that creates containers with different vector indexing strategies. The vector index type is configured at container creation time and cannot be changed afterward—you must delete and recreate the container to use a different index. This makes upfront testing important: a common approach is to create test containers with each index type, load representative sample data, and run benchmark queries to measure RU costs and latency before committing to a production configuration.
 
 1. Open the *client/setup_containers.py* file in VS Code.
 
@@ -405,7 +405,7 @@ In this section you use the app to load sample support tickets with pre-computed
 
 1. Review the **Container Status** section at the top of the page. All three containers should show 0 documents initially.
 
-1. In the **Load Sample Data** section, select **Load Data to All Containers**. This inserts 20 support tickets with their pre-computed embeddings from the *sample_vectors.json* file into each container.
+1. In the **Load Sample Data** section, select **Load Data to All Containers**. This inserts 500 support tickets with their pre-computed embeddings from the *sample_vectors.json* file into each container. The upload uses parallel processing to load data efficiently and typically completes in 30-45 seconds.
 
 1. Verify the success message appears showing the number of documents loaded and the RU costs for each container. Notice how write RU costs may vary slightly between index types.
 
@@ -422,7 +422,7 @@ In this section you perform vector similarity searches and compare how each inde
     - **RU Cost** for each query
     - **Time (ms)** execution duration
 
-1. Scroll down to see the **side-by-side results** from each container. Notice:
+1. Scroll down to see the side-by-side results of the data returned from each container. Notice:
     - All three indexes should return similar results for this small dataset
     - RU costs may vary based on index type
     - The diskANN index typically shows lower RU consumption at scale

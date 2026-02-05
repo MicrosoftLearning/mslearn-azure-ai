@@ -13,23 +13,26 @@
         <h1>Vector Index Comparison - Cosmos DB for NoSQL</h1>
 
         <!-- Document Count Summary -->
-        <section class="section section-status">
-            <h2>Container Status</h2>
-            <div class="container-status">
-                <div class="status-card">
-                    <div class="status-label">vectors-flat</div>
-                    <div class="status-count">{{ document_counts.flat }} docs</div>
-                    <div class="status-type">Flat Index</div>
+        <section class="section section-status" aria-labelledby="status-heading">
+            <h2 id="status-heading">Container Status</h2>
+            <div class="container-status" role="list">
+                <div class="status-card" role="listitem">
+                    <span class="status-indicator status-flat" aria-hidden="true"></span>
+                    <span class="status-label">vectors-flat</span>
+                    <span class="status-count" aria-label="{{ document_counts.flat }} documents in flat index container">{{ document_counts.flat }} <span class="status-docs">documents</span></span>
+                    <span class="status-type">Flat</span>
                 </div>
-                <div class="status-card">
-                    <div class="status-label">vectors-quantized</div>
-                    <div class="status-count">{{ document_counts.quantizedFlat }} docs</div>
-                    <div class="status-type">Quantized Flat</div>
+                <div class="status-card" role="listitem">
+                    <span class="status-indicator status-quantized" aria-hidden="true"></span>
+                    <span class="status-label">vectors-quantized</span>
+                    <span class="status-count" aria-label="{{ document_counts.quantizedFlat }} documents in quantized flat index container">{{ document_counts.quantizedFlat }} <span class="status-docs">documents</span></span>
+                    <span class="status-type">Quantized</span>
                 </div>
-                <div class="status-card">
-                    <div class="status-label">vectors-diskann</div>
-                    <div class="status-count">{{ document_counts.diskANN }} docs</div>
-                    <div class="status-type">DiskANN</div>
+                <div class="status-card" role="listitem">
+                    <span class="status-indicator status-diskann" aria-hidden="true"></span>
+                    <span class="status-label">vectors-diskann</span>
+                    <span class="status-count" aria-label="{{ document_counts.diskANN }} documents in diskANN index container">{{ document_counts.diskANN }} <span class="status-docs">documents</span></span>
+                    <span class="status-type">DiskANN</span>
                 </div>
             </div>
         </section>
@@ -39,8 +42,8 @@
             <section class="section section-load">
                 <h2>Load Sample Data</h2>
                 <p>Load sample support tickets with pre-computed 256-dimensional embeddings to all three containers.</p>
-                <form action="/load-data" method="post">
-                    <button type="submit" class="btn-success">Load Data to All Containers</button>
+                <form action="/load-data" method="post" id="load-data-form">
+                    <button type="submit" class="btn-success" id="load-data-btn">Load Data to All Containers</button>
                 </form>
             </section>
 
@@ -117,15 +120,15 @@
 
                     <!-- Performance Summary Table -->
                     <div class="performance-summary">
-                        <table class="comparison-table">
+                        <table class="comparison-table" aria-label="Performance comparison across index types">
                             <thead>
                                 <tr>
-                                    <th>Index Type</th>
-                                    <th>Container</th>
-                                    <th>Results</th>
-                                    <th>RU Cost</th>
-                                    <th>Time (ms)</th>
-                                    <th>Status</th>
+                                    <th scope="col">Index Type</th>
+                                    <th scope="col">Container</th>
+                                    <th scope="col">Results</th>
+                                    <th scope="col">RU Cost</th>
+                                    <th scope="col">Time (ms)</th>
+                                    <th scope="col">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -139,9 +142,9 @@
                                         <td>{{ data.execution_time_ms }}</td>
                                         <td>
                                             {% if data.status == 'success' %}
-                                                <span class="status-success">✓</span>
+                                                <span class="status-success" aria-label="Success">✓</span>
                                             {% else %}
-                                                <span class="status-error">✗</span>
+                                                <span class="status-error" aria-label="Error">✗</span>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -191,15 +194,15 @@
 
                     <!-- Performance Summary Table -->
                     <div class="performance-summary">
-                        <table class="comparison-table">
+                        <table class="comparison-table" aria-label="Filtered search performance comparison across index types">
                             <thead>
                                 <tr>
-                                    <th>Index Type</th>
-                                    <th>Container</th>
-                                    <th>Results</th>
-                                    <th>RU Cost</th>
-                                    <th>Time (ms)</th>
-                                    <th>Status</th>
+                                    <th scope="col">Index Type</th>
+                                    <th scope="col">Container</th>
+                                    <th scope="col">Results</th>
+                                    <th scope="col">RU Cost</th>
+                                    <th scope="col">Time (ms)</th>
+                                    <th scope="col">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -213,9 +216,9 @@
                                         <td>{{ data.execution_time_ms }}</td>
                                         <td>
                                             {% if data.status == 'success' %}
-                                                <span class="status-success">✓</span>
+                                                <span class="status-success" aria-label="Success">✓</span>
                                             {% else %}
-                                                <span class="status-error">✗</span>
+                                                <span class="status-error" aria-label="Error">✗</span>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -255,18 +258,58 @@
                     </div>
 
                 {% else %}
-                    <div class="empty-state">
-                        <p>Results will appear here after you perform an action.</p>
-                        <p><strong>Getting started:</strong></p>
-                        <ol>
-                            <li>Click "Load Data to All Containers" to populate the containers with sample data</li>
-                            <li>Select a query and click "Compare Index Performance"</li>
-                            <li>Review the RU costs and execution times for each index type</li>
-                        </ol>
+                    <div class="empty-state" id="empty-state-message">
+                        {% if document_counts.flat > 0 or document_counts.quantizedFlat > 0 or document_counts.diskANN > 0 %}
+                            <p>Data is loaded. Select a query and compare index performance.</p>
+                            <p><strong>Next steps:</strong></p>
+                            <ol>
+                                <li>Select a query from the dropdown</li>
+                                <li>Click "Compare Index Performance"</li>
+                                <li>Review the RU costs and execution times for each index type</li>
+                            </ol>
+                        {% else %}
+                            <p>Results will appear here after you perform an action.</p>
+                            <p><strong>Getting started:</strong></p>
+                            <ol>
+                                <li>Click "Load Data to All Containers" to populate the containers with sample data</li>
+                                <li>Select a query and click "Compare Index Performance"</li>
+                                <li>Review the RU costs and execution times for each index type</li>
+                            </ol>
+                        {% endif %}
+                    </div>
+                    <!-- Loading indicator (hidden by default) -->
+                    <div class="loading-state" id="loading-message" style="display: none;" role="status" aria-live="polite">
+                        <div class="loading-spinner" aria-hidden="true"></div>
+                        <p><strong>Uploading data to containers...</strong></p>
+                        <p>This typically takes 30-45 seconds. Please wait.</p>
                     </div>
                 {% endif %}
             </section>
         </div>
     </main>
+
+    <script>
+        // Show loading message when Load Data button is clicked
+        document.getElementById('load-data-form').addEventListener('submit', function(e) {
+            // Disable the button to prevent double-clicks
+            var btn = document.getElementById('load-data-btn');
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+            btn.classList.add('btn-disabled');
+
+            // Hide the empty state message and show loading indicator
+            var emptyState = document.getElementById('empty-state-message');
+            var loadingMsg = document.getElementById('loading-message');
+
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+            if (loadingMsg) {
+                loadingMsg.style.display = 'block';
+            }
+
+            // Allow the form to submit normally
+        });
+    </script>
 </body>
 </html>

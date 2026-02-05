@@ -6,6 +6,7 @@ query performance and RU consumption.
 import os
 import time
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from azure.cosmos import CosmosClient, exceptions
 from azure.identity import DefaultAzureCredential
 
@@ -107,14 +108,77 @@ def store_to_all_containers(
     embedding: list,
     metadata: dict = None
 ) -> dict:
-    """Store a document to all three containers for comparison testing."""
+    """Store a document to all three containers in parallel for faster loading."""
     results = {}
-    for container_name in [CONTAINER_FLAT, CONTAINER_QUANTIZED, CONTAINER_DISKANN]:
-        result = store_vector_document(
+
+    def upload_to_container(container_name):
+        return container_name, store_vector_document(
             container_name, document_id, chunk_id, content, embedding, metadata
         )
-        results[container_name] = result
+
+    # Upload to all containers simultaneously using threads
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [
+            executor.submit(upload_to_container, name)
+            for name in [CONTAINER_FLAT, CONTAINER_QUANTIZED, CONTAINER_DISKANN]
+        ]
+        for future in as_completed(futures):
+            container_name, result = future.result()
+            results[container_name] = result
+
     return results
+
+
+def bulk_load_documents(documents: list, progress_callback=None) -> dict:
+    """
+    Load multiple documents to all containers with parallel processing.
+
+    Args:
+        documents: List of document dictionaries with document_id, chunk_id, content, embedding, metadata
+        progress_callback: Optional callback function(loaded, total) for progress updates
+
+    Returns:
+        Dictionary with loaded_count and total_ru per container
+    """
+    total_ru = {"flat": 0, "quantizedFlat": 0, "diskANN": 0}
+    loaded_count = 0
+    total = len(documents)
+
+    # Process documents in batches using thread pool
+    # Each document uploads to all 3 containers in parallel
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {}
+        for doc in documents:
+            future = executor.submit(
+                store_to_all_containers,
+                document_id=doc["document_id"],
+                chunk_id=doc["chunk_id"],
+                content=doc["content"],
+                embedding=doc["embedding"],
+                metadata=doc.get("metadata")
+            )
+            futures[future] = doc
+
+        for future in as_completed(futures):
+            try:
+                results = future.result()
+                loaded_count += 1
+
+                # Track RU by container
+                total_ru["flat"] += results[CONTAINER_FLAT]["ru_charge"]
+                total_ru["quantizedFlat"] += results[CONTAINER_QUANTIZED]["ru_charge"]
+                total_ru["diskANN"] += results[CONTAINER_DISKANN]["ru_charge"]
+
+                if progress_callback:
+                    progress_callback(loaded_count, total)
+            except Exception as e:
+                # Log error but continue with other documents
+                print(f"Error loading document: {e}")
+
+    return {
+        "loaded_count": loaded_count,
+        "total_ru": total_ru
+    }
 
 
 # BEGIN VECTOR SIMILARITY SEARCH FUNCTION
