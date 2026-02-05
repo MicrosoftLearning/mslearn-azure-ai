@@ -19,9 +19,8 @@ if [ -z "$user_object_id" ]; then
     exit 1
 fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
-account_name="cosmos-vector-${user_hash}"
-database_name="vectorstore"
-container_name="vectors"
+account_name="cosmos-index-${user_hash}"
+database_name="indexoptimize"
 
 # Function to create resource group if it doesn't exist
 create_resource_group() {
@@ -213,10 +212,10 @@ retrieve_connection_info() {
     local env_file="$(dirname "$0")/.env"
 
     # Create or update .env file with export statements (no key needed for Entra auth)
+    # Note: Containers are created by setup_containers.py with different index types
     cat > "$env_file" << EOF
 export COSMOS_ENDPOINT="$endpoint"
 export COSMOS_DATABASE="$database_name"
-export COSMOS_CONTAINER="$container_name"
 EOF
 
     echo ""
@@ -224,8 +223,9 @@ EOF
     echo "==========================================================="
     echo "Endpoint: $endpoint"
     echo "Database: $database_name"
-    echo "Container: $container_name"
     echo "Authentication: Microsoft Entra ID (DefaultAzureCredential)"
+    echo ""
+    echo "Note: Containers will be created by setup_containers.py"
     echo ""
     echo "Environment variables saved to: $env_file"
 }
@@ -297,7 +297,7 @@ check_deployment_status() {
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    Azure Cosmos DB Vector Search Deployment Menu"
+    echo "    Azure Cosmos DB Index Optimization Deployment Menu"
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Account Name: $account_name"

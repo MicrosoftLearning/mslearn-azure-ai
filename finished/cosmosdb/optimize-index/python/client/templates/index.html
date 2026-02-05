@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Vector Index Comparison - Cosmos DB</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Vector Index Comparison - Cosmos DB for NoSQL</h1>
+
+        <!-- Document Count Summary -->
+        <section class="section section-status">
+            <h2>Container Status</h2>
+            <div class="container-status">
+                <div class="status-card">
+                    <div class="status-label">vectors-flat</div>
+                    <div class="status-count">{{ document_counts.flat }} docs</div>
+                    <div class="status-type">Flat Index</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">vectors-quantized</div>
+                    <div class="status-count">{{ document_counts.quantizedFlat }} docs</div>
+                    <div class="status-type">Quantized Flat</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">vectors-diskann</div>
+                    <div class="status-count">{{ document_counts.diskANN }} docs</div>
+                    <div class="status-type">DiskANN</div>
+                </div>
+            </div>
+        </section>
+
+        <div class="left-panel">
+            <!-- Load Sample Data -->
+            <section class="section section-load">
+                <h2>Load Sample Data</h2>
+                <p>Load sample support tickets with pre-computed 256-dimensional embeddings to all three containers.</p>
+                <form action="/load-data" method="post">
+                    <button type="submit" class="btn-success">Load Data to All Containers</button>
+                </form>
+            </section>
+
+            <!-- Vector Search Comparison -->
+            <section class="section section-search">
+                <h2>Vector Search Comparison</h2>
+                <p>Run the same vector similarity search against all three containers and compare RU costs.</p>
+                <form action="/compare-search" method="post">
+                    <label for="query_id">Select Query</label>
+                    <select id="query_id" name="query_id" required>
+                        <option value="">-- Select a query --</option>
+                        {% for query in queries %}
+                            <option value="{{ query.id }}">{{ query.description }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="top_n">Number of Results</label>
+                    <select id="top_n" name="top_n">
+                        <option value="3">Top 3</option>
+                        <option value="5" selected>Top 5</option>
+                        <option value="10">Top 10</option>
+                    </select>
+                    <button type="submit" class="btn-primary">Compare Index Performance</button>
+                </form>
+            </section>
+
+            <!-- Filtered Vector Search -->
+            <section class="section section-get">
+                <h2>Filtered Vector Search Comparison</h2>
+                <p>Combine metadata filtering with vector similarity across all index types.</p>
+                <form action="/compare-filtered" method="post">
+                    <label for="filtered_query_id">Select Query</label>
+                    <select id="filtered_query_id" name="filtered_query_id" required>
+                        <option value="">-- Select a query --</option>
+                        {% for query in queries %}
+                            <option value="{{ query.id }}">{{ query.description }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="filter_category">Filter by Category</label>
+                    <select id="filter_category" name="filter_category">
+                        <option value="">-- Any category --</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="filtered_top_n">Number of Results</label>
+                    <select id="filtered_top_n" name="filtered_top_n">
+                        <option value="3">Top 3</option>
+                        <option value="5" selected>Top 5</option>
+                        <option value="10">Top 10</option>
+                    </select>
+                    <button type="submit" class="btn-primary">Compare Filtered Search</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Results Section -->
+            <section class="section section-results" aria-live="polite" aria-atomic="true">
+                <h2>Results</h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                <!-- Comparison Results -->
+                {% if comparison_result is defined %}
+                    <h3>Index Performance Comparison</h3>
+                    <div class="query-info">
+                        Query: "{{ comparison_query }}" | Top {{ comparison_top_n }} results
+                    </div>
+
+                    <!-- Performance Summary Table -->
+                    <div class="performance-summary">
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Index Type</th>
+                                    <th>Container</th>
+                                    <th>Results</th>
+                                    <th>RU Cost</th>
+                                    <th>Time (ms)</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for index_type in ['flat', 'quantizedFlat', 'diskANN'] %}
+                                    {% set data = comparison_result[index_type] %}
+                                    <tr class="{{ 'error-row' if data.status == 'error' else '' }}">
+                                        <td><strong>{{ index_type }}</strong></td>
+                                        <td>{{ data.container }}</td>
+                                        <td>{{ data.result_count }}</td>
+                                        <td>{{ "%.2f"|format(data.ru_charge) }}</td>
+                                        <td>{{ data.execution_time_ms }}</td>
+                                        <td>
+                                            {% if data.status == 'success' %}
+                                                <span class="status-success">✓</span>
+                                            {% else %}
+                                                <span class="status-error">✗</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Side-by-side Results -->
+                    <div class="comparison-grid">
+                        {% for index_type in ['flat', 'quantizedFlat', 'diskANN'] %}
+                            {% set data = comparison_result[index_type] %}
+                            <div class="comparison-column">
+                                <h4>{{ index_type }}</h4>
+                                {% if data.status == 'success' and data.results %}
+                                    {% for item in data.results[:3] %}
+                                        <div class="chunk-card compact">
+                                            <div class="chunk-id">
+                                                {{ item.document_id }}
+                                                <span class="similarity-score">{{ "%.4f"|format(item.similarity_score) }}</span>
+                                            </div>
+                                            <div class="chunk-content">{{ item.content[:150] }}...</div>
+                                            <div class="chunk-meta">
+                                                {% if item.metadata.category %}
+                                                    <span class="tag tag-category">{{ item.metadata.category }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% elif data.status == 'error' %}
+                                    <div class="empty-state error">{{ data.error }}</div>
+                                {% else %}
+                                    <div class="empty-state">No results</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                <!-- Filtered Comparison Results -->
+                {% elif filtered_result is defined %}
+                    <h3>Filtered Search Comparison</h3>
+                    <div class="query-info">
+                        Query: "{{ filtered_query }}" |
+                        {% if filtered_category %}Category: "{{ filtered_category }}" | {% endif %}
+                        Top {{ filtered_top_n }} results
+                    </div>
+
+                    <!-- Performance Summary Table -->
+                    <div class="performance-summary">
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Index Type</th>
+                                    <th>Container</th>
+                                    <th>Results</th>
+                                    <th>RU Cost</th>
+                                    <th>Time (ms)</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for index_type in ['flat', 'quantizedFlat', 'diskANN'] %}
+                                    {% set data = filtered_result[index_type] %}
+                                    <tr class="{{ 'error-row' if data.status == 'error' else '' }}">
+                                        <td><strong>{{ index_type }}</strong></td>
+                                        <td>{{ data.container }}</td>
+                                        <td>{{ data.result_count }}</td>
+                                        <td>{{ "%.2f"|format(data.ru_charge) }}</td>
+                                        <td>{{ data.execution_time_ms }}</td>
+                                        <td>
+                                            {% if data.status == 'success' %}
+                                                <span class="status-success">✓</span>
+                                            {% else %}
+                                                <span class="status-error">✗</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Side-by-side Results -->
+                    <div class="comparison-grid">
+                        {% for index_type in ['flat', 'quantizedFlat', 'diskANN'] %}
+                            {% set data = filtered_result[index_type] %}
+                            <div class="comparison-column">
+                                <h4>{{ index_type }}</h4>
+                                {% if data.status == 'success' and data.results %}
+                                    {% for item in data.results[:3] %}
+                                        <div class="chunk-card compact">
+                                            <div class="chunk-id">
+                                                {{ item.document_id }}
+                                                <span class="similarity-score">{{ "%.4f"|format(item.similarity_score) }}</span>
+                                            </div>
+                                            <div class="chunk-content">{{ item.content[:150] }}...</div>
+                                            <div class="chunk-meta">
+                                                {% if item.metadata.category %}
+                                                    <span class="tag tag-category">{{ item.metadata.category }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% elif data.status == 'error' %}
+                                    <div class="empty-state error">{{ data.error }}</div>
+                                {% else %}
+                                    <div class="empty-state">No results</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                {% else %}
+                    <div class="empty-state">
+                        <p>Results will appear here after you perform an action.</p>
+                        <p><strong>Getting started:</strong></p>
+                        <ol>
+                            <li>Click "Load Data to All Containers" to populate the containers with sample data</li>
+                            <li>Select a query and click "Compare Index Performance"</li>
+                            <li>Review the RU costs and execution times for each index type</li>
+                        </ol>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>
