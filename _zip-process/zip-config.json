@@ -80,6 +80,11 @@
       "source": "starter/cosmosdb/implement-vector/python",
       "output": "downloads/python",
       "name": "cosmosdb-implement-vector-python.zip"
+    },
+    {
+      "source": "starter/cosmosdb/optimize-query/python",
+      "output": "downloads/python",
+      "name": "cosmosdb-optimize-query-python.zip"
     }
   ]
 }
