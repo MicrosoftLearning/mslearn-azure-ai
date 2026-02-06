@@ -1,13 +1,11 @@
 ---
 lab:
     topic: Azure Cosmos DB
-    title: 'Build a semantic search application with vector search'
+    title: 'Build a semantic search application with Azure Cosmos DB for NoSQL'
     description: 'Learn how to implement vector similarity search in Azure Cosmos DB for NoSQL to enable semantic search over support ticket data'
 ---
 
-{% include under-construction.md %}
-
-# Build a semantic search application with vector search
+# Build a semantic search application with Azure Cosmos DB for NoSQL
 
 In this exercise, you implement vector similarity search using Azure Cosmos DB for NoSQL. Vector search enables semantic matching by comparing high-dimensional vector representations of text, finding relevant results even when exact terms don't match. You configure a container with vector embedding and indexing policies, load support tickets with pre-computed embeddings, and execute similarity queries using the **VectorDistance** function. This pattern provides a foundation for building AI applications that perform semantic search, such as finding similar support cases to help resolve customer issues faster.
 

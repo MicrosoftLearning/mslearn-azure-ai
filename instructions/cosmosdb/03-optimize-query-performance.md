@@ -1,13 +1,11 @@
 ---
 lab:
     topic: Azure Cosmos DB
-    title: 'Optimize query performance with vector indexes'
+    title: 'Optimize query performance with vector indexes on Azure Cosmos DB for NoSQL'
     description: 'Learn how to compare and tune vector indexing strategies in Azure Cosmos DB for NoSQL to optimize query performance and reduce RU costs'
 ---
 
-{% include under-construction.md %}
-
-# Optimize query performance with vector indexes
+# Optimize query performance with vector indexes on Azure Cosmos DB for NoSQL
 
 In this exercise, you compare and tune vector indexing strategies to optimize query performance in Azure Cosmos DB for NoSQL. Vector indexes significantly impact both search quality and Request Unit (RU) consumption. You create containers with three different index types—flat, quantizedFlat, and diskANN—load identical sample data, and run comparative searches to measure performance differences. This hands-on practice helps you select the right indexing strategy for your AI application's requirements.
 
