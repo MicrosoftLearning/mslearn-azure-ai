@@ -3,6 +3,8 @@ lab:
     topic: Azure Kubernetes Service
     title: 'Deploy an AI inference API to Azure Kubernetes Service'
     description: 'Learn how to create Kubernetes deployment and service manifests to deploy an AI inference API container to Azure Kubernetes Service.'
+    level: 200
+    duration: 30-40 minutes
 ---
 
 # Deploy an AI inference API to Azure Kubernetes Service

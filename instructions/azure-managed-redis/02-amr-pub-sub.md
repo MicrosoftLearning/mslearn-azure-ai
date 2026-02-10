@@ -3,6 +3,8 @@ lab:
     topic: Azure Managed Redis
     title: 'Publish and subscribe to events in Azure Managed Redis'
     description: 'Learn how to build publisher and subscriber applications that implement pub/sub patterns in Azure Managed Redis using the redis-py Python library.'
+    level: 200
+    duration: 30 minutes
 ---
 
 # Publish and subscribe to events in Azure Managed Redis
@@ -16,7 +18,7 @@ Tasks performed in this exercise:
 - Add code to complete both the publisher and subscriber apps
 - Run the publisher and subscriber apps to send and receive messages
 
-This exercise takes approximately **40** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 ## Before you start
 

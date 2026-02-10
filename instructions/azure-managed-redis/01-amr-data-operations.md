@@ -3,6 +3,8 @@ lab:
     topic: Azure Managed Redis
     title: 'Perform data operations in Azure Managed Redis'
     description: 'Learn how to perform data operations in Azure Managed Redis using the redis-py Python library.'
+    level: 200
+    duration: 30 minutes
 ---
 
 # Perform data operations in Azure Managed Redis

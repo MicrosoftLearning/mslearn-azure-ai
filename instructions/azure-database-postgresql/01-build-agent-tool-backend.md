@@ -3,6 +3,8 @@ lab:
     topic: Azure Database for PostgreSQL
     title: 'Build an agent tool backend on Azure Database for PostgreSQL'
     description: 'Learn how to build persistent memory storage for AI agents using Azure Database for PostgreSQL'
+    level: 200
+    duration: 30 minutes
 ---
 
 # Build an agent tool backend on Azure Database for PostgreSQL

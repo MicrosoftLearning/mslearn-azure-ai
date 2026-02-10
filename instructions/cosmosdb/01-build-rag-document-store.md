@@ -3,6 +3,8 @@ lab:
     topic: Azure Cosmos DB
     title: 'Build a RAG document store on Azure Cosmos DB for NoSQL'
     description: 'Learn how to build a document storage backend for retrieval-augmented generation (RAG) using Azure Cosmos DB for NoSQL'
+    level: 200
+    duration: 30 minutes
 ---
 
 # Build a RAG document store on Azure Cosmos DB for NoSQL
