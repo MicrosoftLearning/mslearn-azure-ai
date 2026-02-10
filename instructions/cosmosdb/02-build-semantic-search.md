@@ -3,6 +3,8 @@ lab:
     topic: Azure Cosmos DB
     title: 'Build a semantic search application with Azure Cosmos DB for NoSQL'
     description: 'Learn how to implement vector similarity search in Azure Cosmos DB for NoSQL to enable semantic search over support ticket data'
+    level: 200
+    duration: 30 minutes
 ---
 
 # Build a semantic search application with Azure Cosmos DB for NoSQL

@@ -3,6 +3,8 @@ lab:
     topic: Container hosting
     title: 'Deploy a container to Azure App Service'
     description: 'Learn how to deploy a container image from Azure Container Registry (ACR) to Azure App Service using a managed identity for secure image pulls, then verify and troubleshoot the running container.'
+    level: 200
+    duration: 30 minutes
 ---
 
 # Deploy a container to Azure App Service
@@ -18,7 +20,7 @@ Tasks performed in this exercise:
 - Configure runtime settings and enable container logging
 - Verify the deployment and test the document processing endpoint
 
-This exercise takes approximately **30-40** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 >**Important:** Azure Container Registry task runs are temporarily paused from Azure free credits. This exercise requires a Pay-As-You-Go, or another paid plan.
 

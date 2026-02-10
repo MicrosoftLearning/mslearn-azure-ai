@@ -3,6 +3,8 @@ lab:
     topic: Azure Container Apps
     title: 'Diagnose and fix a failing deployment'
     description: 'Learn how to troubleshoot Azure Container Apps by diagnosing missing environment variables, ingress misconfigurations, and querying Log Analytics for historical troubleshooting.'
+    level: 200
+    duration: 30 minutes
 ---
 
 # Diagnose and fix a failing deployment
