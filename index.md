@@ -8,7 +8,7 @@ layout: home
 
 The following exercises are designed to provide you with a hands-on learning experience in which you'll explore common tasks that developers perform when building and deploying solutions to Microsoft Azure.
 
-> **Note**: To complete the exercises, you'll need an Azure subscription in which you have sufficient permissions and quota to provision the necessary Azure resources. If you don't already have one, you can sign up for an [Azure account](https://azure.microsoft.com/free). 
+> **Note**: To complete the exercises, you'll need an Azure subscription in which you have sufficient permissions and quota to provision the necessary Azure resources. If you don't already have one, you can sign up for an [Azure account](https://azure.microsoft.com/free).
 
 Some exercises may have additional, or different, requirements. Those will contain a **Before you start** section specific to that exercise.
 
@@ -24,10 +24,10 @@ Some exercises may have additional, or different, requirements. Those will conta
 
 {% for group in grouped_exercises %}
 
-## <a id="{{ group.name | slugify }}"></a>{{ group.name }} 
+## <a id="{{ group.name | slugify }}"></a>{{ group.name }}
 
 {% for activity in group.items %}
-[{{ activity.lab.title }}]({{ site.github.url }}{{ activity.url }}) <br/> {{ activity.lab.description }}
+[{{ activity.lab.title }}]({{ site.github.url }}{{ activity.url }}) <br/> {{ activity.lab.description }} <br/> <b>Level:</b> {{activity.lab.level}} &nbsp; &nbsp; <b>Duration:</b> {{activity.lab.duration}}
 
 ---
 
