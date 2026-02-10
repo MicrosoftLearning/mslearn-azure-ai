@@ -235,7 +235,7 @@ In this section you complete the *index_functions.py* file by adding the functio
 
 ### Review the container setup code
 
-In this section you review the *setup_containers.py* script that creates containers with different vector indexing strategies. The vector index type is configured at container creation time and cannot be changed afterward—you must delete and recreate the container to use a different index. This makes upfront testing important: a common approach is to create test containers with each index type, load representative sample data, and run benchmark queries to measure RU costs and latency before committing to a production configuration.
+In this section you review the *setup_containers.py* script that creates containers with different vector indexing strategies. The vector embedding policy (path, dimensions, data type, and distance function) is set at container creation time and cannot be changed afterward. The vector index type, however, is part of the indexing policy and can be updated on an existing container. When you change the index type, Cosmos DB performs an index transformation in the background. Despite this flexibility, testing different index types upfront is still a best practice: a common approach is to create test containers with each index type, load representative sample data, and run benchmark queries to measure RU costs and latency before committing to a production configuration.
 
 1. Open the *client/setup_containers.py* file in VS Code.
 
