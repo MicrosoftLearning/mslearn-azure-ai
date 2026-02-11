@@ -238,17 +238,23 @@ In this section you add code to the *service_bus_functions.py* file to complete 
 
 In this section, you add code to send three messages to the queue. Two messages have valid JSON payloads representing inference requests, and one has intentionally malformed JSON to simulate a processing failure that demonstrates the dead-letter queue.
 
+The function opens a **ServiceBusClient** using **DefaultAzureCredential** and creates a queue sender with **get_queue_sender()**. It constructs three **ServiceBusMessage** objects, each with a **message_id** for deduplication, a **correlation_id** for tracking, and **application_properties** for custom metadata. Two messages contain valid JSON payloads and one contains intentionally malformed JSON. The **send_messages()** method sends each message individually to the queue.
+
 1. Locate the **# BEGIN SEND MESSAGES FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
     def send_messages():
         """Send messages to the queue including one malformed message."""
+        # Create a ServiceBusClient using DefaultAzureCredential
         client = get_client()
         results = []
 
         with client:
+            # Open a sender bound to the queue
             with client.get_queue_sender(QUEUE_NAME) as sender:
-                # Valid message 1
+                # Valid message 1 — message_id enables deduplication,
+                # correlation_id links related messages for tracking,
+                # and application_properties carry custom metadata for routing
                 msg1 = ServiceBusMessage(
                     body=json.dumps({
                         "prompt": "Extract parties and effective date.",
@@ -267,7 +273,8 @@ In this section, you add code to send three messages to the queue. Two messages 
                     "status": "sent"
                 })
 
-                # Valid message 2
+                # Valid message 2 — priority is set to "high" so it matches
+                # the SQL filter on the high-priority topic subscription
                 msg2 = ServiceBusMessage(
                     body=json.dumps({
                         "prompt": "Summarize the key terms.",
@@ -286,7 +293,8 @@ In this section, you add code to send three messages to the queue. Two messages 
                     "status": "sent"
                 })
 
-                # Invalid message (malformed body)
+                # Invalid message — intentionally malformed JSON body to
+                # demonstrate dead-lettering during processing
                 msg3 = ServiceBusMessage(
                     body="not valid json: [broken",
                     content_type="application/json",
@@ -308,6 +316,8 @@ In this section, you add code to send three messages to the queue. Two messages 
 
 In this section, you add code to receive messages from the queue using peek-lock mode. The processor validates the JSON payload, completes valid messages, and dead-letters messages with invalid JSON by providing a reason and error description.
 
+The function creates a queue receiver with **get_queue_receiver()** using peek-lock mode (the default), which locks each message while it's being processed but keeps it in the queue until settlement. For each message, it attempts to parse the JSON body. Valid messages are removed from the queue with **complete_message()**. Invalid messages are moved to the dead-letter sub-queue with **dead_letter_message()**, which accepts a **reason** and **error_description** for diagnostics.
+
 1. Locate the **# BEGIN PROCESS MESSAGES FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
@@ -317,6 +327,9 @@ In this section, you add code to receive messages from the queue using peek-lock
         results = []
 
         with client:
+            # Peek-lock is the default receive mode — the message is locked
+            # but stays in the queue until explicitly completed or dead-lettered.
+            # max_wait_time sets how long the receiver waits for new messages.
             with client.get_queue_receiver(
                 queue_name=QUEUE_NAME,
                 max_wait_time=5
@@ -324,6 +337,7 @@ In this section, you add code to receive messages from the queue using peek-lock
                 for msg in receiver:
                     try:
                         payload = json.loads(str(msg))
+                        # Complete removes the message from the queue
                         receiver.complete_message(msg)
                         results.append({
                             "correlation_id": msg.correlation_id,
@@ -333,6 +347,8 @@ In this section, you add code to receive messages from the queue using peek-lock
                             "status": "completed"
                         })
                     except json.JSONDecodeError:
+                        # Dead-letter moves the message to the dead-letter
+                        # sub-queue with a reason and description for diagnostics
                         receiver.dead_letter_message(
                             msg,
                             reason="MalformedPayload",
@@ -353,6 +369,8 @@ In this section, you add code to receive messages from the queue using peek-lock
 
 In this section, you add code to read messages from the dead-letter queue and display diagnostic information. The dead-letter queue captures messages that couldn't be processed, along with the reason and error description for troubleshooting.
 
+The function creates a receiver that targets the dead-letter sub-queue by passing **sub_queue=ServiceBusSubQueue.DEAD_LETTER** to **get_queue_receiver()**. For each dead-lettered message, it reads the diagnostic properties: **dead_letter_reason**, **dead_letter_error_description**, and **delivery_count**. After reading, it calls **complete_message()** to remove the message from the dead-letter queue.
+
 1. Locate the **# BEGIN INSPECT DLQ FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
@@ -362,12 +380,17 @@ In this section, you add code to read messages from the dead-letter queue and di
         results = []
 
         with client:
+            # ServiceBusSubQueue.DEAD_LETTER targets the dead-letter sub-queue,
+            # which holds messages that failed processing
             with client.get_queue_receiver(
                 queue_name=QUEUE_NAME,
                 sub_queue=ServiceBusSubQueue.DEAD_LETTER,
                 max_wait_time=5
             ) as dlq_receiver:
                 for msg in dlq_receiver:
+                    # Dead-lettered messages include diagnostic properties:
+                    # dead_letter_reason, dead_letter_error_description,
+                    # and delivery_count (number of delivery attempts)
                     results.append({
                         "message_id": msg.message_id,
                         "correlation_id": msg.correlation_id,
@@ -376,6 +399,7 @@ In this section, you add code to read messages from the dead-letter queue and di
                         "delivery_count": msg.delivery_count,
                         "body": str(msg)[:100]
                     })
+                    # Complete removes the message from the dead-letter queue
                     dlq_receiver.complete_message(msg)
 
         return results
@@ -384,6 +408,8 @@ In this section, you add code to read messages from the dead-letter queue and di
 ### Add code for topic messaging with filtered subscriptions
 
 In this section, you add code to send messages to a topic with different priority levels, then receive from each subscription to verify that filtering works. The **notifications** subscription receives all messages, while the **high-priority** subscription receives only messages where the **priority** application property equals **high**.
+
+The function uses **get_topic_sender()** to open a sender bound to the topic, then sends five messages with varying **priority** values in their **application_properties**. It then opens two subscription receivers with **get_subscription_receiver()**. The **notifications** subscription has no filter and receives all five messages. The **high-priority** subscription only delivers messages that match its SQL filter. Note that application properties may arrive as bytes due to AMQP encoding, so the code handles both string and bytes keys.
 
 1. Locate the **# BEGIN TOPIC MESSAGING FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -396,7 +422,8 @@ In this section, you add code to send messages to a topic with different priorit
         high_priority = []
 
         with client:
-            # Send messages with different priorities
+            # get_topic_sender opens a sender bound to a topic instead of a queue.
+            # Each message is broadcast to all matching subscriptions.
             with client.get_topic_sender(TOPIC_NAME) as sender:
                 for i, priority in enumerate(["standard", "high", "standard", "high", "low"]):
                     result = {
@@ -404,6 +431,8 @@ In this section, you add code to send messages to a topic with different priorit
                         "status": "completed",
                         "confidence": 0.95
                     }
+                    # The "priority" application property is what the SQL
+                    # filter on the high-priority subscription evaluates
                     msg = ServiceBusMessage(
                         body=json.dumps(result),
                         content_type="application/json",
@@ -416,7 +445,8 @@ In this section, you add code to send messages to a topic with different priorit
                         "priority": priority
                     })
 
-            # Receive from notifications subscription (all messages)
+            # Receive from the notifications subscription, which has no filter
+            # and therefore receives all messages sent to the topic
             with client.get_subscription_receiver(
                 topic_name=TOPIC_NAME,
                 subscription_name="notifications",
@@ -424,6 +454,8 @@ In this section, you add code to send messages to a topic with different priorit
             ) as receiver:
                 for msg in receiver:
                     body = json.loads(str(msg))
+                    # Application properties may arrive as bytes depending
+                    # on the AMQP encoding, so handle both str and bytes keys
                     props = msg.application_properties or {}
                     priority_val = props.get("priority") or props.get(b"priority", b"unknown")
                     if isinstance(priority_val, bytes):
@@ -434,7 +466,8 @@ In this section, you add code to send messages to a topic with different priorit
                     })
                     receiver.complete_message(msg)
 
-            # Receive from high-priority subscription (filtered)
+            # Receive from the high-priority subscription, which only delivers
+            # messages where the SQL filter "priority = 'high'" matches
             with client.get_subscription_receiver(
                 topic_name=TOPIC_NAME,
                 subscription_name="high-priority",
