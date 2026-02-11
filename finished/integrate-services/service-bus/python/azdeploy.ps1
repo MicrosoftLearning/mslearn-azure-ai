@@ -127,9 +127,22 @@ function Assign-RoleAndCreateEnv {
     # Get the FQDN
     $fqdn = "$namespaceName.servicebus.windows.net"
 
-    # Create or update .env file
-    $envFile = Join-Path (Split-Path -Parent $PSCommandPath) ".env"
-    "SERVICE_BUS_FQDN=$fqdn" | Set-Content -Path $envFile -Encoding UTF8
+    # Create .env file (for Python dotenv)
+    $scriptDir = Split-Path -Parent $PSCommandPath
+    $envFile = Join-Path $scriptDir ".env"
+
+    @(
+        "SERVICE_BUS_FQDN=$fqdn"
+    ) | Set-Content -Path $envFile -Encoding UTF8
+
+    # Create .env.ps1 file (for PowerShell shell variables)
+    $envPs1File = Join-Path $scriptDir ".env.ps1"
+
+    @(
+        "`$env:RESOURCE_GROUP = `"$rg`"",
+        "`$env:NAMESPACE_NAME = `"$namespaceName`"",
+        "`$env:SERVICE_BUS_FQDN = `"$fqdn`""
+    ) | Set-Content -Path $envPs1File -Encoding UTF8
 
     Clear-Host
     Write-Host ""
@@ -137,7 +150,8 @@ function Assign-RoleAndCreateEnv {
     Write-Host "==========================================================="
     Write-Host "FQDN: $fqdn"
     Write-Host ""
-    Write-Host "Values have been saved to .env file"
+    Write-Host "Environment variables saved to: $envFile and $envPs1File"
+    Write-Host "Run '. .\.env.ps1' to load them into your shell."
 }
 
 while ($true) {

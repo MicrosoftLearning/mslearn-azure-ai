@@ -77,15 +77,35 @@ In this section you download the starter files for the console app and use a scr
 
 1. After the deployment completes, enter **2** to run the **2. Check deployment status** option. Verify the status shows **Succeeded** before continuing. If the namespace is still provisioning, wait a moment and try again.
 
-1. Enter **3** to run the **3. Assign role and create .env file** option. This assigns the Azure Service Bus Data Owner role to your account and creates the *.env* file with the namespace's fully qualified domain name (FQDN).
+1. Enter **3** to run the **3. Assign role and create .env file** option. This assigns the Azure Service Bus Data Owner role to your account and creates the environment variable files with the resource group name, namespace name, and fully qualified domain name (FQDN).
 
-1. Review the *.env* file to verify the **SERVICE_BUS_FQDN** value is present, then enter **4** to exit the deployment script.
+1. Enter **4** to exit the deployment script.
+
+1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
 
 ## Configure the Python environment
 
-In this section, you create the Python environment and install the dependencies.
+In this section, you navigate to the client app directory, create the Python environment, and install the dependencies.
 
-1. Run the following command in the VS Code terminal to create the Python environment.
+1. Run the following command in the VS Code terminal to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
+1. Run the following command to create the Python environment.
 
     ```
     python -m venv .venv
@@ -112,22 +132,6 @@ In this section, you create the Python environment and install the dependencies.
 ## Create messaging entities
 
 In this section you use the Azure CLI to create the queue, topic, and subscriptions that the console app uses. These are the types of operations a developer typically performs when setting up messaging resources for an application.
-
-1. Run the following commands to set environment variables for the resource names used in subsequent commands. Replace **\<rg-name>** with your resource group name. The namespace name is retrieved from the *.env* file.
-
-    **Bash**
-    ```bash
-    RESOURCE_GROUP="<rg-name>"
-    SERVICE_BUS_FQDN=$(grep SERVICE_BUS_FQDN .env | cut -d '=' -f2)
-    NAMESPACE_NAME=$(echo $SERVICE_BUS_FQDN | cut -d '.' -f1)
-    ```
-
-    **PowerShell**
-    ```powershell
-    $RESOURCE_GROUP = "<rg-name>"
-    $SERVICE_BUS_FQDN = (Get-Content .env | Select-String "SERVICE_BUS_FQDN") -replace "SERVICE_BUS_FQDN=", ""
-    $NAMESPACE_NAME = $SERVICE_BUS_FQDN.Split(".")[0]
-    ```
 
 1. Run the following command to create a queue named **inference-requests**. The queue is configured with a max delivery count of 5 so that poison messages are automatically moved to the dead-letter queue after five failed delivery attempts. Dead-lettering on message expiration is also enabled.
 
@@ -207,7 +211,7 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
 
 In this section you add code to the *main.py* script to complete the console app. You run the app later in the exercise, after confirming the messaging entities are created.
 
-1. Open the *main.py* file to begin adding code.
+1. Open the *client/main.py* file to begin adding code.
 
 >**Note:** The code blocks you add to the application should align with the comment for that section of the code.
 
@@ -434,7 +438,7 @@ In this section, you add code to send messages to a topic with different priorit
 
 In this section, you run the completed console application to perform various Service Bus messaging operations. The app provides a menu-driven interface that lets you send messages, process them with peek-lock delivery, inspect the dead-letter queue, and test topic messaging with filtered subscriptions.
 
-1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
+1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
 
     ```
     python main.py
@@ -458,10 +462,10 @@ In this section, you run the completed console application to perform various Se
 
 Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. The command uses the **RESOURCE_GROUP** environment variable set earlier. If needed, replace **$RESOURCE_GROUP** with the name you chose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
 
     ```
-    az group delete --name <rg-name> --no-wait --yes
+    az group delete --name $RESOURCE_GROUP --no-wait --yes
     ```
 
 > **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
@@ -485,8 +489,9 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project folder and contains a valid **SERVICE_BUS_FQDN** value.
-- Ensure the *.env* file is in the same directory as *main.py*.
+- Check that the *.env* file exists in the project root and contains **SERVICE_BUS_FQDN**, **RESOURCE_GROUP**, and **NAMESPACE_NAME** values.
+- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
+- If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
 
 **Check authentication**
 - Confirm you are logged in to Azure CLI by running **az account show**.

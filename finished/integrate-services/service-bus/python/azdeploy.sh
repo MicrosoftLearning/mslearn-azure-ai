@@ -120,18 +120,14 @@ assign_role_and_create_env() {
     # Get the FQDN
     local fqdn="${namespace_name}.servicebus.windows.net"
 
-    # Create or update .env file
-    if [ -f ".env" ]; then
-        if grep -q "^SERVICE_BUS_FQDN=" .env; then
-            sed -i "s|^SERVICE_BUS_FQDN=.*|SERVICE_BUS_FQDN=$fqdn|" .env
-        else
-            echo "SERVICE_BUS_FQDN=$fqdn" >> .env
-        fi
-        echo "Updated existing .env file"
-    else
-        echo "SERVICE_BUS_FQDN=$fqdn" > .env
-        echo "Created new .env file"
-    fi
+    # Create .env file
+    local env_file="$(dirname "$0")/.env"
+
+    cat > "$env_file" << EOF
+export RESOURCE_GROUP="$rg"
+export NAMESPACE_NAME="$namespace_name"
+export SERVICE_BUS_FQDN="$fqdn"
+EOF
 
     clear
     echo ""
@@ -139,7 +135,8 @@ assign_role_and_create_env() {
     echo "==========================================================="
     echo "FQDN: $fqdn"
     echo ""
-    echo "Values have been saved to .env file"
+    echo "Environment variables saved to: $env_file"
+    echo "Run 'source .env' to load them into your shell."
 }
 
 # Main menu loop

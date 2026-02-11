@@ -6,8 +6,8 @@ from azure.servicebus import ServiceBusClient, ServiceBusMessage, ServiceBusSubQ
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file in parent directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env'))
 
 QUEUE_NAME = "inference-requests"
 TOPIC_NAME = "inference-results"

@@ -7,7 +7,7 @@ header_pages:
 author: Microsoft Learning
 twitter_username: mslearning
 github_username:  MicrosoftLearning
-title: Develop AI solutions on Microsoft Azure
+title: Develop AI Cloud Solutions on Microsoft Azure
 plugins:
   - jekyll-sitemap
   - jekyll-mentions
