@@ -59,6 +59,12 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
+1. Run the following command to ensure your subscription has the necessary resource provider for the exercise.
+
+    ```
+    az provider register --namespace Microsoft.ServiceBus
+    ```
+
 1. Run the appropriate command in the terminal to launch the script.
 
     **Bash**
