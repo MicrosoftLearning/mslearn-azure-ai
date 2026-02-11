@@ -1,6 +1,6 @@
 ---
 lab:
-    topic: Azure Cosmos DB
+    topic: Azure Cosmos DB for NoSQL
     title: 'Optimize query performance with vector indexes on Azure Cosmos DB for NoSQL'
     description: 'Learn how to compare and tune vector indexing strategies in Azure Cosmos DB for NoSQL to optimize query performance and reduce RU costs'
     level: 200
