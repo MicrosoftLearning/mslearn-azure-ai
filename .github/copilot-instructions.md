@@ -1,5 +1,11 @@
 # Copilot Instructions for mslearn-azure-ai
 
+## General Rules
+
+### Starter Folder
+
+Never browse, read, or reference files in the `starter/` folder unless the user explicitly asks you to. The starter folder contains incomplete versions of exercises and should not be used as a reference for patterns, code, or structure.
+
 ## Writing Exercise Instructions
 
 ### Inline Code Usage

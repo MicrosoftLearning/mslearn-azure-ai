@@ -9,15 +9,15 @@ lab:
 
 # Process messages with Azure Service Bus
 
-In this exercise, you create an Azure Service Bus namespace and build a Python console application that demonstrates core messaging patterns. You work with queues to send and receive messages using peek-lock delivery, inspect the dead-letter queue for failed messages, and use topics with filtered subscriptions for fan-out messaging.
+In this exercise, you create an Azure Service Bus namespace and build a Python Flask web application that demonstrates core messaging patterns. You work with queues to send and receive messages using peek-lock delivery, inspect the dead-letter queue for failed messages, and use topics with filtered subscriptions for fan-out messaging.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
 - Create an Azure Service Bus namespace
 - Create messaging entities using the Azure CLI
-- Add code to the starter files to complete the console app
-- Run the console app to perform messaging operations
+- Add code to the starter files to complete the app
+- Run the app to perform messaging operations
 
 This exercise takes approximately **30** minutes to complete.
 
@@ -32,7 +32,7 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure Service Bus
 
-In this section you download the starter files for the console app and use a script to deploy an Azure Service Bus namespace to your subscription.
+In this section you download the starter files for the app and use a script to deploy an Azure Service Bus namespace to your subscription.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -183,230 +183,238 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
 
 ## Complete the app
 
-In this section you add code to the *main.py* script to complete the console app. You run the app later in the exercise, after confirming the messaging entities are created.
+In this section you add code to the *service_bus_functions.py* file to complete the Service Bus messaging functions. The Flask app in *app.py* calls these functions and displays the results in the browser. You run the app later in the exercise, after confirming the messaging entities are created.
 
-1. Open the *client/main.py* file to begin adding code.
+1. Open the *client/service_bus_functions.py* file to begin adding code.
 
 >**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
-### Add the client connection
-
-In this section, you add code to establish a connection to Azure Service Bus using Microsoft Entra authentication. The code retrieves the fully qualified namespace from environment variables and creates a **ServiceBusClient** instance using **DefaultAzureCredential**.
-
-1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    try:
-        fqdn = os.getenv("SERVICE_BUS_FQDN")
-
-        credential = DefaultAzureCredential()
-        client = ServiceBusClient(
-            fully_qualified_namespace=fqdn,
-            credential=credential
-        )
-
-        print(f"Connected to Service Bus namespace: {fqdn}")
-        input("\nPress Enter to continue...")
-        return client
-    ```
 
 ### Add code to send messages to the queue
 
 In this section, you add code to send three messages to the queue. Two messages have valid JSON payloads representing inference requests, and one has intentionally malformed JSON to simulate a processing failure that demonstrates the dead-letter queue.
 
-1. Locate the **# BEGIN SEND MESSAGES CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN SEND MESSAGES FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def send_messages(client, queue_name) -> None:
-        """Send messages to the queue including one malformed message"""
-        clear_screen()
-        print("Sending messages to queue...")
+    def send_messages():
+        """Send messages to the queue including one malformed message."""
+        client = get_client()
+        results = []
 
-        with client.get_queue_sender(queue_name) as sender:
-            # Valid message 1
-            msg1 = ServiceBusMessage(
-                body=json.dumps({
-                    "prompt": "Extract parties and effective date.",
-                    "model": "gpt-4o",
-                    "document_id": "doc-001"
-                }),
-                content_type="application/json",
-                message_id=str(uuid.uuid4()),
-                correlation_id="req-doc-001",
-                application_properties={"priority": "standard", "document_type": "contract"}
-            )
-            sender.send_messages(msg1)
-            print(f"  Sent message: {msg1.correlation_id}")
+        with client:
+            with client.get_queue_sender(QUEUE_NAME) as sender:
+                # Valid message 1
+                msg1 = ServiceBusMessage(
+                    body=json.dumps({
+                        "prompt": "Extract parties and effective date.",
+                        "model": "gpt-4o",
+                        "document_id": "doc-001"
+                    }),
+                    content_type="application/json",
+                    message_id=str(uuid.uuid4()),
+                    correlation_id="req-doc-001",
+                    application_properties={"priority": "standard", "document_type": "contract"}
+                )
+                sender.send_messages(msg1)
+                results.append({
+                    "correlation_id": msg1.correlation_id,
+                    "type": "valid",
+                    "status": "sent"
+                })
 
-            # Valid message 2
-            msg2 = ServiceBusMessage(
-                body=json.dumps({
-                    "prompt": "Summarize the key terms.",
-                    "model": "gpt-4o",
-                    "document_id": "doc-002"
-                }),
-                content_type="application/json",
-                message_id=str(uuid.uuid4()),
-                correlation_id="req-doc-002",
-                application_properties={"priority": "high", "document_type": "contract"}
-            )
-            sender.send_messages(msg2)
-            print(f"  Sent message: {msg2.correlation_id}")
+                # Valid message 2
+                msg2 = ServiceBusMessage(
+                    body=json.dumps({
+                        "prompt": "Summarize the key terms.",
+                        "model": "gpt-4o",
+                        "document_id": "doc-002"
+                    }),
+                    content_type="application/json",
+                    message_id=str(uuid.uuid4()),
+                    correlation_id="req-doc-002",
+                    application_properties={"priority": "high", "document_type": "contract"}
+                )
+                sender.send_messages(msg2)
+                results.append({
+                    "correlation_id": msg2.correlation_id,
+                    "type": "valid",
+                    "status": "sent"
+                })
 
-            # Invalid message (malformed body)
-            msg3 = ServiceBusMessage(
-                body="not valid json: [broken",
-                content_type="application/json",
-                message_id=str(uuid.uuid4()),
-                correlation_id="req-doc-003",
-                application_properties={"priority": "standard"}
-            )
-            sender.send_messages(msg3)
-            print(f"  Sent malformed message: {msg3.correlation_id}")
+                # Invalid message (malformed body)
+                msg3 = ServiceBusMessage(
+                    body="not valid json: [broken",
+                    content_type="application/json",
+                    message_id=str(uuid.uuid4()),
+                    correlation_id="req-doc-003",
+                    application_properties={"priority": "standard"}
+                )
+                sender.send_messages(msg3)
+                results.append({
+                    "correlation_id": msg3.correlation_id,
+                    "type": "malformed",
+                    "status": "sent"
+                })
 
-        print("\nAll messages sent successfully.")
-        input("\nPress Enter to continue...")
+        return results
     ```
 
 ### Add code to process messages with peek-lock
 
 In this section, you add code to receive messages from the queue using peek-lock mode. The processor validates the JSON payload, completes valid messages, and dead-letters messages with invalid JSON by providing a reason and error description.
 
-1. Locate the **# BEGIN PROCESS MESSAGES CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN PROCESS MESSAGES FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def process_messages(client, queue_name) -> None:
-        """Receive and process messages from the queue using peek-lock"""
-        clear_screen()
-        print("Processing messages from queue...\n")
+    def process_messages():
+        """Receive and process messages from the queue using peek-lock."""
+        client = get_client()
+        results = []
 
-        with client.get_queue_receiver(
-            queue_name=queue_name,
-            max_wait_time=10
-        ) as receiver:
-            for msg in receiver:
-                print(f"Received message: correlation_id={msg.correlation_id}")
-                try:
-                    payload = json.loads(str(msg))
-                    print(f"  Document: {payload.get('document_id')}")
-                    print(f"  Model: {payload.get('model')}")
-                    print(f"  Prompt: {payload.get('prompt')[:50]}...")
-                    receiver.complete_message(msg)
-                    print(f"  Status: Completed\n")
-                except json.JSONDecodeError:
-                    receiver.dead_letter_message(
-                        msg,
-                        reason="MalformedPayload",
-                        error_description="Message body is not valid JSON"
-                    )
-                    print(f"  Status: Dead-lettered (invalid JSON)\n")
+        with client:
+            with client.get_queue_receiver(
+                queue_name=QUEUE_NAME,
+                max_wait_time=10
+            ) as receiver:
+                for msg in receiver:
+                    try:
+                        payload = json.loads(str(msg))
+                        receiver.complete_message(msg)
+                        results.append({
+                            "correlation_id": msg.correlation_id,
+                            "document_id": payload.get("document_id"),
+                            "model": payload.get("model"),
+                            "prompt": payload.get("prompt", "")[:50],
+                            "status": "completed"
+                        })
+                    except json.JSONDecodeError:
+                        receiver.dead_letter_message(
+                            msg,
+                            reason="MalformedPayload",
+                            error_description="Message body is not valid JSON"
+                        )
+                        results.append({
+                            "correlation_id": msg.correlation_id,
+                            "document_id": None,
+                            "model": None,
+                            "prompt": str(msg)[:50],
+                            "status": "dead-lettered"
+                        })
 
-        print("No more messages. Processing complete.")
-        input("\nPress Enter to continue...")
+        return results
     ```
 
 ### Add code to inspect the dead-letter queue
 
 In this section, you add code to read messages from the dead-letter queue and display diagnostic information. The dead-letter queue captures messages that couldn't be processed, along with the reason and error description for troubleshooting.
 
-1. Locate the **# BEGIN INSPECT DLQ CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN INSPECT DLQ FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def inspect_dead_letter_queue(client, queue_name) -> None:
-        """Inspect messages in the dead-letter queue"""
-        clear_screen()
-        print("Dead-letter queue messages:\n")
+    def inspect_dead_letter_queue():
+        """Inspect and remove messages from the dead-letter queue."""
+        client = get_client()
+        results = []
 
-        with client.get_queue_receiver(
-            queue_name=queue_name,
-            sub_queue=ServiceBusSubQueue.DEAD_LETTER,
-            max_wait_time=10
-        ) as dlq_receiver:
-            count = 0
-            for msg in dlq_receiver:
-                count += 1
-                print(f"  Message ID: {msg.message_id}")
-                print(f"  Correlation ID: {msg.correlation_id}")
-                print(f"  Dead-letter reason: {msg.dead_letter_reason}")
-                print(f"  Error description: {msg.dead_letter_error_description}")
-                print(f"  Delivery count: {msg.delivery_count}")
-                print(f"  Body: {str(msg)[:100]}")
-                print()
-                dlq_receiver.complete_message(msg)
+        with client:
+            with client.get_queue_receiver(
+                queue_name=QUEUE_NAME,
+                sub_queue=ServiceBusSubQueue.DEAD_LETTER,
+                max_wait_time=10
+            ) as dlq_receiver:
+                for msg in dlq_receiver:
+                    results.append({
+                        "message_id": msg.message_id,
+                        "correlation_id": msg.correlation_id,
+                        "dead_letter_reason": msg.dead_letter_reason,
+                        "error_description": msg.dead_letter_error_description,
+                        "delivery_count": msg.delivery_count,
+                        "body": str(msg)[:100]
+                    })
+                    dlq_receiver.complete_message(msg)
 
-            if count == 0:
-                print("  No messages in the dead-letter queue.")
-
-        print("\nDead-letter queue inspection complete.")
-        input("\nPress Enter to continue...")
+        return results
     ```
 
 ### Add code for topic messaging with filtered subscriptions
 
 In this section, you add code to send messages to a topic with different priority levels, then receive from each subscription to verify that filtering works. The **notifications** subscription receives all messages, while the **high-priority** subscription receives only messages where the **priority** application property equals **high**.
 
-1. Locate the **# BEGIN TOPIC MESSAGING CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN TOPIC MESSAGING FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def topic_messaging(client, topic_name) -> None:
-        """Send messages to a topic and receive from filtered subscriptions"""
-        clear_screen()
-        print("Sending messages to topic...\n")
+    def topic_messaging():
+        """Send messages to a topic and receive from filtered subscriptions."""
+        client = get_client()
+        sent = []
+        notifications = []
+        high_priority = []
 
-        # Send messages with different priorities
-        with client.get_topic_sender(topic_name) as sender:
-            for i, priority in enumerate(["standard", "high", "standard", "high", "low"]):
-                result = {
-                    "document_id": f"doc-{i+1:03d}",
-                    "status": "completed",
-                    "confidence": 0.95
-                }
-                msg = ServiceBusMessage(
-                    body=json.dumps(result),
-                    content_type="application/json",
-                    message_id=str(uuid.uuid4()),
-                    application_properties={"priority": priority}
-                )
-                sender.send_messages(msg)
-                print(f"  Sent to topic: doc-{i+1:03d}, priority={priority}")
+        with client:
+            # Send messages with different priorities
+            with client.get_topic_sender(TOPIC_NAME) as sender:
+                for i, priority in enumerate(["standard", "high", "standard", "high", "low"]):
+                    result = {
+                        "document_id": f"doc-{i+1:03d}",
+                        "status": "completed",
+                        "confidence": 0.95
+                    }
+                    msg = ServiceBusMessage(
+                        body=json.dumps(result),
+                        content_type="application/json",
+                        message_id=str(uuid.uuid4()),
+                        application_properties={"priority": priority}
+                    )
+                    sender.send_messages(msg)
+                    sent.append({
+                        "document_id": f"doc-{i+1:03d}",
+                        "priority": priority
+                    })
 
-        # Receive from notifications subscription (all messages)
-        print("\n--- Notifications subscription (all messages) ---")
-        with client.get_subscription_receiver(
-            topic_name=topic_name,
-            subscription_name="notifications",
-            max_wait_time=10
-        ) as receiver:
-            for msg in receiver:
-                body = json.loads(str(msg))
-                props = msg.application_properties or {}
-                priority_val = props.get("priority") or props.get(b"priority", b"unknown")
-                if isinstance(priority_val, bytes):
-                    priority_val = priority_val.decode("utf-8")
-                print(f"  Received: {body['document_id']}, priority={priority_val}")
-                receiver.complete_message(msg)
+            # Receive from notifications subscription (all messages)
+            with client.get_subscription_receiver(
+                topic_name=TOPIC_NAME,
+                subscription_name="notifications",
+                max_wait_time=10
+            ) as receiver:
+                for msg in receiver:
+                    body = json.loads(str(msg))
+                    props = msg.application_properties or {}
+                    priority_val = props.get("priority") or props.get(b"priority", b"unknown")
+                    if isinstance(priority_val, bytes):
+                        priority_val = priority_val.decode("utf-8")
+                    notifications.append({
+                        "document_id": body["document_id"],
+                        "priority": priority_val
+                    })
+                    receiver.complete_message(msg)
 
-        # Receive from high-priority subscription (filtered)
-        print("\n--- High-priority subscription (filtered) ---")
-        with client.get_subscription_receiver(
-            topic_name=topic_name,
-            subscription_name="high-priority",
-            max_wait_time=10
-        ) as receiver:
-            for msg in receiver:
-                body = json.loads(str(msg))
-                props = msg.application_properties or {}
-                priority_val = props.get("priority") or props.get(b"priority", b"unknown")
-                if isinstance(priority_val, bytes):
-                    priority_val = priority_val.decode("utf-8")
-                print(f"  Received: {body['document_id']}, priority={priority_val}")
-                receiver.complete_message(msg)
+            # Receive from high-priority subscription (filtered)
+            with client.get_subscription_receiver(
+                topic_name=TOPIC_NAME,
+                subscription_name="high-priority",
+                max_wait_time=10
+            ) as receiver:
+                for msg in receiver:
+                    body = json.loads(str(msg))
+                    props = msg.application_properties or {}
+                    priority_val = props.get("priority") or props.get(b"priority", b"unknown")
+                    if isinstance(priority_val, bytes):
+                        priority_val = priority_val.decode("utf-8")
+                    high_priority.append({
+                        "document_id": body["document_id"],
+                        "priority": priority_val
+                    })
+                    receiver.complete_message(msg)
 
-        print("\nTopic messaging complete.")
-        input("\nPress Enter to continue...")
+        return {
+            "sent": sent,
+            "notifications": notifications,
+            "high_priority": high_priority
+        }
     ```
 
-1. Save your changes to the *main.py* file.
+1. Save your changes to the *service_bus_functions.py* file.
 
 ## Configure the Python environment
 
@@ -442,29 +450,28 @@ In this section, you navigate to the client app directory, create the Python env
     pip install -r requirements.txt
     ```
 
-## Run the console app
+## Run the app
 
-In this section, you run the completed console application to perform various Service Bus messaging operations. The app provides a menu-driven interface that lets you send messages, process them with peek-lock delivery, inspect the dead-letter queue, and test topic messaging with filtered subscriptions.
+In this section, you run the completed Flask application to perform various Service Bus messaging operations. The app provides a web interface that lets you send messages, process them with peek-lock delivery, inspect the dead-letter queue, and test topic messaging with filtered subscriptions.
 
-1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
-
-    ```
-    python main.py
-    ```
-
-1. The app has the following options. Select **1. Send messages to queue** to get started.
+1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
 
     ```
-    1. Send messages to queue
-    2. Process messages from queue
-    3. Inspect dead-letter queue
-    4. Send and receive topic messages
-    5. Exit
+    python app.py
     ```
 
-1. Select the remaining options in order to run the different operations.
+1. Open a browser and navigate to `http://localhost:5000` to access the app.
 
->**Note:** Run the options in order for the best experience. Option 1 sends three messages (two valid, one malformed). Option 2 processes them, completing the valid messages and dead-lettering the malformed one. Option 3 inspects the dead-letter queue to display the failed message's diagnostic information. Option 4 demonstrates topic messaging with filtered subscriptions.
+1. The app has the following actions in the left panel. Select **Send Messages** to get started.
+
+    - **Send Messages** — Sends three messages to the queue (two valid, one malformed)
+    - **Process Messages** — Receives and processes messages using peek-lock delivery
+    - **Inspect Dead-Letter Queue** — Displays diagnostic information for failed messages
+    - **Send & Receive Topic Messages** — Demonstrates topic messaging with filtered subscriptions
+
+1. Select the remaining actions in order. Results appear in the right panel after each action.
+
+>**Note:** Run the actions in order for the best experience. **Send Messages** sends three messages (two valid, one malformed). **Process Messages** processes them, completing the valid messages and dead-lettering the malformed one. **Inspect Dead-Letter Queue** displays the failed message's diagnostic information. **Send & Receive Topic Messages** demonstrates topic messaging with filtered subscriptions.
 
 ## Clean up resources
 
@@ -492,7 +499,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm the SQL filter was applied to the **high-priority** subscription by checking that the **$Default** rule was removed and the **high-priority-filter** rule exists.
 
 **Check code completeness and indentation**
-- Ensure all code blocks were added to the correct sections in *main.py* between the appropriate BEGIN/END comment markers.
+- Ensure all code blocks were added to the correct sections in *service_bus_functions.py* between the appropriate BEGIN/END comment markers.
 - Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
