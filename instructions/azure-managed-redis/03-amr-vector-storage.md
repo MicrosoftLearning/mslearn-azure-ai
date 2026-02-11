@@ -4,7 +4,7 @@ lab:
     title: 'Implement semantic search in Azure Managed Redis'
     description: 'Learn how to store product vectors with embeddings, create semantic search indexes, and perform similarity searches in Azure Managed Redis using redis-py and RediSearch.'
     level: 200
-    duration: 30 minutes
+    duration: 30
 ---
 
 # Implement semantic search in Azure Managed Redis

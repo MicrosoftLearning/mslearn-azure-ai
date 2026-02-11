@@ -4,7 +4,7 @@ lab:
     title: 'Troubleshoot apps on Azure Kubernetes Service'
     description: 'Learn how to diagnose and resolve common Kubernetes issues including label mismatches, CrashLoopBackOff errors, and readiness probe failures.'
     level: 200
-    duration: 30-40 minutes
+    duration: 30
 ---
 
 # Troubleshoot apps on Azure Kubernetes Service
@@ -18,7 +18,7 @@ Tasks performed in this exercise:
 - Diagnose and resolve some common issues
 - Clean up Azure resources
 
-This exercise takes approximately **30-40** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 >**Important:** Azure Container Registry task runs are temporarily paused from Azure free credits. This exercise requires a Pay-As-You-Go, or another paid plan.
 

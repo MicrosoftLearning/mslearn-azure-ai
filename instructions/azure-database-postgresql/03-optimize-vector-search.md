@@ -4,7 +4,7 @@ lab:
     title: 'Optimize vector search performance in Azure Database for PostgreSQL'
     description: 'Learn how to optimize vector search performance in Azure Database for PostgreSQL using indexes and parameter tuning'
     level: 200
-    duration: 30 minutes
+    duration: 30
 ---
 
 # Optimize vector search performance in Azure Database for PostgreSQL
