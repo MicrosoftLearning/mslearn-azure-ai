@@ -166,7 +166,7 @@ You can start by creating a Service Bus namespace, a queue, and a topic with sub
 
             # Invalid message (malformed body)
             msg3 = ServiceBusMessage(
-                body="this is not valid json {{{",
+                body="not valid json: [broken",
                 content_type="application/json",
                 message_id=str(uuid.uuid4()),
                 correlation_id="req-doc-003",
