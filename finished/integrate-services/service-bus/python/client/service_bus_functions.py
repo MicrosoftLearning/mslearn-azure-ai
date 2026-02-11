@@ -102,7 +102,7 @@ def process_messages():
     with client:
         with client.get_queue_receiver(
             queue_name=QUEUE_NAME,
-            max_wait_time=10
+            max_wait_time=5
         ) as receiver:
             for msg in receiver:
                 try:
@@ -143,7 +143,7 @@ def inspect_dead_letter_queue():
         with client.get_queue_receiver(
             queue_name=QUEUE_NAME,
             sub_queue=ServiceBusSubQueue.DEAD_LETTER,
-            max_wait_time=10
+            max_wait_time=5
         ) as dlq_receiver:
             for msg in dlq_receiver:
                 results.append({
@@ -193,7 +193,7 @@ def topic_messaging():
         with client.get_subscription_receiver(
             topic_name=TOPIC_NAME,
             subscription_name="notifications",
-            max_wait_time=10
+            max_wait_time=5
         ) as receiver:
             for msg in receiver:
                 body = json.loads(str(msg))
@@ -211,7 +211,7 @@ def topic_messaging():
         with client.get_subscription_receiver(
             topic_name=TOPIC_NAME,
             subscription_name="high-priority",
-            max_wait_time=10
+            max_wait_time=5
         ) as receiver:
             for msg in receiver:
                 body = json.loads(str(msg))
