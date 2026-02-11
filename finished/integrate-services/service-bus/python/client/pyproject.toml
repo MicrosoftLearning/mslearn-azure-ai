@@ -6,5 +6,4 @@ requires-python = ">=3.12"
 dependencies = [
     "azure-identity>=1.21.0",
     "azure-servicebus>=7.14.1",
-    "python-dotenv>=1.2.1",
 ]

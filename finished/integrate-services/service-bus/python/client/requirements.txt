@@ -4,5 +4,3 @@ azure-identity==1.21.0
     # via service-bus-messaging (pyproject.toml)
 azure-servicebus==7.14.1
     # via service-bus-messaging (pyproject.toml)
-python-dotenv==1.2.1
-    # via service-bus-messaging (pyproject.toml)

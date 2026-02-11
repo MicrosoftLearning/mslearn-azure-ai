@@ -81,11 +81,13 @@ In this section you download the starter files for the console app and use a scr
 
     This option creates the resource group if it doesn't already exist, and deploys an Azure Service Bus namespace with the Standard tier. The namespace is the container for all messaging entities you create during the exercise.
 
-1. After the deployment completes, enter **2** to run the **2. Check deployment status** option. Verify the status shows **Succeeded** before continuing. If the namespace is still provisioning, wait a moment and try again.
+1. Enter **2** to run the **2. Assign role** option. This assigns the Azure Service Bus Data Owner role to your account so you can send and receive messages using Microsoft Entra authentication.
 
-1. Enter **3** to run the **3. Assign role and create .env file** option. This assigns the Azure Service Bus Data Owner role to your account and creates the environment variable files with the resource group name, namespace name, and fully qualified domain name (FQDN).
+1. Enter **3** to run the **3. Check deployment status** option. Verify the namespace status shows **Succeeded** and the role is assigned before continuing. If the namespace is still provisioning, wait a moment and try again.
 
-1. Enter **4** to exit the deployment script.
+1. Enter **4** to run the **4. Retrieve connection info** option. This creates the environment variable files with the resource group name, namespace name, and fully qualified domain name (FQDN).
+
+1. Enter **5** to exit the deployment script.
 
 1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -100,40 +102,6 @@ In this section you download the starter files for the console app and use a scr
     ```
 
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
-
-## Configure the Python environment
-
-In this section, you navigate to the client app directory, create the Python environment, and install the dependencies.
-
-1. Run the following command in the VS Code terminal to navigate to the *client* directory.
-
-    ```
-    cd client
-    ```
-
-1. Run the following command to create the Python environment.
-
-    ```
-    python -m venv .venv
-    ```
-
-1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
-
-    **Bash**
-    ```bash
-    source .venv/bin/activate
-    ```
-
-    **PowerShell**
-    ```powershell
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-1. Run the following command in the VS Code terminal to install the dependencies.
-
-    ```
-    pip install -r requirements.txt
-    ```
 
 ## Create messaging entities
 
@@ -439,6 +407,40 @@ In this section, you add code to send messages to a topic with different priorit
     ```
 
 1. Save your changes to the *main.py* file.
+
+## Configure the Python environment
+
+In this section, you navigate to the client app directory, create the Python environment, and install the dependencies.
+
+1. Run the following command in the VS Code terminal to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
+1. Run the following command to create the Python environment.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
+
+    **Bash**
+    ```bash
+    source .venv/bin/activate
+    ```
+
+    **PowerShell**
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+1. Run the following command in the VS Code terminal to install the dependencies.
+
+    ```
+    pip install -r requirements.txt
+    ```
 
 ## Run the console app
 
