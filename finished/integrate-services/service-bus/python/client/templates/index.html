@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Service Bus Messaging - Azure Service Bus</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Service Bus Messaging - Azure Service Bus</h1>
+        <div class="left-panel">
+            <!-- Queue Operations -->
+            <section class="section section-queue">
+                <h2>Queue Operations</h2>
+                <p>Send messages to the queue, process them with peek-lock delivery, and inspect the dead-letter queue.</p>
+                <div class="button-group">
+                    <form action="/send-messages" method="post">
+                        <button type="submit" class="btn-success">Send Messages</button>
+                    </form>
+                    <form action="/process-messages" method="post">
+                        <button type="submit" class="btn-primary">Process Messages</button>
+                    </form>
+                    <form action="/inspect-dlq" method="post">
+                        <button type="submit" class="btn-warning">Inspect Dead-Letter Queue</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Topic Operations -->
+            <section class="section section-topic">
+                <h2>Topic Messaging</h2>
+                <p>Send messages with different priorities to a topic and receive from filtered subscriptions.</p>
+                <form action="/topic-messaging" method="post">
+                    <button type="submit" class="btn-primary">Send &amp; Receive Topic Messages</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Results Section -->
+            <section class="section section-results" aria-live="polite" aria-atomic="true">
+                <h2>Results</h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                <!-- Send Results -->
+                {% if send_results is defined and send_results %}
+                    <h3>Messages Sent to Queue</h3>
+                    <div class="results-container">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Correlation ID</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for msg in send_results %}
+                                    <tr>
+                                        <td>{{ msg.correlation_id }}</td>
+                                        <td><span class="tag {% if msg.type == 'malformed' %}tag-error{% else %}tag-valid{% endif %}">{{ msg.type }}</span></td>
+                                        <td><span class="tag tag-success">{{ msg.status }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                <!-- Process Results -->
+                {% elif process_results is defined and process_results %}
+                    <h3>Processed Messages</h3>
+                    <div class="results-container">
+                        {% for msg in process_results %}
+                            <div class="message-card {{ 'card-completed' if msg.status == 'completed' else 'card-dead-lettered' }}">
+                                <div class="message-header">
+                                    <span class="message-id">{{ msg.correlation_id }}</span>
+                                    <span class="tag {% if msg.status == 'completed' %}tag-success{% else %}tag-error{% endif %}">{{ msg.status }}</span>
+                                </div>
+                                {% if msg.document_id %}
+                                    <div class="message-detail"><strong>Document:</strong> {{ msg.document_id }}</div>
+                                    <div class="message-detail"><strong>Model:</strong> {{ msg.model }}</div>
+                                    <div class="message-detail"><strong>Prompt:</strong> {{ msg.prompt }}...</div>
+                                {% else %}
+                                    <div class="message-detail"><strong>Body:</strong> {{ msg.prompt }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                {% elif process_results is defined and not process_results %}
+                    <div class="empty-state">No messages to process. Send messages first.</div>
+
+                <!-- DLQ Results -->
+                {% elif dlq_results is defined and dlq_results %}
+                    <h3>Dead-Letter Queue Messages</h3>
+                    <div class="results-container">
+                        {% for msg in dlq_results %}
+                            <div class="message-card card-dead-lettered">
+                                <div class="message-header">
+                                    <span class="message-id">{{ msg.correlation_id }}</span>
+                                </div>
+                                <div class="message-detail"><strong>Message ID:</strong> {{ msg.message_id }}</div>
+                                <div class="message-detail"><strong>Reason:</strong> {{ msg.dead_letter_reason }}</div>
+                                <div class="message-detail"><strong>Error:</strong> {{ msg.error_description }}</div>
+                                <div class="message-detail"><strong>Delivery count:</strong> {{ msg.delivery_count }}</div>
+                                <div class="message-detail"><strong>Body:</strong> <code>{{ msg.body }}</code></div>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                {% elif dlq_results is defined and not dlq_results %}
+                    <div class="empty-state">No messages in the dead-letter queue.</div>
+
+                <!-- Topic Results -->
+                {% elif topic_results is defined %}
+                    <h3>Messages Sent to Topic</h3>
+                    <div class="results-container">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Document ID</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for msg in topic_results.sent %}
+                                    <tr>
+                                        <td>{{ msg.document_id }}</td>
+                                        <td><span class="tag tag-priority-{{ msg.priority }}">{{ msg.priority }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>Notifications Subscription <span class="subtitle">(all messages)</span></h3>
+                    <div class="query-info">Received {{ topic_results.notifications | length }} message(s)</div>
+                    <div class="results-container">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Document ID</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for msg in topic_results.notifications %}
+                                    <tr>
+                                        <td>{{ msg.document_id }}</td>
+                                        <td><span class="tag tag-priority-{{ msg.priority }}">{{ msg.priority }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>High-Priority Subscription <span class="subtitle">(filtered)</span></h3>
+                    <div class="query-info">Received {{ topic_results.high_priority | length }} message(s)</div>
+                    <div class="results-container">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Document ID</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for msg in topic_results.high_priority %}
+                                    <tr>
+                                        <td>{{ msg.document_id }}</td>
+                                        <td><span class="tag tag-priority-{{ msg.priority }}">{{ msg.priority }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                {% else %}
+                    <div class="empty-state">
+                        Results will appear here after you perform an action.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>

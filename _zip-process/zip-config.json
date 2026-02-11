@@ -85,6 +85,11 @@
       "source": "starter/cosmosdb/optimize-query/python",
       "output": "downloads/python",
       "name": "cosmosdb-optimize-query-python.zip"
+    },
+    {
+      "source": "starter/integrate-services/service-bus/python",
+      "output": "downloads/python",
+      "name": "service-bus-python.zip"
     }
   ]
 }
