@@ -4,7 +4,7 @@ lab:
     title: 'Configure autoscaling for an API using KEDA'
     description: 'Learn how to configure KEDA-based autoscaling in Azure Container Apps using HTTP concurrency triggers.'
     level: 200
-    duration: 30 minutes
+    duration: 30
 ---
 
 # Configure autoscaling using KEDA triggers

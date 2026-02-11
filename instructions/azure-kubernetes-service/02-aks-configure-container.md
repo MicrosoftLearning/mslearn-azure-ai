@@ -4,7 +4,7 @@ lab:
     title: 'Configure apps on Azure Kubernetes Service'
     description: 'Learn how to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings. '
     level: 200
-    duration: 30-40 minutes
+    duration: 30
 ---
 
 # Configure apps on Azure Kubernetes Service
@@ -22,7 +22,7 @@ Tasks performed in this exercise:
 - View API logs stored on persistent volume
 - Clean up Azure resources
 
-This exercise takes approximately **30-40** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 >**IMPORTANT:** The persistent storage implementation in this exercise is for demonstration purposes only. For logging, production applications should use a centralized logging solution like Azure Monitor or Application Insights instead of storing logs on persistent volumes. If persistent storage is required, implement log rotation policies to prevent storage from filling up, which can cause container failures and pod evictions.
 

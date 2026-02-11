@@ -4,7 +4,7 @@ lab:
     title: 'Deploy an AI inference API to Azure Kubernetes Service'
     description: 'Learn how to create Kubernetes deployment and service manifests to deploy an AI inference API container to Azure Kubernetes Service.'
     level: 200
-    duration: 30-40 minutes
+    duration: 30
 ---
 
 # Deploy an AI inference API to Azure Kubernetes Service
@@ -18,7 +18,7 @@ Tasks performed in this exercise:
 - Complete the *deployment.yaml* and *service.yaml* files and deploy the container to AKS
 - Run the client app to test the API
 
-This exercise takes approximately **30-40** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 >**Important:** Azure Container Registry task runs are temporarily paused from Azure free credits. This exercise requires a Pay-As-You-Go, or another paid plan.
 

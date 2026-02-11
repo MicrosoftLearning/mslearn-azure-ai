@@ -27,7 +27,7 @@ Some exercises may have additional, or different, requirements. Those will conta
 ## <a id="{{ group.name | slugify }}"></a>{{ group.name }}
 
 {% for activity in group.items %}
-[{{ activity.lab.title }}]({{ site.github.url }}{{ activity.url }}) <br/> {{ activity.lab.description }} <br/> <span class="meta-grey">Level: {{activity.lab.level}} &nbsp; &nbsp; Duration: {{activity.lab.duration}}</span>
+[{{ activity.lab.title }}]({{ site.github.url }}{{ activity.url }}) <br/> {{ activity.lab.description }} <br/> <span class="meta-grey">Level: {{activity.lab.level}} &nbsp; &nbsp; Duration: {{activity.lab.duration}} minutes</span>
 
 ---
 
