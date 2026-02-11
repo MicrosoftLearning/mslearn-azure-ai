@@ -213,13 +213,6 @@ function Retrieve-ConnectionInfo {
     $fqdn = "$namespaceName.servicebus.windows.net"
 
     $scriptDir = Split-Path -Parent $PSCommandPath
-    $envFile = Join-Path $scriptDir ".env"
-
-    @(
-        "export RESOURCE_GROUP=`"$rg`"",
-        "export NAMESPACE_NAME=`"$namespaceName`"",
-        "export SERVICE_BUS_FQDN=`"$fqdn`""
-    ) | Set-Content -Path $envFile -Encoding UTF8
 
     # Create .env.ps1 file (for PowerShell shell variables)
     $envPs1File = Join-Path $scriptDir ".env.ps1"
@@ -236,7 +229,7 @@ function Retrieve-ConnectionInfo {
     Write-Host "FQDN: $fqdn"
     Write-Host "Authentication: Microsoft Entra ID (DefaultAzureCredential)"
     Write-Host ""
-    Write-Host "Environment variables saved to: $envFile and $envPs1File"
+    Write-Host "Environment variables saved to: .env.ps1"
 }
 
 while ($true) {
