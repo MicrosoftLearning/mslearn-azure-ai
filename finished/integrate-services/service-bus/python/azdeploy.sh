@@ -2,9 +2,6 @@
 
 # Change the values of these variables as needed
 
-# rg="<your-resource-group-name>"  # Resource Group name
-# location="<your-azure-region>"   # Azure region for the resources
-
 rg="rg-exercises"           # Resource Group name
 location="eastus2"          # Azure region for the resources
 
@@ -21,25 +18,21 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
-acr_name="acr${user_hash}"
-app_plan="plan-docprocessor-${user_hash}"
-app_name="app-docprocessor-${user_hash}"
-container_image="docprocessor:v1"
+namespace_name="sbns-exercise-${user_hash}"
 
 # Function to display menu
 show_menu() {
     clear
     echo "====================================================================="
-    echo "    App Service Container Exercise - Deployment Script"
+    echo "    Service Bus Messaging Exercise - Deployment Script"
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
-    echo "ACR Name: $acr_name"
-    echo "App Service Plan: $app_plan"
+    echo "Namespace: $namespace_name"
     echo "====================================================================="
-    echo "1. Create Azure Container Registry and build container image"
-    echo "2. Create App Service Plan"
-    echo "3. Check deployment status"
+    echo "1. Create Service Bus namespace"
+    echo "2. Check deployment status"
+    echo "3. Assign role and create .env file"
     echo "4. Exit"
     echo "====================================================================="
 }
@@ -57,90 +50,27 @@ create_resource_group() {
     fi
 }
 
-# Function to create Azure Container Registry and build image
-create_acr_and_build_image() {
-    echo "Creating Azure Container Registry '$acr_name'..."
+# Function to create Service Bus namespace
+create_servicebus_namespace() {
+    echo "Creating Service Bus namespace '$namespace_name'..."
 
-    local acr_exists=$(az acr show --resource-group $rg --name $acr_name 2>/dev/null)
-    if [ -z "$acr_exists" ]; then
-        az acr create \
+    local ns_exists=$(az servicebus namespace show --resource-group $rg --name $namespace_name 2>/dev/null)
+    if [ -z "$ns_exists" ]; then
+        az servicebus namespace create \
+            --name $namespace_name \
             --resource-group $rg \
-            --name $acr_name \
-            --sku Basic \
-            --admin-enabled false > /dev/null 2>&1
+            --location $location \
+            --sku Standard > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ ACR created: $acr_name"
-            echo "  Login server: $acr_name.azurecr.io"
+            echo "✓ Service Bus namespace created: $namespace_name"
         else
-            echo "Error: Failed to create ACR"
+            echo "Error: Failed to create Service Bus namespace"
             return 1
         fi
     else
-        echo "✓ ACR already exists: $acr_name"
-        echo "  Login server: $acr_name.azurecr.io"
+        echo "✓ Service Bus namespace already exists: $namespace_name"
     fi
-
-    echo ""
-    echo "Building and pushing container image to ACR..."
-    echo "This may take a few minutes..."
-
-    # Build image using ACR Tasks
-    az acr build \
-        --resource-group $rg \
-        --registry $acr_name \
-        --image $container_image \
-        --file api/Dockerfile \
-        api/ > /dev/null 2>&1
-
-    if [ $? -eq 0 ]; then
-        echo "✓ Image built and pushed: $acr_name.azurecr.io/$container_image"
-    else
-        echo "Error: Failed to build/push image"
-        return 1
-    fi
-}
-
-# Function to create App Service Plan
-create_app_service_plan() {
-    echo "Creating App Service Plan '$app_plan'..."
-
-    local plan_exists=$(az appservice plan show --resource-group $rg --name $app_plan 2>/dev/null)
-    if [ -z "$plan_exists" ]; then
-        az appservice plan create \
-            --resource-group $rg \
-            --name $app_plan \
-            --sku B1 \
-            --is-linux > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ App Service Plan created: $app_plan"
-            echo "  SKU: B1 (Basic tier - supports always-on and custom containers)"
-        else
-            echo "Error: Failed to create App Service Plan"
-            return 1
-        fi
-    else
-        echo "✓ App Service Plan already exists: $app_plan"
-    fi
-
-    # Write environment variables to file
-    write_env_file
-}
-
-# Function to write environment variables to file
-write_env_file() {
-    local env_file="$(dirname "$0")/.env"
-    cat > "$env_file" << EOF
-export RESOURCE_GROUP="$rg"
-export ACR_NAME="$acr_name"
-export APP_PLAN="$app_plan"
-export APP_NAME="$app_name"
-export LOCATION="$location"
-EOF
-    echo ""
-    echo "Environment variables saved to: $env_file"
-    echo "Run 'source .env' to load them into your shell."
 }
 
 # Function to check deployment status
@@ -148,68 +78,68 @@ check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
 
-    # Check ACR
-    echo "Azure Container Registry ($acr_name):"
-    local acr_status=$(az acr show --resource-group $rg --name $acr_name --query "provisioningState" -o tsv 2>/dev/null)
-    if [ ! -z "$acr_status" ]; then
-        echo "  Status: $acr_status"
-        if [ "$acr_status" = "Succeeded" ]; then
-            echo "  ✓ ACR is ready"
-            # Check if image exists
-            local image_exists=$(az acr repository show --name $acr_name --image $container_image 2>/dev/null)
-            if [ ! -z "$image_exists" ]; then
-                echo "  ✓ Container image: $container_image"
-            else
-                echo "  Container image not found"
-            fi
-        fi
-    else
-        echo "  Status: Not created"
-    fi
-
-    # Check App Service Plan
-    echo ""
-    echo "App Service Plan ($app_plan):"
-    local plan_status=$(az appservice plan show --resource-group $rg --name $app_plan --query "provisioningState" -o tsv 2>/dev/null)
-    if [ ! -z "$plan_status" ]; then
-        echo "  Status: $plan_status"
-        local plan_sku=$(az appservice plan show --resource-group $rg --name $app_plan --query "sku.name" -o tsv 2>/dev/null)
-        echo "  SKU: $plan_sku"
-        if [ "$plan_status" = "Succeeded" ]; then
-            echo "  ✓ App Service Plan is ready"
-        fi
-    else
-        echo "  Status: Not created"
-    fi
-
-    # Check Web App
-    echo ""
-    echo "Web App ($app_name):"
-    local app_state=$(az webapp show --resource-group $rg --name $app_name --query "state" -o tsv 2>/dev/null)
-    if [ ! -z "$app_state" ]; then
-        echo "  State: $app_state"
-        echo "  URL: https://$app_name.azurewebsites.net"
-
-        # Check managed identity
-        local identity=$(az webapp identity show --resource-group $rg --name $app_name --query "principalId" -o tsv 2>/dev/null)
-        if [ ! -z "$identity" ]; then
-            echo "  ✓ Managed identity configured"
+    echo "Service Bus Namespace ($namespace_name):"
+    local ns_status=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
+    if [ ! -z "$ns_status" ]; then
+        echo "  Provisioning State: $ns_status"
+        if [ "$ns_status" = "Succeeded" ]; then
+            echo "  ✓ Namespace is ready"
+            local ns_sku=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "sku.name" -o tsv 2>/dev/null)
+            echo "  SKU: $ns_sku"
+            local ns_endpoint=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "serviceBusEndpoint" -o tsv 2>/dev/null)
+            echo "  Endpoint: $ns_endpoint"
         else
-            echo "  Managed identity: Not configured"
+            echo "  ⚠ Namespace is still provisioning. Please wait and try again."
         fi
     else
-        echo "  Status: Not created (student task)"
+        echo "  Status: Not created"
+    fi
+}
+
+# Function to assign role and create .env file
+assign_role_and_create_env() {
+    echo "Assigning Azure Service Bus Data Owner role..."
+
+    # Get the namespace resource ID
+    local ns_id=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv 2>/dev/null)
+    if [ -z "$ns_id" ]; then
+        echo ""
+        echo "Error: Unable to find the Service Bus namespace."
+        echo "Please check the deployment status to ensure the resource is fully provisioned."
+        return 1
     fi
 
+    # Assign the Azure Service Bus Data Owner role
+    az role assignment create \
+        --role "Azure Service Bus Data Owner" \
+        --assignee "$user_object_id" \
+        --scope "$ns_id" > /dev/null 2>&1
+
+    echo "✓ Role assigned: Azure Service Bus Data Owner"
+
+    # Get the FQDN
+    local fqdn="${namespace_name}.servicebus.windows.net"
+
+    # Create or update .env file
+    if [ -f ".env" ]; then
+        if grep -q "^SERVICE_BUS_FQDN=" .env; then
+            sed -i "s|^SERVICE_BUS_FQDN=.*|SERVICE_BUS_FQDN=$fqdn|" .env
+        else
+            echo "SERVICE_BUS_FQDN=$fqdn" >> .env
+        fi
+        echo "Updated existing .env file"
+    else
+        echo "SERVICE_BUS_FQDN=$fqdn" > .env
+        echo "Created new .env file"
+    fi
+
+    clear
     echo ""
-    echo "====================================================================="
-    echo "Environment Variables (.env file):"
-    echo "  RESOURCE_GROUP=$rg"
-    echo "  ACR_NAME=$acr_name"
-    echo "  APP_PLAN=$app_plan"
-    echo "  APP_NAME=$app_name"
-    echo "  LOCATION=$location"
-    echo "====================================================================="
+    echo "Service Bus Connection Information"
+    echo "==========================================================="
+    echo "FQDN: $fqdn"
+    echo ""
+    echo "Values have been saved to .env file"
 }
 
 # Main menu loop
@@ -222,21 +152,19 @@ while true; do
             echo ""
             create_resource_group
             echo ""
-            create_acr_and_build_image
+            create_servicebus_namespace
             echo ""
             read -p "Press Enter to continue..."
             ;;
         2)
             echo ""
-            create_resource_group
-            echo ""
-            create_app_service_plan
+            check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
         3)
             echo ""
-            check_deployment_status
+            assign_role_and_create_env
             echo ""
             read -p "Press Enter to continue..."
             ;;
@@ -246,8 +174,12 @@ while true; do
             exit 0
             ;;
         *)
+            echo ""
             echo "Invalid option. Please select 1-4."
+            echo ""
             read -p "Press Enter to continue..."
             ;;
     esac
+
+    echo ""
 done

@@ -1,168 +1,279 @@
-In this exercise, you send AI inference requests to a Service Bus queue, process them with peek-lock delivery, handle failures through the dead-letter queue, and create a topic with filtered subscriptions for fan-out messaging. By the end, you'll have hands-on experience with the core Service Bus messaging patterns covered in this module.
+---
+lab:
+    topic: Azure Service Bus
+    title: 'Process messages with Azure Service Bus'
+    description: 'Learn how to send, receive, and route messages using Azure Service Bus queues, topics, and subscriptions with the Python SDK.'
+    level: 200
+    duration: 30
+---
 
-> [!NOTE]
-> This exercise requires an Azure subscription. If you don't have an Azure subscription, create a [free account](https://azure.microsoft.com/free/) before you begin.
+# Process messages with Azure Service Bus
 
-## Create a Service Bus namespace and queue
+In this exercise, you create an Azure Service Bus namespace and build a Python console application that demonstrates core messaging patterns. You work with queues to send and receive messages using peek-lock delivery, inspect the dead-letter queue for failed messages, and use topics with filtered subscriptions for fan-out messaging.
 
-You can start by creating a Service Bus namespace, a queue, and a topic with subscriptions using the Azure CLI. The namespace serves as the container for all your messaging entities.
+Tasks performed in this exercise:
 
-1. Set environment variables for your resource names. You can replace the values with names that are unique in your subscription.
+- Download the project starter files
+- Create an Azure Service Bus namespace
+- Create messaging entities using the Azure CLI
+- Add code to the starter files to complete the console app
+- Run the console app to perform messaging operations
 
-    ```bash
-    RESOURCE_GROUP="rg-servicebus-lab"
-    LOCATION="eastus"
-    NAMESPACE_NAME="sbns-ai-lab-$RANDOM"
-    QUEUE_NAME="inference-requests"
-    TOPIC_NAME="inference-results"
+This exercise takes approximately **30** minutes to complete.
+
+## Before you start
+
+To complete the exercise, you need:
+
+- An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
+- [Python 3.12](https://www.python.org/downloads/) or greater.
+- The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli?view=azure-cli-latest).
+
+## Download project starter files and deploy Azure Service Bus
+
+In this section you download the starter files for the console app and use a script to deploy an Azure Service Bus namespace to your subscription.
+
+1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
+
+    ```
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/service-bus-messaging-python.zip
     ```
 
-1. Create a resource group and a Service Bus namespace with the Standard tier.
+1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
 
-    ```bash
-    az group create --name $RESOURCE_GROUP --location $LOCATION
+1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-    az servicebus namespace create \
-        --name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --location $LOCATION \
-        --sku Standard
+1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+
+    ```
+    "<your-resource-group-name>" # Resource Group name
+    "<your-azure-region>" # Azure region for the resources
     ```
 
-1. Create a queue for inference requests. You can set the max delivery count to five so that poison messages move to the dead-letter queue after five failed delivery attempts.
+1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code.
 
+1. Run the following command to login to your Azure account. Answer the prompts to select your Azure account and subscription for the exercise.
+
+    ```
+    az login
+    ```
+
+1. Run the appropriate command in the terminal to launch the script.
+
+    **Bash**
     ```bash
+    bash azdeploy.sh
+    ```
+
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
+    ```
+
+1. When the script is running, enter **1** to launch the **1. Create Service Bus namespace** option.
+
+    This option creates the resource group if it doesn't already exist, and deploys an Azure Service Bus namespace with the Standard tier. The namespace is the container for all messaging entities you create during the exercise.
+
+1. After the deployment completes, enter **2** to run the **2. Check deployment status** option. Verify the status shows **Succeeded** before continuing. If the namespace is still provisioning, wait a moment and try again.
+
+1. Enter **3** to run the **3. Assign role and create .env file** option. This assigns the Azure Service Bus Data Owner role to your account and creates the *.env* file with the namespace's fully qualified domain name (FQDN).
+
+1. Review the *.env* file to verify the **SERVICE_BUS_FQDN** value is present, then enter **4** to exit the deployment script.
+
+## Configure the Python environment
+
+In this section, you create the Python environment and install the dependencies.
+
+1. Run the following command in the VS Code terminal to create the Python environment.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
+
+    **Bash**
+    ```bash
+    source .venv/bin/activate
+    ```
+
+    **PowerShell**
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+1. Run the following command in the VS Code terminal to install the dependencies.
+
+    ```
+    pip install -r requirements.txt
+    ```
+
+## Create messaging entities
+
+In this section you use the Azure CLI to create the queue, topic, and subscriptions that the console app uses. These are the types of operations a developer typically performs when setting up messaging resources for an application.
+
+1. Run the following commands to set environment variables for the resource names used in subsequent commands. Replace **\<rg-name>** with your resource group name. The namespace name is retrieved from the *.env* file.
+
+    **Bash**
+    ```bash
+    RESOURCE_GROUP="<rg-name>"
+    SERVICE_BUS_FQDN=$(grep SERVICE_BUS_FQDN .env | cut -d '=' -f2)
+    NAMESPACE_NAME=$(echo $SERVICE_BUS_FQDN | cut -d '.' -f1)
+    ```
+
+    **PowerShell**
+    ```powershell
+    $RESOURCE_GROUP = "<rg-name>"
+    $SERVICE_BUS_FQDN = (Get-Content .env | Select-String "SERVICE_BUS_FQDN") -replace "SERVICE_BUS_FQDN=", ""
+    $NAMESPACE_NAME = $SERVICE_BUS_FQDN.Split(".")[0]
+    ```
+
+1. Run the following command to create a queue named **inference-requests**. The queue is configured with a max delivery count of 5 so that poison messages are automatically moved to the dead-letter queue after five failed delivery attempts. Dead-lettering on message expiration is also enabled.
+
+    ```
     az servicebus queue create \
-        --name $QUEUE_NAME \
+        --name inference-requests \
         --namespace-name $NAMESPACE_NAME \
         --resource-group $RESOURCE_GROUP \
         --max-delivery-count 5 \
         --enable-dead-lettering-on-message-expiration true
     ```
 
-1. Create a topic and two subscriptions for fan-out messaging. The `notifications` subscription receives all messages, while the `high-priority` subscription receives only messages with a `priority` property set to `high`.
+1. Run the following command to create a topic named **inference-results**. Topics enable fan-out messaging where multiple subscriptions can each receive a copy of every message.
 
-    ```bash
+    ```
     az servicebus topic create \
-        --name $TOPIC_NAME \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP
-
-    az servicebus topic subscription create \
-        --name "notifications" \
-        --topic-name $TOPIC_NAME \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP
-
-    az servicebus topic subscription create \
-        --name "high-priority" \
-        --topic-name $TOPIC_NAME \
+        --name inference-results \
         --namespace-name $NAMESPACE_NAME \
         --resource-group $RESOURCE_GROUP
     ```
 
-1. Add a SQL filter to the `high-priority` subscription so it only receives messages where the `priority` application property equals `high`. You can first remove the default `$Default` rule (which accepts all messages), then add the filter rule.
+1. Run the following commands to create two subscriptions on the topic. The **notifications** subscription receives all messages, while the **high-priority** subscription will be configured with a filter in the next step.
 
+    ```
+    az servicebus topic subscription create \
+        --name notifications \
+        --topic-name inference-results \
+        --namespace-name $NAMESPACE_NAME \
+        --resource-group $RESOURCE_GROUP
+
+    az servicebus topic subscription create \
+        --name high-priority \
+        --topic-name inference-results \
+        --namespace-name $NAMESPACE_NAME \
+        --resource-group $RESOURCE_GROUP
+    ```
+
+1. Run the following commands to add a SQL filter to the **high-priority** subscription. The first command removes the default **$Default** rule that accepts all messages. The second command creates a new rule that only allows messages where the **priority** application property equals **high**.
+
+    **Bash**
     ```bash
     az servicebus topic subscription rule delete \
         --name '$Default' \
-        --subscription-name "high-priority" \
-        --topic-name $TOPIC_NAME \
+        --subscription-name high-priority \
+        --topic-name inference-results \
         --namespace-name $NAMESPACE_NAME \
         --resource-group $RESOURCE_GROUP
 
     az servicebus topic subscription rule create \
-        --name "high-priority-filter" \
-        --subscription-name "high-priority" \
-        --topic-name $TOPIC_NAME \
+        --name high-priority-filter \
+        --subscription-name high-priority \
+        --topic-name inference-results \
         --namespace-name $NAMESPACE_NAME \
         --resource-group $RESOURCE_GROUP \
         --filter-sql-expression "priority = 'high'"
     ```
 
-## Assign access and get the connection string
+    **PowerShell**
+    ```powershell
+    az servicebus topic subscription rule delete `
+        --name '$Default' `
+        --subscription-name high-priority `
+        --topic-name inference-results `
+        --namespace-name $NAMESPACE_NAME `
+        --resource-group $RESOURCE_GROUP
 
-1. Retrieve the connection string for your namespace. You use this connection string to authenticate the Python SDK in this exercise.
-
-    ```bash
-    CONNECTION_STRING=$(az servicebus namespace authorization-rule keys list \
-        --name RootManageSharedAccessKey \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --query primaryConnectionString \
-        --output tsv)
-
-    echo $CONNECTION_STRING
+    az servicebus topic subscription rule create `
+        --name high-priority-filter `
+        --subscription-name high-priority `
+        --topic-name inference-results `
+        --namespace-name $NAMESPACE_NAME `
+        --resource-group $RESOURCE_GROUP `
+        --filter-sql-expression "priority = 'high'"
     ```
 
-    > [!NOTE]
-    > In production applications, you should use Microsoft Entra ID with managed identity instead of connection strings. This exercise uses a connection string for simplicity in a learning environment.
+## Complete the app
 
-## Set up the Python environment
+In this section you add code to the *main.py* script to complete the console app. You run the app later in the exercise, after confirming the messaging entities are created.
 
-1. Create a working directory and set up a Python virtual environment.
+1. Open the *main.py* file to begin adding code.
 
-    ```bash
-    mkdir servicebus-lab && cd servicebus-lab
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install azure-servicebus
-    ```
+>**Note:** The code blocks you add to the application should align with the comment for that section of the code.
 
-## Send structured messages to the queue
+### Add the client connection
 
-1. Create a file named `send_messages.py` that sends three inference request messages to the queue. Two messages have valid JSON payloads, and one has intentionally malformed JSON to simulate a processing failure.
+In this section, you add code to establish a connection to Azure Service Bus using Microsoft Entra authentication. The code retrieves the fully qualified namespace from environment variables and creates a **ServiceBusClient** instance using **DefaultAzureCredential**.
+
+1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    import json
-    import uuid
-    import os
-    from azure.servicebus import ServiceBusClient, ServiceBusMessage
+    try:
+        fqdn = os.getenv("SERVICE_BUS_FQDN")
 
-    CONNECTION_STRING = os.environ.get("SERVICE_BUS_CONNECTION_STRING", "<your-connection-string>")
-    QUEUE_NAME = "inference-requests"
-
-    def create_inference_message(prompt, model, priority, document_id):
-        payload = {
-            "prompt": prompt,
-            "model": model,
-            "temperature": 0.1,
-            "max_tokens": 2000,
-            "document_id": document_id
-        }
-        return ServiceBusMessage(
-            body=json.dumps(payload),
-            content_type="application/json",
-            message_id=str(uuid.uuid4()),
-            correlation_id=f"req-{document_id}",
-            application_properties={
-                "model_name": model,
-                "priority": priority,
-                "document_type": "contract"
-            }
+        credential = DefaultAzureCredential()
+        client = ServiceBusClient(
+            fully_qualified_namespace=fqdn,
+            credential=credential
         )
 
-    with ServiceBusClient.from_connection_string(CONNECTION_STRING) as client:
-        with client.get_queue_sender(QUEUE_NAME) as sender:
+        print(f"Connected to Service Bus namespace: {fqdn}")
+        input("\nPress Enter to continue...")
+        return client
+    ```
+
+### Add code to send messages to the queue
+
+In this section, you add code to send three messages to the queue. Two messages have valid JSON payloads representing inference requests, and one has intentionally malformed JSON to simulate a processing failure that demonstrates the dead-letter queue.
+
+1. Locate the **# BEGIN SEND MESSAGES CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def send_messages(client, queue_name) -> None:
+        """Send messages to the queue including one malformed message"""
+        clear_screen()
+        print("Sending messages to queue...")
+
+        with client.get_queue_sender(queue_name) as sender:
             # Valid message 1
-            msg1 = create_inference_message(
-                prompt="Extract parties and effective date.",
-                model="gpt-4o",
-                priority="standard",
-                document_id="doc-001"
+            msg1 = ServiceBusMessage(
+                body=json.dumps({
+                    "prompt": "Extract parties and effective date.",
+                    "model": "gpt-4o",
+                    "document_id": "doc-001"
+                }),
+                content_type="application/json",
+                message_id=str(uuid.uuid4()),
+                correlation_id="req-doc-001",
+                application_properties={"priority": "standard", "document_type": "contract"}
             )
             sender.send_messages(msg1)
-            print(f"Sent message: {msg1.correlation_id}")
+            print(f"  Sent message: {msg1.correlation_id}")
 
             # Valid message 2
-            msg2 = create_inference_message(
-                prompt="Summarize the key terms.",
-                model="gpt-4o",
-                priority="high",
-                document_id="doc-002"
+            msg2 = ServiceBusMessage(
+                body=json.dumps({
+                    "prompt": "Summarize the key terms.",
+                    "model": "gpt-4o",
+                    "document_id": "doc-002"
+                }),
+                content_type="application/json",
+                message_id=str(uuid.uuid4()),
+                correlation_id="req-doc-002",
+                application_properties={"priority": "high", "document_type": "contract"}
             )
             sender.send_messages(msg2)
-            print(f"Sent message: {msg2.correlation_id}")
+            print(f"  Sent message: {msg2.correlation_id}")
 
             # Invalid message (malformed body)
             msg3 = ServiceBusMessage(
@@ -170,93 +281,72 @@ You can start by creating a Service Bus namespace, a queue, and a topic with sub
                 content_type="application/json",
                 message_id=str(uuid.uuid4()),
                 correlation_id="req-doc-003",
-                application_properties={
-                    "model_name": "gpt-4o",
-                    "priority": "standard"
-                }
+                application_properties={"priority": "standard"}
             )
             sender.send_messages(msg3)
-            print(f"Sent malformed message: {msg3.correlation_id}")
+            print(f"  Sent malformed message: {msg3.correlation_id}")
 
-    print("All messages sent successfully.")
+        print("\nAll messages sent successfully.")
+        input("\nPress Enter to continue...")
     ```
 
-1. Run the sender script.
+### Add code to process messages with peek-lock
 
-    ```bash
-    SERVICE_BUS_CONNECTION_STRING="$CONNECTION_STRING" python send_messages.py
-    ```
+In this section, you add code to receive messages from the queue using peek-lock mode. The processor validates the JSON payload, completes valid messages, and dead-letters messages with invalid JSON by providing a reason and error description.
 
-## Receive and process messages with peek-lock
-
-1. Create a file named `process_messages.py` that receives messages from the queue using peek-lock mode. The processor completes valid messages and dead-letters messages with invalid JSON.
+1. Locate the **# BEGIN PROCESS MESSAGES CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    import json
-    import os
-    from azure.servicebus import ServiceBusClient
+    def process_messages(client, queue_name) -> None:
+        """Receive and process messages from the queue using peek-lock"""
+        clear_screen()
+        print("Processing messages from queue...\n")
 
-    CONNECTION_STRING = os.environ.get("SERVICE_BUS_CONNECTION_STRING", "<your-connection-string>")
-    QUEUE_NAME = "inference-requests"
-
-    def simulate_inference(payload):
-        """Simulate AI inference processing."""
-        print(f"  Processing document: {payload.get('document_id')}")
-        print(f"  Model: {payload.get('model')}")
-        print(f"  Prompt: {payload.get('prompt')[:50]}...")
-        return {"status": "completed", "document_id": payload.get("document_id")}
-
-    with ServiceBusClient.from_connection_string(CONNECTION_STRING) as client:
         with client.get_queue_receiver(
-            queue_name=QUEUE_NAME,
+            queue_name=queue_name,
             max_wait_time=10
         ) as receiver:
-            print("Waiting for messages...\n")
             for msg in receiver:
                 print(f"Received message: correlation_id={msg.correlation_id}")
                 try:
                     payload = json.loads(str(msg))
-                    result = simulate_inference(payload)
+                    print(f"  Document: {payload.get('document_id')}")
+                    print(f"  Model: {payload.get('model')}")
+                    print(f"  Prompt: {payload.get('prompt')[:50]}...")
                     receiver.complete_message(msg)
-                    print(f"  Completed: {result}\n")
+                    print(f"  Status: Completed\n")
                 except json.JSONDecodeError:
                     receiver.dead_letter_message(
                         msg,
                         reason="MalformedPayload",
                         error_description="Message body is not valid JSON"
                     )
-                    print(f"  Dead-lettered: invalid JSON\n")
+                    print(f"  Status: Dead-lettered (invalid JSON)\n")
 
-    print("No more messages. Processing complete.")
+        print("No more messages. Processing complete.")
+        input("\nPress Enter to continue...")
     ```
 
-1. Run the processor script.
+### Add code to inspect the dead-letter queue
 
-    ```bash
-    SERVICE_BUS_CONNECTION_STRING="$CONNECTION_STRING" python process_messages.py
-    ```
+In this section, you add code to read messages from the dead-letter queue and display diagnostic information. The dead-letter queue captures messages that couldn't be processed, along with the reason and error description for troubleshooting.
 
-    You should see two messages processed successfully and one messages dead-lettered due to invalid JSON.
-
-## Inspect the dead-letter queue
-
-1. Create a file named `inspect_dlq.py` that reads messages from the dead-letter queue and displays diagnostic information.
+1. Locate the **# BEGIN INSPECT DLQ CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    import os
-    from azure.servicebus import ServiceBusClient, ServiceBusSubQueue
+    def inspect_dead_letter_queue(client, queue_name) -> None:
+        """Inspect messages in the dead-letter queue"""
+        clear_screen()
+        print("Dead-letter queue messages:\n")
 
-    CONNECTION_STRING = os.environ.get("SERVICE_BUS_CONNECTION_STRING", "<your-connection-string>")
-    QUEUE_NAME = "inference-requests"
-
-    with ServiceBusClient.from_connection_string(CONNECTION_STRING) as client:
         with client.get_queue_receiver(
-            queue_name=QUEUE_NAME,
+            queue_name=queue_name,
             sub_queue=ServiceBusSubQueue.DEAD_LETTER,
             max_wait_time=10
         ) as dlq_receiver:
-            print("Dead-letter queue messages:\n")
+            count = 0
             for msg in dlq_receiver:
+                count += 1
                 print(f"  Message ID: {msg.message_id}")
                 print(f"  Correlation ID: {msg.correlation_id}")
                 print(f"  Dead-letter reason: {msg.dead_letter_reason}")
@@ -266,33 +356,27 @@ You can start by creating a Service Bus namespace, a queue, and a topic with sub
                 print()
                 dlq_receiver.complete_message(msg)
 
-    print("Dead-letter queue inspection complete.")
+            if count == 0:
+                print("  No messages in the dead-letter queue.")
+
+        print("\nDead-letter queue inspection complete.")
+        input("\nPress Enter to continue...")
     ```
 
-1. Run the DLQ inspection script.
+### Add code for topic messaging with filtered subscriptions
 
-    ```bash
-    SERVICE_BUS_CONNECTION_STRING="$CONNECTION_STRING" python inspect_dlq.py
-    ```
+In this section, you add code to send messages to a topic with different priority levels, then receive from each subscription to verify that filtering works. The **notifications** subscription receives all messages, while the **high-priority** subscription receives only messages where the **priority** application property equals **high**.
 
-    You should see the malformed message with its dead-letter reason and error description.
-
-## Send messages to a topic with filtered subscriptions
-
-1. Create a file named `topic_messages.py` that sends messages to the topic with different priority levels, then receives from each subscription to verify that filtering works correctly.
+1. Locate the **# BEGIN TOPIC MESSAGING CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    import json
-    import uuid
-    import os
-    from azure.servicebus import ServiceBusClient, ServiceBusMessage
+    def topic_messaging(client, topic_name) -> None:
+        """Send messages to a topic and receive from filtered subscriptions"""
+        clear_screen()
+        print("Sending messages to topic...\n")
 
-    CONNECTION_STRING = os.environ.get("SERVICE_BUS_CONNECTION_STRING", "<your-connection-string>")
-    TOPIC_NAME = "inference-results"
-
-    with ServiceBusClient.from_connection_string(CONNECTION_STRING) as client:
         # Send messages with different priorities
-        with client.get_topic_sender(TOPIC_NAME) as sender:
+        with client.get_topic_sender(topic_name) as sender:
             for i, priority in enumerate(["standard", "high", "standard", "high", "low"]):
                 result = {
                     "document_id": f"doc-{i+1:03d}",
@@ -306,45 +390,108 @@ You can start by creating a Service Bus namespace, a queue, and a topic with sub
                     application_properties={"priority": priority}
                 )
                 sender.send_messages(msg)
-                print(f"Sent to topic: doc-{i+1:03d}, priority={priority}")
+                print(f"  Sent to topic: doc-{i+1:03d}, priority={priority}")
 
+        # Receive from notifications subscription (all messages)
         print("\n--- Notifications subscription (all messages) ---")
         with client.get_subscription_receiver(
-            topic_name=TOPIC_NAME,
+            topic_name=topic_name,
             subscription_name="notifications",
             max_wait_time=10
         ) as receiver:
             for msg in receiver:
                 body = json.loads(str(msg))
-                print(f"  Received: {body['document_id']}, priority={msg.application_properties.get('priority')}")
+                props = msg.application_properties or {}
+                priority_val = props.get("priority") or props.get(b"priority", b"unknown")
+                if isinstance(priority_val, bytes):
+                    priority_val = priority_val.decode("utf-8")
+                print(f"  Received: {body['document_id']}, priority={priority_val}")
                 receiver.complete_message(msg)
 
+        # Receive from high-priority subscription (filtered)
         print("\n--- High-priority subscription (filtered) ---")
         with client.get_subscription_receiver(
-            topic_name=TOPIC_NAME,
+            topic_name=topic_name,
             subscription_name="high-priority",
             max_wait_time=10
         ) as receiver:
             for msg in receiver:
                 body = json.loads(str(msg))
-                print(f"  Received: {body['document_id']}, priority={msg.application_properties.get('priority')}")
+                props = msg.application_properties or {}
+                priority_val = props.get("priority") or props.get(b"priority", b"unknown")
+                if isinstance(priority_val, bytes):
+                    priority_val = priority_val.decode("utf-8")
+                print(f"  Received: {body['document_id']}, priority={priority_val}")
                 receiver.complete_message(msg)
 
-    print("\nTopic messaging complete.")
+        print("\nTopic messaging complete.")
+        input("\nPress Enter to continue...")
     ```
 
-1. Run the topic messaging script.
+1. Save your changes to the *main.py* file.
 
-    ```bash
-    SERVICE_BUS_CONNECTION_STRING="$CONNECTION_STRING" python topic_messages.py
+## Run the console app
+
+In this section, you run the completed console application to perform various Service Bus messaging operations. The app provides a menu-driven interface that lets you send messages, process them with peek-lock delivery, inspect the dead-letter queue, and test topic messaging with filtered subscriptions.
+
+1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
+
+    ```
+    python main.py
     ```
 
-    The `notifications` subscription should receive all five messages. The `high-priority` subscription should receive only the two messages with `priority` set to `high`.
+1. The app has the following options. Select **1. Send messages to queue** to get started.
+
+    ```
+    1. Send messages to queue
+    2. Process messages from queue
+    3. Inspect dead-letter queue
+    4. Send and receive topic messages
+    5. Exit
+    ```
+
+1. Select the remaining options in order to run the different operations.
+
+>**Note:** Run the options in order for the best experience. Option 1 sends three messages (two valid, one malformed). Option 2 processes them, completing the valid messages and dead-lettering the malformed one. Option 3 inspects the dead-letter queue to display the failed message's diagnostic information. Option 4 demonstrates topic messaging with filtered subscriptions.
 
 ## Clean up resources
 
-When you're finished with the exercise, you can delete the resource group to remove all the resources you created.
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-```bash
-az group delete --name $RESOURCE_GROUP --yes --no-wait
-```
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
+
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
+
+## Troubleshooting
+
+If you encounter issues while completing this exercise, try the following troubleshooting steps:
+
+**Verify Azure Service Bus namespace deployment**
+- Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
+- Confirm that the Service Bus namespace shows a **Provisioning State** of **Succeeded**.
+- Verify the namespace tier is **Standard** (required for topics and subscriptions).
+
+**Check messaging entities**
+- Verify the queue, topic, and subscriptions were created by running **az servicebus queue list**, **az servicebus topic list**, and **az servicebus topic subscription list** commands.
+- Confirm the SQL filter was applied to the **high-priority** subscription by checking that the **$Default** rule was removed and the **high-priority-filter** rule exists.
+
+**Check code completeness and indentation**
+- Ensure all code blocks were added to the correct sections in *main.py* between the appropriate BEGIN/END comment markers.
+- Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
+- Confirm that no code was accidentally removed or modified outside the designated sections.
+
+**Verify environment variables**
+- Check that the *.env* file exists in the project folder and contains a valid **SERVICE_BUS_FQDN** value.
+- Ensure the *.env* file is in the same directory as *main.py*.
+
+**Check authentication**
+- Confirm you are logged in to Azure CLI by running **az account show**.
+- Verify the Azure Service Bus Data Owner role is assigned to your account by checking the role assignments in the Azure portal or running the deployment script's option to assign the role again.
+
+**Check Python environment and dependencies**
+- Confirm the virtual environment is activated before running the app.
+- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
