@@ -7,7 +7,7 @@ lab:
     duration: 30
 ---
 
-{ % include under-construction.md %}
+{% include under-construction.md %}
 
 # Process messages with Azure Service Bus
 
