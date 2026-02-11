@@ -7,7 +7,7 @@ lab:
     duration: 30
 ---
 
-{ % include under-construction.md %}
+{% include under-construction.md %}
 
 # Process messages with Azure Service Bus
 
@@ -125,8 +125,8 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
     ```powershell
     az servicebus queue create `
         --name inference-requests `
-        --namespace-name $NAMESPACE_NAME `
-        --resource-group $RESOURCE_GROUP `
+        --namespace-name $env:NAMESPACE_NAME `
+        --resource-group $env:RESOURCE_GROUP `
         --max-delivery-count 5 `
         --enable-dead-lettering-on-message-expiration true
     ```
@@ -145,8 +145,8 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
     ```powershell
     az servicebus topic create `
         --name inference-results `
-        --namespace-name $NAMESPACE_NAME `
-        --resource-group $RESOURCE_GROUP
+        --namespace-name $env:NAMESPACE_NAME `
+        --resource-group $env:RESOURCE_GROUP
     ```
 
 1. Run the following commands to create two subscriptions on the topic. The **notifications** subscription receives all messages, while the **high-priority** subscription will be configured with a filter in the next step.
@@ -173,15 +173,15 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
     az servicebus topic subscription create `
         --name notifications `
         --topic-name inference-results `
-        --namespace-name $NAMESPACE_NAME `
-        --resource-group $RESOURCE_GROUP
+        --namespace-name $env:NAMESPACE_NAME `
+        --resource-group $env:RESOURCE_GROUP
     ```
     ```powershell
     az servicebus topic subscription create `
         --name high-priority `
         --topic-name inference-results `
-        --namespace-name $NAMESPACE_NAME `
-        --resource-group $RESOURCE_GROUP
+        --namespace-name $env:NAMESPACE_NAME `
+        --resource-group $env:RESOURCE_GROUP
     ```
 
 1. Run the following commands to add a SQL filter to the **high-priority** subscription. The first command removes the default **$Default** rule that accepts all messages. The second command creates a new rule that only allows messages where the **priority** application property equals **high**.
@@ -212,8 +212,8 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
         --name '$Default' `
         --subscription-name high-priority `
         --topic-name inference-results `
-        --namespace-name $NAMESPACE_NAME `
-        --resource-group $RESOURCE_GROUP
+        --namespace-name $env:NAMESPACE_NAME `
+        --resource-group $env:RESOURCE_GROUP
     ```
 
     ```powershell
@@ -221,8 +221,8 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
         --name high-priority-filter `
         --subscription-name high-priority `
         --topic-name inference-results `
-        --namespace-name $NAMESPACE_NAME `
-        --resource-group $RESOURCE_GROUP `
+        --namespace-name $env:NAMESPACE_NAME `
+        --resource-group $env:RESOURCE_GROUP `
         --filter-sql-expression "priority = 'high'"
     ```
 
@@ -519,10 +519,10 @@ In this section, you run the completed Flask application to perform various Serv
 
 Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. The command uses the **RESOURCE_GROUP** environment variable set earlier. If needed, replace **$RESOURCE_GROUP** with the name you chose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
 
     ```
-    az group delete --name $RESOURCE_GROUP --no-wait --yes
+    az group delete --name <rg-name> --no-wait --yes
     ```
 
 > **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
