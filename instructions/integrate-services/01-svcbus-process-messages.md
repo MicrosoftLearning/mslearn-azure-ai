@@ -11,7 +11,9 @@ lab:
 
 # Process messages with Azure Service Bus
 
-In this exercise, you create an Azure Service Bus namespace and build a Python Flask web application that demonstrates core messaging patterns. You work with queues to send and receive messages using peek-lock delivery, inspect the dead-letter queue for failed messages, and use topics with filtered subscriptions for fan-out messaging.
+AI workflows often rely on messaging to decouple request intake from model inference and to route results to multiple downstream consumers. Azure Service Bus provides the reliability and routing layer that connects these components so each piece can scale and fail independently.
+
+In this exercise, you create an Azure Service Bus namespace and build a Python Flask web application that demonstrates core messaging patterns using an AI inference scenario. You work with queues to send and receive inference requests using peek-lock delivery, inspect the dead-letter queue for malformed payloads that failed processing, and use topics with filtered subscriptions to fan out inference results by priority level.
 
 Tasks performed in this exercise:
 
