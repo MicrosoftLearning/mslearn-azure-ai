@@ -262,6 +262,11 @@ button:focus {
     color: #605e5c;
 }
 
+.tag-rejected {
+    background: #fde7e9;
+    color: #a80000;
+}
+
 /* Results table */
 .results-table {
     width: 100%;

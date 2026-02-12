@@ -1,54 +1,66 @@
 """
-Event Grid functions for publishing content moderation events and reading
-filtered delivery results from Service Bus queues.
+Event Grid functions for publishing content moderation events and receiving
+events through pull delivery with Event Grid Namespace subscriptions.
 """
 import os
 import json
 import uuid
 from datetime import datetime, timezone
-from azure.eventgrid import EventGridPublisherClient
+from azure.eventgrid import EventGridPublisherClient, EventGridConsumerClient
 from azure.core.messaging import CloudEvent
-from azure.servicebus import ServiceBusClient
 from azure.identity import DefaultAzureCredential
 
-FLAGGED_QUEUE = "flagged-content"
-APPROVED_QUEUE = "approved-content"
-ALL_EVENTS_QUEUE = "all-events"
+SUB_FLAGGED = "sub-flagged"
+SUB_APPROVED = "sub-approved"
+SUB_ALL = "sub-all-events"
 
 
-def get_eventgrid_client():
-    """Get an Event Grid publisher client using Entra ID authentication."""
-    endpoint = os.environ.get("EVENTGRID_TOPIC_ENDPOINT")
+def get_publisher_client():
+    """Get an Event Grid publisher client for the namespace topic."""
+    endpoint = os.environ.get("EVENTGRID_ENDPOINT")
+    topic_name = os.environ.get("EVENTGRID_TOPIC_NAME")
 
     if not endpoint:
         raise ValueError(
-            "EVENTGRID_TOPIC_ENDPOINT environment variable must be set"
+            "EVENTGRID_ENDPOINT environment variable must be set"
         )
-
-    credential = DefaultAzureCredential()
-    return EventGridPublisherClient(endpoint, credential)
-
-
-def get_servicebus_client():
-    """Get a Service Bus client using Entra ID authentication."""
-    fqdn = os.environ.get("SERVICE_BUS_FQDN")
-
-    if not fqdn:
+    if not topic_name:
         raise ValueError(
-            "SERVICE_BUS_FQDN environment variable must be set"
+            "EVENTGRID_TOPIC_NAME environment variable must be set"
         )
 
     credential = DefaultAzureCredential()
-    return ServiceBusClient(
-        fully_qualified_namespace=fqdn,
-        credential=credential
+    return EventGridPublisherClient(
+        endpoint, credential, namespace_topic=topic_name
+    )
+
+
+def get_consumer_client(subscription_name):
+    """Get an Event Grid consumer client for an event subscription."""
+    endpoint = os.environ.get("EVENTGRID_ENDPOINT")
+    topic_name = os.environ.get("EVENTGRID_TOPIC_NAME")
+
+    if not endpoint:
+        raise ValueError(
+            "EVENTGRID_ENDPOINT environment variable must be set"
+        )
+    if not topic_name:
+        raise ValueError(
+            "EVENTGRID_TOPIC_NAME environment variable must be set"
+        )
+
+    credential = DefaultAzureCredential()
+    return EventGridConsumerClient(
+        endpoint, credential,
+        namespace_topic=topic_name,
+        subscription=subscription_name
     )
 
 
 # BEGIN PUBLISH EVENTS FUNCTION
 def publish_moderation_events():
-    """Publish content moderation events to the Event Grid topic."""
-    client = get_eventgrid_client()
+    """Publish content moderation events to the Event Grid namespace topic."""
+    client = get_publisher_client()
     results = []
 
     # Load event definitions from the JSON file. Each entry contains the
@@ -73,9 +85,9 @@ def publish_moderation_events():
             )
         )
 
-    # send() publishes all events to the Event Grid custom topic in a
+    # send() publishes all events to the Event Grid namespace topic in a
     # single request. Event Grid then evaluates each subscription's
-    # filters and routes matching events to the configured endpoints.
+    # filters and routes matching events to the configured subscriptions.
     client.send(events)
 
     for event in events:
@@ -93,62 +105,65 @@ def publish_moderation_events():
 
 # BEGIN CHECK DELIVERY FUNCTION
 def check_filtered_delivery():
-    """Read delivered events from each Service Bus queue to verify filtering."""
-    client = get_servicebus_client()
+    """Receive and acknowledge events from each subscription to verify filtering."""
     flagged = []
     approved = []
     all_events = []
 
-    with client:
-        # Read from the flagged-content queue, which receives only events
-        # where the event type is com.contoso.ai.ContentFlagged.
-        # max_wait_time controls how long the receiver waits for messages.
-        with client.get_queue_receiver(
-            queue_name=FLAGGED_QUEUE,
-            max_wait_time=5
-        ) as receiver:
-            for msg in receiver:
-                body = json.loads(str(msg))
-                flagged.append({
-                    "content_id": body.get("contentId"),
-                    "category": body.get("category"),
-                    "severity": body.get("severity"),
-                    "confidence": body.get("confidence")
-                })
-                # complete_message removes the message from the queue
-                receiver.complete_message(msg)
+    # Receive from the sub-flagged subscription, which only delivers
+    # events where the event type is com.contoso.ai.ContentFlagged.
+    # receive() returns a list of ReceiveDetails, each containing
+    # the CloudEvent and a lock token for acknowledgment.
+    consumer = get_consumer_client(SUB_FLAGGED)
+    details = consumer.receive(max_events=10, max_wait_time=5)
+    tokens = []
+    for detail in details:
+        event = detail.event
+        flagged.append({
+            "content_id": event.data.get("contentId"),
+            "category": event.data.get("category"),
+            "severity": event.data.get("severity"),
+            "confidence": event.data.get("confidence")
+        })
+        tokens.append(detail.broker_properties.lock_token)
+    # acknowledge() removes the events from the subscription so they
+    # are not delivered again on the next receive call.
+    if tokens:
+        consumer.acknowledge(lock_tokens=tokens)
 
-        # Read from the approved-content queue, which receives only events
-        # where the event type is com.contoso.ai.ContentApproved.
-        with client.get_queue_receiver(
-            queue_name=APPROVED_QUEUE,
-            max_wait_time=5
-        ) as receiver:
-            for msg in receiver:
-                body = json.loads(str(msg))
-                approved.append({
-                    "content_id": body.get("contentId"),
-                    "category": body.get("category"),
-                    "severity": body.get("severity"),
-                    "confidence": body.get("confidence")
-                })
-                receiver.complete_message(msg)
+    # Receive from the sub-approved subscription, which only delivers
+    # events where the event type is com.contoso.ai.ContentApproved.
+    consumer = get_consumer_client(SUB_APPROVED)
+    details = consumer.receive(max_events=10, max_wait_time=5)
+    tokens = []
+    for detail in details:
+        event = detail.event
+        approved.append({
+            "content_id": event.data.get("contentId"),
+            "category": event.data.get("category"),
+            "severity": event.data.get("severity"),
+            "confidence": event.data.get("confidence")
+        })
+        tokens.append(detail.broker_properties.lock_token)
+    if tokens:
+        consumer.acknowledge(lock_tokens=tokens)
 
-        # Read from the all-events queue, which has no filter and
-        # receives every event published to the topic (audit log).
-        with client.get_queue_receiver(
-            queue_name=ALL_EVENTS_QUEUE,
-            max_wait_time=5
-        ) as receiver:
-            for msg in receiver:
-                body = json.loads(str(msg))
-                all_events.append({
-                    "content_id": body.get("contentId"),
-                    "event_type": body.get("modelName", "unknown"),
-                    "category": body.get("category"),
-                    "confidence": body.get("confidence")
-                })
-                receiver.complete_message(msg)
+    # Receive from the sub-all-events subscription, which has no filter
+    # and delivers every event published to the topic (audit log).
+    consumer = get_consumer_client(SUB_ALL)
+    details = consumer.receive(max_events=10, max_wait_time=5)
+    tokens = []
+    for detail in details:
+        event = detail.event
+        all_events.append({
+            "content_id": event.data.get("contentId"),
+            "event_type": event.data.get("modelName", "unknown"),
+            "category": event.data.get("category"),
+            "confidence": event.data.get("confidence")
+        })
+        tokens.append(detail.broker_properties.lock_token)
+    if tokens:
+        consumer.acknowledge(lock_tokens=tokens)
 
     return {
         "flagged": flagged,
@@ -158,48 +173,61 @@ def check_filtered_delivery():
 # END CHECK DELIVERY FUNCTION
 
 
-# BEGIN INSPECT EVENT FUNCTION
-def inspect_event_details():
-    """Peek at a message from the all-events queue to show CloudEvent structure."""
-    client = get_servicebus_client()
-    result = None
+# BEGIN INSPECT AND REJECT FUNCTION
+def inspect_and_reject():
+    """Publish one event, receive it, inspect the CloudEvent envelope, then reject it."""
+    publisher = get_publisher_client()
 
-    with client:
-        # peek_messages reads messages without locking or removing them,
-        # so they remain available for subsequent receive operations.
-        with client.get_queue_receiver(
-            queue_name=ALL_EVENTS_QUEUE,
-            max_wait_time=5
-        ) as receiver:
-            peeked = receiver.peek_messages(max_message_count=1)
-            if peeked:
-                msg = peeked[0]
-                body = json.loads(str(msg))
+    # Publish a single test event so there is always something to inspect,
+    # regardless of whether the student already acknowledged earlier events.
+    test_event = CloudEvent(
+        type="com.contoso.ai.ContentFlagged",
+        source="/services/content-moderation",
+        subject="/content/text/test-inspect",
+        data={
+            "contentId": "test-inspect",
+            "contentType": "text",
+            "modelName": "text-moderator-v2",
+            "modelVersion": "2.4.0",
+            "confidence": 0.76,
+            "category": "misinformation",
+            "severity": "medium",
+            "reviewRequired": True,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        },
+        id=str(uuid.uuid4())
+    )
+    publisher.send([test_event])
 
-                # Extract the CloudEvent attributes that Event Grid
-                # preserves when delivering to Service Bus queues.
-                # The message body contains the CloudEvent data field,
-                # while envelope attributes are in application_properties.
-                props = msg.application_properties or {}
+    # Receive from the sub-flagged subscription to pick up the test event.
+    consumer = get_consumer_client(SUB_FLAGGED)
+    details = consumer.receive(max_events=1, max_wait_time=10)
 
-                def decode_prop(key):
-                    val = props.get(key) or props.get(
-                        key.encode("utf-8") if isinstance(key, str) else key,
-                        ""
-                    )
-                    if isinstance(val, bytes):
-                        val = val.decode("utf-8")
-                    return str(val) if val else ""
+    if not details:
+        return None
 
-                result = {
-                    "specversion": decode_prop("cloudEvents:specversion") or "1.0",
-                    "type": decode_prop("cloudEvents:type"),
-                    "source": decode_prop("cloudEvents:source"),
-                    "subject": decode_prop("cloudEvents:subject"),
-                    "id": decode_prop("cloudEvents:id"),
-                    "time": decode_prop("cloudEvents:time"),
-                    "data": body
-                }
+    detail = details[0]
+    event = detail.event
+    lock_token = detail.broker_properties.lock_token
+    delivery_count = detail.broker_properties.delivery_count
+
+    # Capture the full CloudEvent envelope before rejecting.
+    result = {
+        "specversion": "1.0",
+        "type": event.type,
+        "source": event.source,
+        "subject": event.subject,
+        "id": event.id,
+        "time": str(event.time) if event.time else "",
+        "data": event.data,
+        "delivery_count": delivery_count,
+        "action": "rejected"
+    }
+
+    # reject() tells Event Grid this event cannot be processed. The event
+    # is moved to the dead-letter location if configured, or discarded
+    # if max delivery count has been reached.
+    consumer.reject(lock_tokens=[lock_token])
 
     return result
-# END INSPECT EVENT FUNCTION
+# END INSPECT AND REJECT FUNCTION

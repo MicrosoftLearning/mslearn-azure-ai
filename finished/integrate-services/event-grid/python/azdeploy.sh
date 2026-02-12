@@ -21,15 +21,12 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
-topic_name="egtopic-exercise-${user_hash}"
-namespace_name="sbns-exercise-${user_hash}"
+namespace_name="egns-exercise-${user_hash}"
+topic_name="moderation-events"
 
-# Queue and subscription names
-flagged_queue="flagged-content"
-approved_queue="approved-content"
-all_events_queue="all-events"
-sub_flagged="sub-flagged-content"
-sub_approved="sub-approved-content"
+# Event subscription names
+sub_flagged="sub-flagged"
+sub_approved="sub-approved"
 sub_all="sub-all-events"
 
 # Function to create resource group if it doesn't exist
@@ -45,173 +42,86 @@ create_resource_group() {
     fi
 }
 
-# Function to create Event Grid topic and Service Bus namespace
-create_topic_and_namespace() {
-    echo "Creating Event Grid topic '$topic_name'..."
+# Function to create Event Grid namespace and topic
+create_namespace_and_topic() {
+    echo "Creating Event Grid namespace '$namespace_name'..."
 
-    local topic_exists=$(az eventgrid topic show --resource-group $rg --name $topic_name 2>/dev/null)
-    if [ -z "$topic_exists" ]; then
-        az eventgrid topic create \
-            --name $topic_name \
-            --resource-group $rg \
-            --location $location \
-            --input-schema CloudEventSchemaV1_0 > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ Event Grid topic created: $topic_name"
-        else
-            echo "Error: Failed to create Event Grid topic"
-            return 1
-        fi
-    else
-        echo "✓ Event Grid topic already exists: $topic_name"
-    fi
-
-    # Enable system-assigned managed identity on the topic so Event Grid
-    # can authenticate to Service Bus when delivering events.
-    echo "Enabling managed identity on topic..."
-    local identity_principal=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "identity.principalId" -o tsv 2>/dev/null)
-    if [ -z "$identity_principal" ] || [ "$identity_principal" = "None" ]; then
-        az eventgrid topic update \
-            --name $topic_name \
-            --resource-group $rg \
-            --identity systemassigned > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ System-assigned managed identity enabled"
-        else
-            echo "Error: Failed to enable managed identity on topic"
-            return 1
-        fi
-    else
-        echo "✓ System-assigned managed identity already enabled"
-    fi
-
-    echo ""
-    echo "Creating Service Bus namespace '$namespace_name'..."
-
-    local ns_exists=$(az servicebus namespace show --resource-group $rg --name $namespace_name 2>/dev/null)
+    local ns_exists=$(az eventgrid namespace show --resource-group $rg --name $namespace_name 2>/dev/null)
     if [ -z "$ns_exists" ]; then
-        az servicebus namespace create \
+        az eventgrid namespace create \
             --name $namespace_name \
             --resource-group $rg \
             --location $location \
-            --sku Standard > /dev/null 2>&1
+            --sku "{name:standard,capacity:1}" > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ Service Bus namespace created: $namespace_name"
+            echo "✓ Event Grid namespace created: $namespace_name"
         else
-            echo "Error: Failed to create Service Bus namespace"
+            echo "Error: Failed to create Event Grid namespace"
             return 1
         fi
     else
-        echo "✓ Service Bus namespace already exists: $namespace_name"
+        echo "✓ Event Grid namespace already exists: $namespace_name"
     fi
 
+    echo ""
+    echo "Creating namespace topic '$topic_name'..."
+
+    local topic_exists=$(az eventgrid namespace topic show --resource-group $rg --namespace-name $namespace_name --name $topic_name 2>/dev/null)
+    if [ -z "$topic_exists" ]; then
+        az eventgrid namespace topic create \
+            --name $topic_name \
+            --namespace-name $namespace_name \
+            --resource-group $rg \
+            --event-retention-in-days 1 \
+            --publisher-type Custom \
+            --input-schema CloudEventSchemaV1_0 > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Namespace topic created: $topic_name"
+        else
+            echo "Error: Failed to create namespace topic"
+            return 1
+        fi
+    else
+        echo "✓ Namespace topic already exists: $topic_name"
+    fi
 }
 
-# Function to create Service Bus queues and Event Grid subscriptions
-create_queues_and_subscriptions() {
-    echo "Creating Service Bus queues and Event Grid subscriptions..."
-
-    # Prereq check: topic must exist
-    local topic_status=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "provisioningState" -o tsv 2>/dev/null)
-    if [ -z "$topic_status" ] || [ "$topic_status" != "Succeeded" ]; then
-        echo "Error: Event Grid topic '$topic_name' not found or not ready."
-        echo "Please run option 1 first, then try again."
-        return 1
-    fi
+# Function to create event subscriptions with filters
+create_event_subscriptions() {
+    echo "Creating event subscriptions..."
 
     # Prereq check: namespace must exist
-    local ns_status=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
+    local ns_status=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ -z "$ns_status" ] || [ "$ns_status" != "Succeeded" ]; then
-        echo "Error: Service Bus namespace '$namespace_name' not found or not ready."
+        echo "Error: Event Grid namespace '$namespace_name' not found or not ready."
         echo "Please run option 1 first, then try again."
         return 1
     fi
 
-    # Assign Azure Service Bus Data Sender to the Event Grid topic's managed
-    # identity so subscription creation with delivery-identity succeeds.
-    local topic_principal=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "identity.principalId" -o tsv 2>/dev/null)
-    local ns_id=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv)
-
-    if [ -z "$topic_principal" ] || [ "$topic_principal" = "None" ]; then
-        echo "Error: Event Grid topic does not have a managed identity."
-        echo "Please run option 1 again to enable the managed identity."
+    # Prereq check: topic must exist
+    local topic_status=$(az eventgrid namespace topic show --resource-group $rg --namespace-name $namespace_name --name $topic_name --query "provisioningState" -o tsv 2>/dev/null)
+    if [ -z "$topic_status" ] || [ "$topic_status" != "Succeeded" ]; then
+        echo "Error: Namespace topic '$topic_name' not found or not ready."
+        echo "Please run option 1 first, then try again."
         return 1
     fi
 
-    local eg_sb_role=$(az role assignment list \
-        --assignee $topic_principal \
-        --scope $ns_id \
-        --role "Azure Service Bus Data Sender" \
-        --query "[0].id" -o tsv 2>/dev/null)
-
-    if [ -z "$eg_sb_role" ]; then
-        az role assignment create \
-            --role "Azure Service Bus Data Sender" \
-            --assignee "$topic_principal" \
-            --scope "$ns_id" > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ Azure Service Bus Data Sender role assigned to Event Grid topic"
-        else
-            echo "Error: Failed to assign Azure Service Bus Data Sender role to Event Grid topic"
-            return 1
-        fi
-
-        # Brief wait for role propagation
-        echo "Waiting for role propagation..."
-        sleep 15
-    else
-        echo "✓ Azure Service Bus Data Sender role already assigned to Event Grid topic"
-    fi
-
-    echo ""
-
-    # Create the three Service Bus queues
-    for queue in $flagged_queue $approved_queue $all_events_queue; do
-        local q_exists=$(az servicebus queue show --resource-group $rg --namespace-name $namespace_name --name $queue 2>/dev/null)
-        if [ -z "$q_exists" ]; then
-            az servicebus queue create \
-                --resource-group $rg \
-                --namespace-name $namespace_name \
-                --name $queue > /dev/null 2>&1
-
-            if [ $? -eq 0 ]; then
-                echo "✓ Queue created: $queue"
-            else
-                echo "Error: Failed to create queue '$queue'"
-                return 1
-            fi
-        else
-            echo "✓ Queue already exists: $queue"
-        fi
-    done
-
-    echo ""
-
-    # Get resource IDs for topic and queues
-    local topic_id=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "id" -o tsv)
-    local flagged_queue_id=$(az servicebus queue show --resource-group $rg --namespace-name $namespace_name --name $flagged_queue --query "id" -o tsv)
-    local approved_queue_id=$(az servicebus queue show --resource-group $rg --namespace-name $namespace_name --name $approved_queue --query "id" -o tsv)
-    local all_events_queue_id=$(az servicebus queue show --resource-group $rg --namespace-name $namespace_name --name $all_events_queue --query "id" -o tsv)
-
-    # Create event subscription for flagged content using managed identity delivery
-    local sub_exists=$(az eventgrid event-subscription show --name $sub_flagged --source-resource-id $topic_id 2>/dev/null)
+    # Subscription for flagged content only
+    local sub_exists=$(az eventgrid namespace topic event-subscription show --resource-group $rg --namespace-name $namespace_name --topic-name $topic_name --name $sub_flagged 2>/dev/null)
     if [ -z "$sub_exists" ]; then
-        az eventgrid event-subscription create \
+        az eventgrid namespace topic event-subscription create \
             --name $sub_flagged \
-            --source-resource-id $topic_id \
-            --delivery-identity-endpoint-type servicebusqueue \
-            --delivery-identity systemassigned \
-            --delivery-identity-endpoint $flagged_queue_id \
+            --namespace-name $namespace_name \
+            --resource-group $rg \
+            --topic-name $topic_name \
+            --delivery-configuration "{deliveryMode:Queue,queue:{receiveLockDurationInSeconds:60,maxDeliveryCount:10,eventTimeToLive:P1D}}" \
             --event-delivery-schema CloudEventSchemaV1_0 \
-            --included-event-types "com.contoso.ai.ContentFlagged" \
-            --no-wait > /dev/null 2>&1
+            --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentFlagged']}" > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ Subscription created: $sub_flagged (ContentFlagged → $flagged_queue)"
+            echo "✓ Subscription created: $sub_flagged (ContentFlagged events only)"
         else
             echo "Error: Failed to create subscription '$sub_flagged'"
             return 1
@@ -220,21 +130,20 @@ create_queues_and_subscriptions() {
         echo "✓ Subscription already exists: $sub_flagged"
     fi
 
-    # Create event subscription for approved content using managed identity delivery
-    sub_exists=$(az eventgrid event-subscription show --name $sub_approved --source-resource-id $topic_id 2>/dev/null)
+    # Subscription for approved content only
+    sub_exists=$(az eventgrid namespace topic event-subscription show --resource-group $rg --namespace-name $namespace_name --topic-name $topic_name --name $sub_approved 2>/dev/null)
     if [ -z "$sub_exists" ]; then
-        az eventgrid event-subscription create \
+        az eventgrid namespace topic event-subscription create \
             --name $sub_approved \
-            --source-resource-id $topic_id \
-            --delivery-identity-endpoint-type servicebusqueue \
-            --delivery-identity systemassigned \
-            --delivery-identity-endpoint $approved_queue_id \
+            --namespace-name $namespace_name \
+            --resource-group $rg \
+            --topic-name $topic_name \
+            --delivery-configuration "{deliveryMode:Queue,queue:{receiveLockDurationInSeconds:60,maxDeliveryCount:10,eventTimeToLive:P1D}}" \
             --event-delivery-schema CloudEventSchemaV1_0 \
-            --included-event-types "com.contoso.ai.ContentApproved" \
-            --no-wait > /dev/null 2>&1
+            --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentApproved']}" > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ Subscription created: $sub_approved (ContentApproved → $approved_queue)"
+            echo "✓ Subscription created: $sub_approved (ContentApproved events only)"
         else
             echo "Error: Failed to create subscription '$sub_approved'"
             return 1
@@ -243,20 +152,19 @@ create_queues_and_subscriptions() {
         echo "✓ Subscription already exists: $sub_approved"
     fi
 
-    # Create event subscription for all events (no filter) using managed identity delivery
-    sub_exists=$(az eventgrid event-subscription show --name $sub_all --source-resource-id $topic_id 2>/dev/null)
+    # Subscription for all events (no filter — audit log)
+    sub_exists=$(az eventgrid namespace topic event-subscription show --resource-group $rg --namespace-name $namespace_name --topic-name $topic_name --name $sub_all 2>/dev/null)
     if [ -z "$sub_exists" ]; then
-        az eventgrid event-subscription create \
+        az eventgrid namespace topic event-subscription create \
             --name $sub_all \
-            --source-resource-id $topic_id \
-            --delivery-identity-endpoint-type servicebusqueue \
-            --delivery-identity systemassigned \
-            --delivery-identity-endpoint $all_events_queue_id \
-            --event-delivery-schema CloudEventSchemaV1_0 \
-            --no-wait > /dev/null 2>&1
+            --namespace-name $namespace_name \
+            --resource-group $rg \
+            --topic-name $topic_name \
+            --delivery-configuration "{deliveryMode:Queue,queue:{receiveLockDurationInSeconds:60,maxDeliveryCount:10,eventTimeToLive:P1D}}" \
+            --event-delivery-schema CloudEventSchemaV1_0 > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ Subscription created: $sub_all (all events → $all_events_queue)"
+            echo "✓ Subscription created: $sub_all (all events — audit log)"
         else
             echo "Error: Failed to create subscription '$sub_all'"
             return 1
@@ -264,25 +172,16 @@ create_queues_and_subscriptions() {
     else
         echo "✓ Subscription already exists: $sub_all"
     fi
-
 }
 
 # Function to assign roles
 assign_roles() {
     echo "Assigning roles..."
 
-    # Prereq check: topic must exist
-    local topic_status=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "provisioningState" -o tsv 2>/dev/null)
-    if [ -z "$topic_status" ] || [ "$topic_status" != "Succeeded" ]; then
-        echo "Error: Event Grid topic '$topic_name' not found or not ready."
-        echo "Please run option 1 first, then try again."
-        return 1
-    fi
-
     # Prereq check: namespace must exist
-    local ns_status=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
+    local ns_status=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ -z "$ns_status" ] || [ "$ns_status" != "Succeeded" ]; then
-        echo "Error: Service Bus namespace '$namespace_name' not found or not ready."
+        echo "Error: Event Grid namespace '$namespace_name' not found or not ready."
         echo "Please run option 1 first, then try again."
         return 1
     fi
@@ -295,12 +194,12 @@ assign_roles() {
         return 1
     fi
 
-    # Assign EventGrid Data Sender on the topic
-    local topic_id=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "id" -o tsv)
+    local ns_id=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv)
 
+    # Assign EventGrid Data Sender on the namespace (publish events)
     local role_exists=$(az role assignment list \
         --assignee $user_object_id \
-        --scope $topic_id \
+        --scope $ns_id \
         --role "EventGrid Data Sender" \
         --query "[0].id" -o tsv 2>/dev/null)
 
@@ -310,7 +209,7 @@ assign_roles() {
         az role assignment create \
             --role "EventGrid Data Sender" \
             --assignee "$user_object_id" \
-            --scope "$topic_id" > /dev/null 2>&1
+            --scope "$ns_id" > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
             echo "✓ EventGrid Data Sender role assigned"
@@ -320,70 +219,33 @@ assign_roles() {
         fi
     fi
 
-    # Assign Azure Service Bus Data Owner on the namespace
-    local ns_id=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv)
-
+    # Assign EventGrid Data Receiver on the namespace (pull events)
     role_exists=$(az role assignment list \
         --assignee $user_object_id \
         --scope $ns_id \
-        --role "Azure Service Bus Data Owner" \
+        --role "EventGrid Data Receiver" \
         --query "[0].id" -o tsv 2>/dev/null)
 
     if [ -n "$role_exists" ]; then
-        echo "✓ Azure Service Bus Data Owner role already assigned"
+        echo "✓ EventGrid Data Receiver role already assigned"
     else
         az role assignment create \
-            --role "Azure Service Bus Data Owner" \
+            --role "EventGrid Data Receiver" \
             --assignee "$user_object_id" \
             --scope "$ns_id" > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ Azure Service Bus Data Owner role assigned"
+            echo "✓ EventGrid Data Receiver role assigned"
         else
-            echo "Error: Failed to assign Azure Service Bus Data Owner role"
-            return 1
-        fi
-    fi
-
-    # Assign Azure Service Bus Data Sender to the Event Grid topic's managed
-    # identity so Event Grid can deliver events to Service Bus queues.
-    local topic_principal=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "identity.principalId" -o tsv 2>/dev/null)
-
-    if [ -z "$topic_principal" ] || [ "$topic_principal" = "None" ]; then
-        echo "Error: Event Grid topic does not have a managed identity."
-        echo "Please run option 1 again to enable the managed identity."
-        return 1
-    fi
-
-    role_exists=$(az role assignment list \
-        --assignee $topic_principal \
-        --scope $ns_id \
-        --role "Azure Service Bus Data Sender" \
-        --query "[0].id" -o tsv 2>/dev/null)
-
-    if [ -n "$role_exists" ]; then
-        echo "✓ Azure Service Bus Data Sender role already assigned to Event Grid topic"
-    else
-        az role assignment create \
-            --role "Azure Service Bus Data Sender" \
-            --assignee "$topic_principal" \
-            --scope "$ns_id" > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ Azure Service Bus Data Sender role assigned to Event Grid topic"
-        else
-            echo "Error: Failed to assign Azure Service Bus Data Sender role to Event Grid topic"
+            echo "Error: Failed to assign EventGrid Data Receiver role"
             return 1
         fi
     fi
 
     echo ""
     echo "Roles configured for: $user_upn"
-    echo "  - EventGrid Data Sender: publish events to the topic"
-    echo "  - Azure Service Bus Data Owner: read from queues"
-    echo ""
-    echo "Roles configured for Event Grid topic managed identity:"
-    echo "  - Azure Service Bus Data Sender: deliver events to queues"
+    echo "  - EventGrid Data Sender: publish events to the namespace topic"
+    echo "  - EventGrid Data Receiver: receive events from subscriptions"
 }
 
 # Function to check deployment status
@@ -391,51 +253,9 @@ check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
 
-    # Check Event Grid topic
-    echo "Event Grid Topic ($topic_name):"
-    local topic_status=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "provisioningState" -o tsv 2>/dev/null)
-
-    if [ -z "$topic_status" ]; then
-        echo "  Status: Not created"
-    else
-        echo "  Status: $topic_status"
-        if [ "$topic_status" = "Succeeded" ]; then
-            echo "  ✓ Topic is ready"
-            local topic_schema=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "inputSchema" -o tsv 2>/dev/null)
-            echo "  Input schema: $topic_schema"
-            local topic_endpoint=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "endpoint" -o tsv 2>/dev/null)
-            echo "  Endpoint: $topic_endpoint"
-            local identity_type=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "identity.type" -o tsv 2>/dev/null)
-            if [ "$identity_type" = "SystemAssigned" ]; then
-                echo "  ✓ Managed identity: enabled"
-            else
-                echo "  ⚠ Managed identity: not enabled"
-            fi
-
-            # Check EventGrid Data Sender role
-            local topic_id=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "id" -o tsv)
-            local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
-            local eg_role=$(az role assignment list \
-                --assignee $user_object_id \
-                --scope $topic_id \
-                --role "EventGrid Data Sender" \
-                --query "[0].id" -o tsv 2>/dev/null)
-
-            if [ -n "$eg_role" ]; then
-                echo "  ✓ Role assigned: $user_upn (EventGrid Data Sender)"
-            else
-                echo "  ⚠ EventGrid Data Sender role not assigned"
-            fi
-        else
-            echo "  ⚠ Topic is still provisioning. Please wait and try again."
-        fi
-    fi
-
-    echo ""
-
-    # Check Service Bus namespace
-    echo "Service Bus Namespace ($namespace_name):"
-    local ns_status=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
+    # Check Event Grid namespace
+    echo "Event Grid Namespace ($namespace_name):"
+    local ns_status=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
 
     if [ -z "$ns_status" ]; then
         echo "  Status: Not created"
@@ -443,50 +263,43 @@ check_deployment_status() {
         echo "  Status: $ns_status"
         if [ "$ns_status" = "Succeeded" ]; then
             echo "  ✓ Namespace is ready"
-            local ns_sku=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "sku.name" -o tsv 2>/dev/null)
+            local ns_sku=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "sku.name" -o tsv 2>/dev/null)
             echo "  SKU: $ns_sku"
 
-            # Check queues
-            for queue in $flagged_queue $approved_queue $all_events_queue; do
-                local q_exists=$(az servicebus queue show --resource-group $rg --namespace-name $namespace_name --name $queue 2>/dev/null)
-                if [ -n "$q_exists" ]; then
-                    echo "  ✓ Queue: $queue"
-                else
-                    echo "  ⚠ Queue not created: $queue"
-                fi
-            done
-
-            # Check Azure Service Bus Data Owner role
-            local ns_id=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv)
-            local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
-            local sb_role=$(az role assignment list \
-                --assignee $user_object_id \
-                --scope $ns_id \
-                --role "Azure Service Bus Data Owner" \
-                --query "[0].id" -o tsv 2>/dev/null)
-
-            if [ -n "$sb_role" ]; then
-                echo "  ✓ Role assigned: $user_upn (Azure Service Bus Data Owner)"
+            # Check namespace topic
+            local topic_status=$(az eventgrid namespace topic show --resource-group $rg --namespace-name $namespace_name --name $topic_name --query "provisioningState" -o tsv 2>/dev/null)
+            if [ -n "$topic_status" ]; then
+                echo "  ✓ Topic: $topic_name ($topic_status)"
             else
-                echo "  ⚠ Azure Service Bus Data Owner role not assigned"
+                echo "  ⚠ Topic not created: $topic_name"
             fi
 
-            # Check Azure Service Bus Data Sender for Event Grid topic identity
-            local topic_principal=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "identity.principalId" -o tsv 2>/dev/null)
-            if [ -n "$topic_principal" ] && [ "$topic_principal" != "None" ]; then
-                local eg_sb_role=$(az role assignment list \
-                    --assignee $topic_principal \
-                    --scope $ns_id \
-                    --role "Azure Service Bus Data Sender" \
-                    --query "[0].id" -o tsv 2>/dev/null)
+            # Check roles
+            local ns_id=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv)
+            local user_upn=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
 
-                if [ -n "$eg_sb_role" ]; then
-                    echo "  ✓ Role assigned: Event Grid topic (Azure Service Bus Data Sender)"
-                else
-                    echo "  ⚠ Azure Service Bus Data Sender role not assigned to Event Grid topic"
-                fi
+            local sender_role=$(az role assignment list \
+                --assignee $user_object_id \
+                --scope $ns_id \
+                --role "EventGrid Data Sender" \
+                --query "[0].id" -o tsv 2>/dev/null)
+
+            if [ -n "$sender_role" ]; then
+                echo "  ✓ Role assigned: $user_upn (EventGrid Data Sender)"
             else
-                echo "  ⚠ Event Grid topic managed identity not enabled — cannot check delivery role"
+                echo "  ⚠ EventGrid Data Sender role not assigned"
+            fi
+
+            local receiver_role=$(az role assignment list \
+                --assignee $user_object_id \
+                --scope $ns_id \
+                --role "EventGrid Data Receiver" \
+                --query "[0].id" -o tsv 2>/dev/null)
+
+            if [ -n "$receiver_role" ]; then
+                echo "  ✓ Role assigned: $user_upn (EventGrid Data Receiver)"
+            else
+                echo "  ⚠ EventGrid Data Receiver role not assigned"
             fi
         else
             echo "  ⚠ Namespace is still provisioning. Please wait and try again."
@@ -497,80 +310,70 @@ check_deployment_status() {
 
     # Check event subscriptions
     echo "Event Subscriptions:"
-    local topic_id=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "id" -o tsv 2>/dev/null)
-    if [ -n "$topic_id" ]; then
-        for sub in $sub_flagged $sub_approved $sub_all; do
-            local sub_status=$(az eventgrid event-subscription show --name $sub --source-resource-id $topic_id --query "provisioningState" -o tsv 2>/dev/null)
-            if [ -n "$sub_status" ]; then
-                echo "  ✓ $sub ($sub_status)"
-            else
-                echo "  ⚠ $sub: Not created"
-            fi
-        done
-    else
-        echo "  Topic not found — subscriptions cannot be checked."
-    fi
+    for sub in $sub_flagged $sub_approved $sub_all; do
+        local sub_status=$(az eventgrid namespace topic event-subscription show --resource-group $rg --namespace-name $namespace_name --topic-name $topic_name --name $sub --query "provisioningState" -o tsv 2>/dev/null)
+        if [ -n "$sub_status" ]; then
+            echo "  ✓ $sub ($sub_status)"
+        else
+            echo "  ⚠ $sub: Not created"
+        fi
+    done
 }
 
 # Function to retrieve connection info and create .env file
 retrieve_connection_info() {
     echo "Retrieving connection information..."
 
-    # Prereq check: topic must exist
-    local topic_status=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "provisioningState" -o tsv 2>/dev/null)
-    if [ -z "$topic_status" ] || [ "$topic_status" != "Succeeded" ]; then
-        echo "Error: Event Grid topic '$topic_name' not found or not ready."
-        echo "Please run option 1 first, then try again."
-        return 1
-    fi
-
     # Prereq check: namespace must exist
-    local ns_status=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
+    local ns_status=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ -z "$ns_status" ] || [ "$ns_status" != "Succeeded" ]; then
-        echo "Error: Service Bus namespace '$namespace_name' not found or not ready."
+        echo "Error: Event Grid namespace '$namespace_name' not found or not ready."
         echo "Please run option 1 first, then try again."
         return 1
     fi
 
     # Prereq check: roles must be assigned
-    local topic_id=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "id" -o tsv)
-    local eg_role=$(az role assignment list \
+    local ns_id=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv)
+
+    local sender_role=$(az role assignment list \
         --assignee $user_object_id \
-        --scope $topic_id \
+        --scope $ns_id \
         --role "EventGrid Data Sender" \
         --query "[0].id" -o tsv 2>/dev/null)
 
-    local ns_id=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "id" -o tsv)
-    local sb_role=$(az role assignment list \
+    local receiver_role=$(az role assignment list \
         --assignee $user_object_id \
         --scope $ns_id \
-        --role "Azure Service Bus Data Owner" \
+        --role "EventGrid Data Receiver" \
         --query "[0].id" -o tsv 2>/dev/null)
 
-    if [ -z "$eg_role" ] || [ -z "$sb_role" ]; then
+    if [ -z "$sender_role" ] || [ -z "$receiver_role" ]; then
         echo "Error: Required roles not assigned."
         echo "Please run option 3 to assign roles, then try again."
         return 1
     fi
 
-    local topic_endpoint=$(az eventgrid topic show --resource-group $rg --name $topic_name --query "endpoint" -o tsv)
-    local fqdn="${namespace_name}.servicebus.windows.net"
+    local ns_hostname=$(az eventgrid namespace show --resource-group $rg --name $namespace_name --query "topicsConfiguration.hostname" -o tsv 2>/dev/null)
+
+    # Fall back to constructed hostname if query returns empty
+    if [ -z "$ns_hostname" ]; then
+        ns_hostname="$namespace_name.$location-1.eventgrid.azure.net"
+    fi
 
     local env_file="$(dirname "$0")/.env"
 
     cat > "$env_file" << EOF
 export RESOURCE_GROUP="$rg"
-export EVENTGRID_TOPIC_NAME="$topic_name"
-export EVENTGRID_TOPIC_ENDPOINT="$topic_endpoint"
 export NAMESPACE_NAME="$namespace_name"
-export SERVICE_BUS_FQDN="$fqdn"
+export EVENTGRID_TOPIC_NAME="$topic_name"
+export EVENTGRID_ENDPOINT="https://$ns_hostname"
 EOF
 
     echo ""
-    echo "Event Grid & Service Bus Connection Information"
+    echo "Event Grid Connection Information"
     echo "==========================================================="
-    echo "Topic endpoint: $topic_endpoint"
-    echo "Service Bus FQDN: $fqdn"
+    echo "Namespace endpoint: https://$ns_hostname"
+    echo "Topic name: $topic_name"
     echo "Authentication: Microsoft Entra ID (DefaultAzureCredential)"
     echo ""
     echo "Environment variables saved to: $env_file"
@@ -584,11 +387,11 @@ show_menu() {
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
-    echo "Topic: $topic_name"
     echo "Namespace: $namespace_name"
+    echo "Topic: $topic_name"
     echo "====================================================================="
-    echo "1. Create Event Grid topic and Service Bus namespace"
-    echo "2. Create queues and event subscriptions"
+    echo "1. Create Event Grid namespace and topic"
+    echo "2. Create event subscriptions"
     echo "3. Assign user roles"
     echo "4. Retrieve connection info"
     echo "5. Check deployment status"
@@ -606,13 +409,13 @@ while true; do
             echo ""
             create_resource_group
             echo ""
-            create_topic_and_namespace
+            create_namespace_and_topic
             echo ""
             read -p "Press Enter to continue..."
             ;;
         2)
             echo ""
-            create_queues_and_subscriptions
+            create_event_subscriptions
             echo ""
             read -p "Press Enter to continue..."
             ;;

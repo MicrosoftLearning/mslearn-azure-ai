@@ -8,7 +8,7 @@ from flask import Flask, render_template, redirect, url_for, flash
 from event_grid_functions import (
     publish_moderation_events,
     check_filtered_delivery,
-    inspect_event_details
+    inspect_and_reject
 )
 
 app = Flask(__name__)
@@ -23,10 +23,10 @@ def index():
 
 @app.route("/publish-events", methods=["POST"])
 def publish():
-    """Publish content moderation events to the Event Grid topic."""
+    """Publish content moderation events to the Event Grid namespace topic."""
     try:
         results = publish_moderation_events()
-        flash(f"Successfully published {len(results)} event(s) to the Event Grid topic.", "success")
+        flash(f"Successfully published {len(results)} event(s) to the Event Grid namespace topic.", "success")
         return render_template("index.html", publish_results=results)
     except Exception as e:
         flash(f"Error publishing events: {str(e)}", "error")
@@ -35,34 +35,34 @@ def publish():
 
 @app.route("/check-delivery", methods=["POST"])
 def check():
-    """Check filtered delivery across Service Bus queues."""
+    """Receive and acknowledge events from filtered subscriptions."""
     try:
         results = check_filtered_delivery()
         total = len(results["flagged"]) + len(results["approved"]) + len(results["all_events"])
         if total > 0:
             flash(
-                f"Flagged: {len(results['flagged'])}, "
+                f"Received and acknowledged — Flagged: {len(results['flagged'])}, "
                 f"Approved: {len(results['approved'])}, "
                 f"All events: {len(results['all_events'])}.",
                 "success"
             )
         else:
-            flash("No events found in the queues. Publish events first.", "success")
+            flash("No events available in subscriptions. Publish events first.", "success")
         return render_template("index.html", delivery_results=results)
     except Exception as e:
-        flash(f"Error checking delivery: {str(e)}", "error")
+        flash(f"Error receiving events: {str(e)}", "error")
         return redirect(url_for("index"))
 
 
 @app.route("/inspect-event", methods=["POST"])
 def inspect():
-    """Inspect CloudEvent details from the all-events queue."""
+    """Publish, receive, inspect, and reject an event."""
     try:
-        result = inspect_event_details()
+        result = inspect_and_reject()
         if result:
-            flash("Retrieved event details from the all-events queue.", "success")
+            flash("Published a test event, received it, inspected the envelope, and rejected it.", "success")
         else:
-            flash("No events available to inspect. Publish events first.", "success")
+            flash("No events received from the subscription. Check that the namespace is deployed.", "success")
         return render_template("index.html", inspect_result=result)
     except Exception as e:
         flash(f"Error inspecting event: {str(e)}", "error")
