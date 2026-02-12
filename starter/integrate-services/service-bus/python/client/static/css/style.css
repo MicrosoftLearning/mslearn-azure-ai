@@ -114,7 +114,8 @@ button:focus {
     color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:hover,
+.btn-primary:focus {
     background: #106ebe;
 }
 
@@ -123,7 +124,8 @@ button:focus {
     color: white;
 }
 
-.btn-success:hover {
+.btn-success:hover,
+.btn-success:focus {
     background: #0b5c0b;
 }
 
@@ -132,7 +134,8 @@ button:focus {
     color: white;
 }
 
-.btn-warning:hover {
+.btn-warning:hover,
+.btn-warning:focus {
     background: #b33000;
 }
 
@@ -141,7 +144,8 @@ button:focus {
     color: white;
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover,
+.btn-secondary:focus {
     background: #6e6d6b;
 }
 
