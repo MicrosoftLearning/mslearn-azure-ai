@@ -69,6 +69,12 @@ In this section you download the starter files for the app and use a script to d
     az provider register --namespace Microsoft.EventGrid
     ```
 
+1. Run the following command to install the Event Grid CLI extension. The namespace commands used by the deployment script require this extension.
+
+    ```
+    az extension add --name eventgrid --yes
+    ```
+
 1. Run the appropriate command in the terminal to launch the script.
 
     **Bash**
@@ -194,7 +200,7 @@ The function creates an **EventGridConsumerClient** for each of the three subscr
         # receive() returns a list of ReceiveDetails, each containing
         # the CloudEvent and a lock token for acknowledgment.
         consumer = get_consumer_client(SUB_FLAGGED)
-        details = consumer.receive(max_events=10, max_wait_time=5)
+        details = consumer.receive(max_events=10, max_wait_time=10)
         tokens = []
         for detail in details:
             event = detail.event
@@ -213,7 +219,7 @@ The function creates an **EventGridConsumerClient** for each of the three subscr
         # Receive from the sub-approved subscription, which only delivers
         # events where the event type is com.contoso.ai.ContentApproved.
         consumer = get_consumer_client(SUB_APPROVED)
-        details = consumer.receive(max_events=10, max_wait_time=5)
+        details = consumer.receive(max_events=10, max_wait_time=10)
         tokens = []
         for detail in details:
             event = detail.event
@@ -230,7 +236,7 @@ The function creates an **EventGridConsumerClient** for each of the three subscr
         # Receive from the sub-all-events subscription, which has no filter
         # and delivers every event published to the topic (audit log).
         consumer = get_consumer_client(SUB_ALL)
-        details = consumer.receive(max_events=10, max_wait_time=5)
+        details = consumer.receive(max_events=10, max_wait_time=10)
         tokens = []
         for detail in details:
             event = detail.event

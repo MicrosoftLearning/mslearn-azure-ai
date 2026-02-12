@@ -115,7 +115,7 @@ def check_filtered_delivery():
     # receive() returns a list of ReceiveDetails, each containing
     # the CloudEvent and a lock token for acknowledgment.
     consumer = get_consumer_client(SUB_FLAGGED)
-    details = consumer.receive(max_events=10, max_wait_time=5)
+    details = consumer.receive(max_events=10, max_wait_time=10)
     tokens = []
     for detail in details:
         event = detail.event
@@ -134,7 +134,7 @@ def check_filtered_delivery():
     # Receive from the sub-approved subscription, which only delivers
     # events where the event type is com.contoso.ai.ContentApproved.
     consumer = get_consumer_client(SUB_APPROVED)
-    details = consumer.receive(max_events=10, max_wait_time=5)
+    details = consumer.receive(max_events=10, max_wait_time=10)
     tokens = []
     for detail in details:
         event = detail.event
@@ -151,7 +151,7 @@ def check_filtered_delivery():
     # Receive from the sub-all-events subscription, which has no filter
     # and delivers every event published to the topic (audit log).
     consumer = get_consumer_client(SUB_ALL)
-    details = consumer.receive(max_events=10, max_wait_time=5)
+    details = consumer.receive(max_events=10, max_wait_time=10)
     tokens = []
     for detail in details:
         event = detail.event

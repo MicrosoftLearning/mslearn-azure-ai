@@ -1,0 +1,78 @@
+[
+    {
+        "type": "com.contoso.ai.ContentFlagged",
+        "source": "/services/content-moderation",
+        "subject": "/content/images/img-4821",
+        "data": {
+            "contentId": "img-4821",
+            "contentType": "image",
+            "modelName": "vision-moderator-v3",
+            "modelVersion": "3.2.1",
+            "confidence": 0.97,
+            "category": "violence",
+            "severity": "high",
+            "reviewRequired": true
+        }
+    },
+    {
+        "type": "com.contoso.ai.ContentApproved",
+        "source": "/services/content-moderation",
+        "subject": "/content/text/doc-1137",
+        "data": {
+            "contentId": "doc-1137",
+            "contentType": "text",
+            "modelName": "text-moderator-v2",
+            "modelVersion": "2.4.0",
+            "confidence": 0.99,
+            "category": "safe",
+            "severity": "none",
+            "reviewRequired": false
+        }
+    },
+    {
+        "type": "com.contoso.ai.ContentFlagged",
+        "source": "/services/content-moderation",
+        "subject": "/content/text/doc-2054",
+        "data": {
+            "contentId": "doc-2054",
+            "contentType": "text",
+            "modelName": "text-moderator-v2",
+            "modelVersion": "2.4.0",
+            "confidence": 0.88,
+            "category": "hate-speech",
+            "severity": "medium",
+            "reviewRequired": true
+        }
+    },
+    {
+        "type": "com.contoso.ai.ContentApproved",
+        "source": "/services/content-moderation",
+        "subject": "/content/images/img-7733",
+        "data": {
+            "contentId": "img-7733",
+            "contentType": "image",
+            "modelName": "vision-moderator-v3",
+            "modelVersion": "3.2.1",
+            "confidence": 0.95,
+            "category": "safe",
+            "severity": "none",
+            "reviewRequired": false
+        }
+    },
+    {
+        "type": "com.contoso.ai.ReviewEscalated",
+        "source": "/services/content-moderation",
+        "subject": "/content/text/doc-3301",
+        "data": {
+            "contentId": "doc-3301",
+            "contentType": "text",
+            "modelName": "text-moderator-v2",
+            "modelVersion": "2.4.0",
+            "confidence": 0.52,
+            "category": "self-harm",
+            "severity": "high",
+            "reviewRequired": true,
+            "escalationReason": "Low confidence requires human review"
+        }
+    }
+]
