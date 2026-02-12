@@ -1,0 +1,4 @@
+azure-identity==1.21.0
+azure-eventgrid==4.21.0
+azure-servicebus==7.14.1
+flask==3.1.1

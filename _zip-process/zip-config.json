@@ -90,6 +90,11 @@
       "source": "starter/integrate-services/service-bus/python",
       "output": "downloads/python",
       "name": "service-bus-python.zip"
+    },
+    {
+      "source": "starter/integrate-services/event-grid/python",
+      "output": "downloads/python",
+      "name": "event-grid-python.zip"
     }
   ]
 }

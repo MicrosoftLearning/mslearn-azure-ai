@@ -1,347 +1,484 @@
-In this exercise, you create an Event Grid custom topic with the CloudEvents schema, publish custom events representing AI pipeline operations, configure event subscriptions with filters, and verify event delivery to handler endpoints. By the end, you'll have hands-on experience with the core Event Grid patterns covered in this module.
+---
+lab:
+    topic: Integrate backend services
+    title: 'Trigger and process events with Azure Event Grid'
+    description: 'Learn how to publish and route content moderation events using Azure Event Grid with filtered subscriptions and Service Bus queue endpoints.'
+    level: 200
+    duration: 30
+---
 
-> [!NOTE]
-> This exercise requires an Azure subscription. If you don't have an Azure subscription, create a [free account](https://azure.microsoft.com/free/) before you begin.
+{% include under-construction.md %}
 
-## Create a custom topic and event handler endpoint
+# Trigger and process events with Azure Event Grid
 
-You can start by creating a resource group, an Event Grid custom topic configured for the CloudEvents schema, and a web app that serves as the event handler endpoint. The Event Grid Viewer sample app displays incoming events in the browser so you can verify delivery and inspect event payloads.
+AI content moderation systems generate a high volume of events as they classify and review submissions. Azure Event Grid provides the routing layer that directs these events to the right downstream consumers based on event type, so each handler receives only the events it needs without polling or manual filtering.
 
-1. Set environment variables for your resource names. You can replace the values with names that are unique in your subscription.
+In this exercise, you deploy an Event Grid custom topic and a Service Bus namespace, then build a Python Flask application that publishes content moderation events and reads the filtered results from Service Bus queues. Event Grid subscriptions route flagged content, approved content, and all events to separate queues so you can observe how filtering and fan-out delivery work in practice.
 
-    ```bash
-    RESOURCE_GROUP="rg-eventgrid-lab"
-    LOCATION="eastus"
-    TOPIC_NAME="ai-pipeline-events-$RANDOM"
-    SITE_NAME="egviewer-$RANDOM"
+Tasks performed in this exercise:
+
+- Download the project starter files
+- Deploy an Event Grid topic and Service Bus namespace
+- Create Service Bus queues and event subscriptions with filters
+- Add code to the starter files to complete the app
+- Run the app to publish and inspect moderation events
+
+This exercise takes approximately **30** minutes to complete.
+
+## Before you start
+
+To complete the exercise, you need:
+
+- An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
+- [Python 3.12](https://www.python.org/downloads/) or greater.
+- The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli?view=azure-cli-latest).
+
+## Download project starter files and deploy resources
+
+In this section you download the starter files for the app and use a script to deploy an Event Grid custom topic and a Service Bus namespace to your subscription. Event Grid handles event routing while Service Bus queues serve as the delivery endpoints that your local Flask app reads from.
+
+1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
+
+    ```
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/event-grid-python.zip
     ```
 
-1. Create a resource group and register the Event Grid resource provider if you haven't used Event Grid before.
+1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
 
-    ```bash
-    az group create --name $RESOURCE_GROUP --location $LOCATION
+1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
+1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+
+    ```
+    "<your-resource-group-name>" # Resource Group name
+    "<your-azure-region>" # Azure region for the resources
+    ```
+
+1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code.
+
+1. Run the following command to login to your Azure account. Answer the prompts to select your Azure account and subscription for the exercise.
+
+    ```
+    az login
+    ```
+
+1. Run the following commands to ensure your subscription has the necessary resource providers for the exercise.
+
+    ```
     az provider register --namespace Microsoft.EventGrid
+    az provider register --namespace Microsoft.ServiceBus
     ```
 
-1. Create a custom topic with the CloudEvents v1.0 input schema. This topic serves as the endpoint where your AI application publishes events.
+1. Run the appropriate command in the terminal to launch the script.
 
+    **Bash**
     ```bash
-    az eventgrid topic create \
-        --name $TOPIC_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --location $LOCATION \
-        --input-schema cloudeventschemav1_0
+    bash azdeploy.sh
     ```
 
-1. Deploy the Event Grid Viewer sample web app. This app provides a webhook endpoint that displays received events in a browser interface.
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
+    ```
 
+1. When the script is running, enter **1** to launch the **1. Create Event Grid topic and Service Bus namespace** option.
+
+    This option creates the resource group if it doesn't already exist, deploys an Event Grid custom topic configured for the CloudEvents v1.0 schema, and creates an Azure Service Bus namespace with the Standard tier. The topic is where your application publishes moderation events, and the Service Bus queues serve as delivery endpoints that Event Grid routes events to.
+
+1. Enter **2** to run the **2. Create queues and event subscriptions** option.
+
+    This option creates three Service Bus queues and three Event Grid subscriptions that connect the topic to those queues. The **flagged-content** queue receives only events with the type **com.contoso.ai.ContentFlagged**. The **approved-content** queue receives only **com.contoso.ai.ContentApproved** events. The **all-events** queue receives every event published to the topic regardless of type, serving as an audit log.
+
+1. Enter **3** to run the **3. Assign roles** option. This assigns the EventGrid Data Sender role on the topic and the Azure Service Bus Data Owner role on the namespace so your account can publish events and read from queues using Microsoft Entra authentication.
+
+1. Enter **4** to run the **4. Check deployment status** option. Verify that the topic and namespace both show **Succeeded** and the roles are assigned before continuing. If either resource is still provisioning, wait a moment and try again.
+
+1. Enter **5** to run the **5. Retrieve connection info** option. This creates the environment variable files with the resource group name, topic endpoint, namespace name, and Service Bus FQDN.
+
+1. Enter **6** to exit the deployment script.
+
+1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
+
+    **Bash**
     ```bash
-    az deployment group create \
-        --resource-group $RESOURCE_GROUP \
-        --template-uri "https://raw.githubusercontent.com/Azure-Samples/azure-event-grid-viewer/master/azuredeploy.json" \
-        --parameters siteName=$SITE_NAME hostingPlanName=viewerhost
+    source .env
     ```
 
-    After the deployment completes, open `https://$SITE_NAME.azurewebsites.net` in a browser to confirm the viewer app is running. You should see the site with no events displayed yet.
-
-## Create event subscriptions with filters
-
-You can now create event subscriptions that route specific events to the viewer endpoint. Each subscription uses filters to control which events it receives, demonstrating how Event Grid directs events to the right handler based on event type and subject.
-
-1. Store the topic resource ID and viewer endpoint URL in variables.
-
-    ```bash
-    TOPIC_ID=$(az eventgrid topic show \
-        --name $TOPIC_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --query "id" \
-        --output tsv)
-
-    ENDPOINT="https://$SITE_NAME.azurewebsites.net/api/updates"
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
     ```
 
-1. Create a subscription that receives only inference completion events by filtering on event type. This subscription represents an analytics dashboard that tracks completed AI inferences.
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
 
-    ```azurecli
-    az eventgrid event-subscription create \
-        --name inference-dashboard-sub \
-        --source-resource-id $TOPIC_ID \
-        --endpoint $ENDPOINT \
-        --event-delivery-schema cloudeventschemav1_0 \
-        --included-event-types com.contoso.ai.InferenceCompleted
-    ```
+## Complete the app
 
-1. Create a second subscription that receives only events from the embeddings pipeline by filtering on the subject prefix. This subscription represents a monitoring service that tracks embeddings processing.
+In this section you add code to the *event_grid_functions.py* file to complete the Event Grid publishing and Service Bus reading functions. The Flask app in *app.py* calls these functions and displays the results in the browser. You run the app later in the exercise.
 
-    ```azurecli
-    az eventgrid event-subscription create \
-        --name embeddings-monitor-sub \
-        --source-resource-id $TOPIC_ID \
-        --endpoint $ENDPOINT \
-        --event-delivery-schema cloudeventschemav1_0 \
-        --subject-begins-with /pipelines/embeddings
-    ```
+1. Open the *client/event_grid_functions.py* file to begin adding code.
 
-1. Create a third subscription that receives all events from the topic without any filters. This subscription represents a logging service that captures every event for auditing.
+>**Note:** The code blocks you add to the application should align with the comment for that section of the code.
 
-    ```azurecli
-    az eventgrid event-subscription create \
-        --name audit-log-sub \
-        --source-resource-id $TOPIC_ID \
-        --endpoint $ENDPOINT \
-        --event-delivery-schema cloudeventschemav1_0
-    ```
+### Add code to publish moderation events
 
-    You should see subscription validation events appear in the Event Grid Viewer web app as each subscription is created.
+In this section, you add code to publish five content moderation events to the Event Grid topic. The events use the CloudEvents v1.0 schema and represent different moderation outcomes — flagged content, approved content, and an escalated review — so you can observe how each subscription's event type filter determines which queue receives each event.
 
-## Set up the Python environment
+The function creates an **EventGridPublisherClient** using **DefaultAzureCredential** for Microsoft Entra authentication. It constructs five **CloudEvent** objects, each with a **type** that identifies the moderation outcome, a **source** identifying the originating service, a **subject** identifying the specific content item, and a **data** payload with moderation details such as confidence score, category, and severity. The **send()** method publishes all events to the topic in a single request.
 
-1. Create a working directory and set up a Python virtual environment with the Event Grid SDK.
-
-    ```bash
-    mkdir eventgrid-lab && cd eventgrid-lab
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install azure-eventgrid azure-core
-    ```
-
-1. Retrieve the topic endpoint and access key, then export them as environment variables.
-
-    ```bash
-    TOPIC_ENDPOINT=$(az eventgrid topic show \
-        --name $TOPIC_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --query "endpoint" \
-        --output tsv)
-
-    TOPIC_KEY=$(az eventgrid topic key list \
-        --name $TOPIC_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --query "key1" \
-        --output tsv)
-
-    export EVENTGRID_TOPIC_ENDPOINT=$TOPIC_ENDPOINT
-    export EVENTGRID_TOPIC_KEY=$TOPIC_KEY
-    ```
-
-    > [!NOTE]
-    > In production applications, you should use Microsoft Entra ID with managed identity instead of access keys. This exercise uses an access key for simplicity in a learning environment.
-
-## Publish custom events to the topic
-
-1. Create a file named `publish_events.py` that publishes several CloudEvents to the custom topic. The events represent different AI pipeline operations with varying types and subjects, so you can observe how each subscription's filters determine which events it receives.
+1. Locate the **# BEGIN PUBLISH EVENTS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    import os
-    import uuid
-    from azure.core.credentials import AzureKeyCredential
-    from azure.core.messaging import CloudEvent
-    from azure.eventgrid import EventGridPublisherClient
+    def publish_moderation_events():
+        """Publish content moderation events to the Event Grid topic."""
+        client = get_eventgrid_client()
+        results = []
 
-    endpoint = os.environ["EVENTGRID_TOPIC_ENDPOINT"]
-    key = os.environ["EVENTGRID_TOPIC_KEY"]
+        # Build five CloudEvent objects representing different moderation outcomes.
+        # Each event has a type, source, subject, and data payload that mirrors
+        # a realistic AI content moderation pipeline.
+        events = [
+            CloudEvent(
+                type="com.contoso.ai.ContentFlagged",
+                source="/services/content-moderation",
+                subject="/content/images/img-4821",
+                data={
+                    "contentId": "img-4821",
+                    "contentType": "image",
+                    "modelName": "vision-moderator-v3",
+                    "modelVersion": "3.2.1",
+                    "confidence": 0.97,
+                    "category": "violence",
+                    "severity": "high",
+                    "reviewRequired": True,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                },
+                id=str(uuid.uuid4())
+            ),
+            CloudEvent(
+                type="com.contoso.ai.ContentApproved",
+                source="/services/content-moderation",
+                subject="/content/text/doc-1137",
+                data={
+                    "contentId": "doc-1137",
+                    "contentType": "text",
+                    "modelName": "text-moderator-v2",
+                    "modelVersion": "2.4.0",
+                    "confidence": 0.99,
+                    "category": "safe",
+                    "severity": "none",
+                    "reviewRequired": False,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                },
+                id=str(uuid.uuid4())
+            ),
+            CloudEvent(
+                type="com.contoso.ai.ContentFlagged",
+                source="/services/content-moderation",
+                subject="/content/text/doc-2054",
+                data={
+                    "contentId": "doc-2054",
+                    "contentType": "text",
+                    "modelName": "text-moderator-v2",
+                    "modelVersion": "2.4.0",
+                    "confidence": 0.88,
+                    "category": "hate-speech",
+                    "severity": "medium",
+                    "reviewRequired": True,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                },
+                id=str(uuid.uuid4())
+            ),
+            CloudEvent(
+                type="com.contoso.ai.ContentApproved",
+                source="/services/content-moderation",
+                subject="/content/images/img-7733",
+                data={
+                    "contentId": "img-7733",
+                    "contentType": "image",
+                    "modelName": "vision-moderator-v3",
+                    "modelVersion": "3.2.1",
+                    "confidence": 0.95,
+                    "category": "safe",
+                    "severity": "none",
+                    "reviewRequired": False,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                },
+                id=str(uuid.uuid4())
+            ),
+            CloudEvent(
+                type="com.contoso.ai.ReviewEscalated",
+                source="/services/content-moderation",
+                subject="/content/text/doc-3301",
+                data={
+                    "contentId": "doc-3301",
+                    "contentType": "text",
+                    "modelName": "text-moderator-v2",
+                    "modelVersion": "2.4.0",
+                    "confidence": 0.52,
+                    "category": "self-harm",
+                    "severity": "high",
+                    "reviewRequired": True,
+                    "escalationReason": "Low confidence requires human review",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                },
+                id=str(uuid.uuid4())
+            ),
+        ]
 
-    client = EventGridPublisherClient(endpoint, AzureKeyCredential(key))
+        # send() publishes all events to the Event Grid custom topic in a
+        # single request. Event Grid then evaluates each subscription's
+        # filters and routes matching events to the configured endpoints.
+        client.send(events)
 
-    events = [
-        CloudEvent(
-            type="com.contoso.ai.InferenceCompleted",
-            source="/services/content-moderation",
-            data={
-                "requestId": "req-001",
-                "modelName": "content-classifier-v3",
-                "processingDurationMs": 1250,
-                "resultLocation": "https://results.blob.core.windows.net/output/req-001.json",
-                "status": "completed",
-                "itemsProcessed": 1
-            },
-            subject="/pipelines/moderation/image-classifier",
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.StageCompleted",
-            source="/services/embeddings",
-            data={
-                "pipelineRunId": "run-42",
-                "stage": "embeddings",
-                "status": "completed",
-                "documentsProcessed": 150
-            },
-            subject="/pipelines/embeddings/run-42",
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.InferenceCompleted",
-            source="/services/content-moderation",
-            data={
-                "requestId": "req-002",
-                "modelName": "content-classifier-v3",
-                "processingDurationMs": 980,
-                "resultLocation": "https://results.blob.core.windows.net/output/req-002.json",
-                "status": "completed",
-                "itemsProcessed": 1
-            },
-            subject="/pipelines/moderation/text-classifier",
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.ModelRetrained",
-            source="/services/training",
-            data={
-                "modelName": "sentiment-v2",
-                "modelVersion": "2.1.0",
-                "accuracy": 0.94,
-                "trainingDurationMinutes": 45
-            },
-            subject="/models/sentiment-v2",
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.StageCompleted",
-            source="/services/indexing",
-            data={
-                "pipelineRunId": "run-42",
-                "stage": "indexing",
-                "status": "completed",
-                "recordsIndexed": 150
-            },
-            subject="/pipelines/embeddings/run-42",
-            id=str(uuid.uuid4())
-        ),
-    ]
+        for event in events:
+            results.append({
+                "content_id": event.data["contentId"],
+                "event_type": event.type.split(".")[-1],
+                "category": event.data["category"],
+                "confidence": event.data["confidence"],
+                "status": "published"
+            })
 
-    client.send(events)
-    print(f"Published {len(events)} events to the custom topic.")
-    for event in events:
-        print(f"  Type: {event.type}, Subject: {event.subject}")
+        return results
     ```
 
-1. Run the publisher script.
+1. Save your changes and take a few minutes to review the code.
 
+### Add code to check filtered delivery
+
+In this section, you add code to read delivered events from each Service Bus queue, demonstrating how Event Grid's event type filters route different moderation outcomes to different queues. The function reads from all three queues and returns the results so the Flask app can display them side by side.
+
+The function creates a **ServiceBusClient** using **DefaultAzureCredential** and opens a **get_queue_receiver()** for each of the three queues. The **flagged-content** queue should contain only **ContentFlagged** events, the **approved-content** queue should contain only **ContentApproved** events, and the **all-events** queue should contain all five events. Each message is parsed from JSON, and **complete_message()** removes it from the queue after processing.
+
+1. Locate the **# BEGIN CHECK DELIVERY FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def check_filtered_delivery():
+        """Read delivered events from each Service Bus queue to verify filtering."""
+        client = get_servicebus_client()
+        flagged = []
+        approved = []
+        all_events = []
+
+        with client:
+            # Read from the flagged-content queue, which receives only events
+            # where the event type is com.contoso.ai.ContentFlagged.
+            # max_wait_time controls how long the receiver waits for messages.
+            with client.get_queue_receiver(
+                queue_name=FLAGGED_QUEUE,
+                max_wait_time=5
+            ) as receiver:
+                for msg in receiver:
+                    body = json.loads(str(msg))
+                    flagged.append({
+                        "content_id": body.get("contentId"),
+                        "category": body.get("category"),
+                        "severity": body.get("severity"),
+                        "confidence": body.get("confidence")
+                    })
+                    # complete_message removes the message from the queue
+                    receiver.complete_message(msg)
+
+            # Read from the approved-content queue, which receives only events
+            # where the event type is com.contoso.ai.ContentApproved.
+            with client.get_queue_receiver(
+                queue_name=APPROVED_QUEUE,
+                max_wait_time=5
+            ) as receiver:
+                for msg in receiver:
+                    body = json.loads(str(msg))
+                    approved.append({
+                        "content_id": body.get("contentId"),
+                        "category": body.get("category"),
+                        "severity": body.get("severity"),
+                        "confidence": body.get("confidence")
+                    })
+                    receiver.complete_message(msg)
+
+            # Read from the all-events queue, which has no filter and
+            # receives every event published to the topic (audit log).
+            with client.get_queue_receiver(
+                queue_name=ALL_EVENTS_QUEUE,
+                max_wait_time=5
+            ) as receiver:
+                for msg in receiver:
+                    body = json.loads(str(msg))
+                    all_events.append({
+                        "content_id": body.get("contentId"),
+                        "event_type": body.get("modelName", "unknown"),
+                        "category": body.get("category"),
+                        "confidence": body.get("confidence")
+                    })
+                    receiver.complete_message(msg)
+
+        return {
+            "flagged": flagged,
+            "approved": approved,
+            "all_events": all_events
+        }
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to inspect event details
+
+In this section, you add code to peek at a message from the all-events queue to examine the full CloudEvent structure without removing the message. This demonstrates how Event Grid preserves CloudEvent attributes when delivering to Service Bus queues.
+
+The function uses **peek_messages()** to read a message without locking or removing it. When Event Grid delivers CloudEvents to a Service Bus queue, the event **data** becomes the message body and the envelope attributes (**specversion**, **type**, **source**, **subject**, **id**, **time**) are stored as application properties with a **cloudEvents:** prefix.
+
+1. Locate the **# BEGIN INSPECT EVENT FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def inspect_event_details():
+        """Peek at a message from the all-events queue to show CloudEvent structure."""
+        client = get_servicebus_client()
+        result = None
+
+        with client:
+            # peek_messages reads messages without locking or removing them,
+            # so they remain available for subsequent receive operations.
+            with client.get_queue_receiver(
+                queue_name=ALL_EVENTS_QUEUE,
+                max_wait_time=5
+            ) as receiver:
+                peeked = receiver.peek_messages(max_message_count=1)
+                if peeked:
+                    msg = peeked[0]
+                    body = json.loads(str(msg))
+
+                    # Extract the CloudEvent attributes that Event Grid
+                    # preserves when delivering to Service Bus queues.
+                    # The message body contains the CloudEvent data field,
+                    # while envelope attributes are in application_properties.
+                    props = msg.application_properties or {}
+
+                    def decode_prop(key):
+                        val = props.get(key) or props.get(
+                            key.encode("utf-8") if isinstance(key, str) else key,
+                            ""
+                        )
+                        if isinstance(val, bytes):
+                            val = val.decode("utf-8")
+                        return str(val) if val else ""
+
+                    result = {
+                        "specversion": decode_prop("cloudEvents:specversion") or "1.0",
+                        "type": decode_prop("cloudEvents:type"),
+                        "source": decode_prop("cloudEvents:source"),
+                        "subject": decode_prop("cloudEvents:subject"),
+                        "id": decode_prop("cloudEvents:id"),
+                        "time": decode_prop("cloudEvents:time"),
+                        "data": body
+                    }
+
+        return result
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+## Configure the Python environment
+
+In this section, you navigate to the client app directory, create the Python environment, and install the dependencies.
+
+1. Run the following command in the VS Code terminal to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
+1. Run the following command to create the Python environment.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
+
+    **Bash**
     ```bash
-    python publish_events.py
+    source .venv/bin/activate
     ```
 
-    You should see confirmation that five events were published.
-
-## Verify filtered event delivery
-
-You can now check the Event Grid Viewer web app to verify that each subscription received only the events matching its filters.
-
-1. Open `https://$SITE_NAME.azurewebsites.net` in your browser (replace `$SITE_NAME` with the actual site name you set earlier). The viewer displays all events received by the endpoint.
-
-1. Verify the following delivery behavior based on the filters you configured:
-
-    - **`inference-dashboard-sub`:** Should receive two events, both with type `com.contoso.ai.InferenceCompleted`. The model retrained event and stage completed events should not appear for this subscription.
-    - **`embeddings-monitor-sub`:** Should receive two events, both with subjects starting with `/pipelines/embeddings`. One is a `StageCompleted` event from the embeddings service with subject `/pipelines/embeddings/run-42`, and the other is a `StageCompleted` event from the indexing service with the same subject prefix.
-    - **`audit-log-sub`:** Should receive all five events regardless of type or subject.
-
-1. Click on individual events in the viewer to inspect their CloudEvents payload. Verify that each event contains the `specversion`, `type`, `source`, `id`, `subject`, and `data` attributes you defined in the publishing script.
-
-## Configure retry policy and dead-letter destination
-
-You can configure an event subscription with a custom retry policy and a dead-letter destination so that events that can't be delivered are stored for later investigation rather than being dropped.
-
-1. Create a storage account and a blob container for dead-lettered events.
-
-    ```bash
-    STORAGE_NAME="egdeadletter$RANDOM"
-
-    az storage account create \
-        --name $STORAGE_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --location $LOCATION \
-        --sku Standard_LRS
-
-    az storage container create \
-        --name dead-letters \
-        --account-name $STORAGE_NAME
+    **PowerShell**
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
     ```
 
-1. Get the storage account resource ID and create an event subscription with a custom retry policy. This subscription uses a five-minute TTL and a maximum of three delivery attempts, and routes undeliverable events to the storage container.
+1. Run the following command in the VS Code terminal to install the dependencies.
 
-    ```bash
-    STORAGE_ID=$(az storage account show \
-        --name $STORAGE_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --query "id" \
-        --output tsv)
+    ```
+    pip install -r requirements.txt
     ```
 
-    ```azurecli
-    az eventgrid event-subscription create \
-        --name retry-demo-sub \
-        --source-resource-id $TOPIC_ID \
-        --endpoint https://nonexistent-endpoint.example.com/api/events \
-        --event-delivery-schema cloudeventschemav1_0 \
-        --max-delivery-attempts 3 \
-        --event-ttl 5 \
-        --deadletter-endpoint "$STORAGE_ID/blobServices/default/containers/dead-letters"
+## Run the app
+
+In this section, you run the completed Flask application to publish content moderation events to the Event Grid topic and verify that filtered subscriptions routed them to the correct Service Bus queues. The app provides a web interface that lets you publish events, check filtered delivery across queues, and inspect the CloudEvent structure of delivered events.
+
+1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
+
+    ```
+    python app.py
     ```
 
-    This subscription intentionally points to an endpoint that doesn't exist. Events published to the topic that match this subscription fail delivery and eventually move to the dead-letter container after the retry attempts are exhausted.
+1. Open a browser and navigate to `http://localhost:5000` to access the app.
 
-1. Publish an event to trigger the dead-letter flow.
+1. Select **Publish Moderation Events** in the left panel. This publishes five content moderation events to the Event Grid topic: two flagged content events, two approved content events, and one escalated review. The results in the right panel confirm each event was published along with its content ID, event type, and category.
 
-    ```bash
-    python -c "
-    import os, uuid
-    from azure.core.credentials import AzureKeyCredential
-    from azure.core.messaging import CloudEvent
-    from azure.eventgrid import EventGridPublisherClient
+1. Select **Check Filtered Delivery** in the left panel. This reads from the three Service Bus queues and displays the events each one received. Verify the following delivery behavior based on the filters you configured:
 
-    client = EventGridPublisherClient(
-        os.environ['EVENTGRID_TOPIC_ENDPOINT'],
-        AzureKeyCredential(os.environ['EVENTGRID_TOPIC_KEY'])
-    )
-    client.send(CloudEvent(
-        type='com.contoso.ai.DeadLetterTest',
-        source='/services/testing',
-        data={'test': 'dead-letter-verification'},
-        subject='/tests/dead-letter',
-        id=str(uuid.uuid4())
-    ))
-    print('Published dead-letter test event.')
-    "
-    ```
+    - **Flagged Content Queue:** Should contain two events, both with category values indicating policy violations (violence and hate-speech). These are the **ContentFlagged** events.
+    - **Approved Content Queue:** Should contain two events, both with the category **safe**. These are the **ContentApproved** events.
+    - **All Events Queue:** Should contain all five events regardless of type, serving as the audit log.
 
-1. Wait several minutes for Event Grid to exhaust its retry attempts. Then list the blobs in the dead-letter container to confirm the event was stored.
+    The escalated review event (**ReviewEscalated**) appears only in the all-events queue because neither the flagged nor approved subscriptions include that event type in their filter.
 
-    ```bash
-    az storage blob list \
-        --container-name dead-letters \
-        --account-name $STORAGE_NAME \
-        --query "[].name" \
-        --output tsv
-    ```
-
-    You should see one or more blobs representing the dead-lettered events. Each blob contains the original event along with diagnostic properties such as `deadLetterReason`, `deliveryAttempts`, and `lastDeliveryOutcome`.
-
-1. Download and inspect a dead-lettered event to see the diagnostic properties.
-
-    ```bash
-    BLOB_NAME=$(az storage blob list \
-        --container-name dead-letters \
-        --account-name $STORAGE_NAME \
-        --query "[0].name" \
-        --output tsv)
-
-    az storage blob download \
-        --container-name dead-letters \
-        --account-name $STORAGE_NAME \
-        --name "$BLOB_NAME" \
-        --file dead-letter-event.json
-
-    cat dead-letter-event.json
-    ```
-
-    The output shows the original event data alongside delivery failure information, including the `deadLetterReason` (such as `MaxDeliveryAttemptsExceeded`) and the `lastDeliveryOutcome` (such as `NotFound`).
+1. Select **Inspect Event Details** in the left panel. This peeks at one event from the all-events queue without removing it and displays the full CloudEvent structure, including the **specversion**, **type**, **source**, **subject**, **id**, **time**, and **data** attributes. This demonstrates how Event Grid preserves CloudEvent envelope attributes as application properties when delivering to Service Bus.
 
 ## Clean up resources
 
-When you're finished with the exercise, you can delete the resource group to remove all the resources you created.
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-```bash
-az group delete --name $RESOURCE_GROUP --yes --no-wait
-```
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
+
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
+
+## Troubleshooting
+
+If you encounter issues while completing this exercise, try the following troubleshooting steps:
+
+**Verify Event Grid topic deployment**
+- Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
+- Confirm that the Event Grid topic shows a **Provisioning State** of **Succeeded**.
+- Verify the topic is configured with the **CloudEvents v1.0** input schema.
+
+**Verify Service Bus namespace deployment**
+- Confirm that the Service Bus namespace shows a **Provisioning State** of **Succeeded**.
+- Verify the namespace tier is **Standard** (required for receiving Event Grid deliveries).
+
+**Check queues and event subscriptions**
+- Verify the three Service Bus queues were created by running **az servicebus queue list**.
+- Verify the three event subscriptions were created by running **az eventgrid event-subscription list**.
+- If no events appear in the queues after publishing, check that the event subscriptions were created after the queues. Subscriptions created before their target queue exists will fail silently.
+
+**Check code completeness and indentation**
+- Ensure all code blocks were added to the correct sections in *event_grid_functions.py* between the appropriate BEGIN/END comment markers.
+- Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
+- Confirm that no code was accidentally removed or modified outside the designated sections.
+
+**Verify environment variables**
+- Check that the *.env* file exists in the project root and contains **EVENTGRID_TOPIC_ENDPOINT**, **SERVICE_BUS_FQDN**, **RESOURCE_GROUP**, and **NAMESPACE_NAME** values.
+- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
+- If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
+
+**Check authentication**
+- Confirm you are logged in to Azure CLI by running **az account show**.
+- Verify the EventGrid Data Sender role is assigned on the topic and the Azure Service Bus Data Owner role is assigned on the namespace. Run the deployment script's role assignment option again if needed.
+
+**Check Python environment and dependencies**
+- Confirm the virtual environment is activated before running the app.
+- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
