@@ -13,7 +13,7 @@ lab:
 
 AI content moderation systems generate a high volume of events as they classify and review submissions. Azure Event Grid provides the routing layer that directs these events to the right downstream consumers based on event type, so each handler receives only the events it needs without polling or manual filtering.
 
-In this exercise, you deploy an Event Grid custom topic and a Service Bus namespace, then build a Python Flask application that publishes content moderation events and reads the filtered results from Service Bus queues. Event Grid subscriptions route flagged content, approved content, and all events to separate queues so you can observe how filtering and fan-out delivery work in practice.
+In this exercise, you deploy an Event Grid custom topic and a Service Bus namespace, then build a Python Flask application that publishes content moderation events and reads the filtered results from Service Bus queues. Event Grid subscriptions route flagged content, approved content, and all events to separate queues so you can observe how filtering and fan-out delivery work in practice. In production, these queues would trigger downstream processors such as Azure Functions or worker services — for example, an Azure Function that escalates flagged content for human review while another archives approved content. The queue-based pattern decouples the publisher from consumers, so you can add or change handlers without modifying the event source.
 
 Tasks performed in this exercise:
 
@@ -84,19 +84,19 @@ In this section you download the starter files for the app and use a script to d
 
 1. When the script is running, enter **1** to launch the **1. Create Event Grid topic and Service Bus namespace** option.
 
-    This option creates the resource group if it doesn't already exist, deploys an Event Grid custom topic configured for the CloudEvents v1.0 schema, and creates an Azure Service Bus namespace with the Standard tier. The topic is where your application publishes moderation events, and the Service Bus queues serve as delivery endpoints that Event Grid routes events to.
+    This option creates the resource group if it doesn't already exist, deploys an Event Grid custom topic configured for the CloudEvents v1.0 schema, enables a system-assigned managed identity on the topic, and creates an Azure Service Bus namespace with the Standard tier. The managed identity allows Event Grid to authenticate to Service Bus when delivering events. The topic is where your application publishes moderation events, and the Service Bus queues serve as delivery endpoints that Event Grid routes events to.
 
 1. Enter **2** to run the **2. Create queues and event subscriptions** option.
 
-    This option creates three Service Bus queues and three Event Grid subscriptions that connect the topic to those queues. The **flagged-content** queue receives only events with the type **com.contoso.ai.ContentFlagged**. The **approved-content** queue receives only **com.contoso.ai.ContentApproved** events. The **all-events** queue receives every event published to the topic regardless of type, serving as an audit log.
+    This option creates three Service Bus queues and three Event Grid subscriptions that connect the topic to those queues. Each subscription uses the topic's system-assigned managed identity for delivery, so Event Grid authenticates to Service Bus with Microsoft Entra ID instead of access keys. The **flagged-content** queue receives only events with the type **com.contoso.ai.ContentFlagged**. The **approved-content** queue receives only **com.contoso.ai.ContentApproved** events. The **all-events** queue receives every event published to the topic regardless of type, serving as an audit log.
 
-1. Enter **3** to run the **3. Assign roles** option. This assigns the EventGrid Data Sender role on the topic and the Azure Service Bus Data Owner role on the namespace so your account can publish events and read from queues using Microsoft Entra authentication.
+1. Enter **3** to run the **3. Assign user roles** option. This assigns the EventGrid Data Sender role on the topic and the Azure Service Bus Data Owner role on the namespace so your account can publish events and read from queues using Microsoft Entra authentication.
 
-1. Enter **4** to run the **4. Check deployment status** option. Verify that the topic and namespace both show **Succeeded** and the roles are assigned before continuing. If either resource is still provisioning, wait a moment and try again.
-
-1. Enter **5** to run the **5. Retrieve connection info** option. This creates the environment variable files with the resource group name, topic endpoint, namespace name, and Service Bus FQDN.
+1. Enter **4** to run the **4. Retrieve connection info** option. This creates the environment variable files with the resource group name, topic endpoint, namespace name, and Service Bus FQDN.
 
 1. Enter **6** to exit the deployment script.
+
+    > **Note:** If you encounter issues later in the exercise, you can rerun the script and enter **5** to run **5. Check deployment status**. This troubleshooting option verifies that the topic and namespace both show **Succeeded**, the managed identity is enabled, all roles are assigned, and the event subscriptions are provisioned.
 
 1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
 

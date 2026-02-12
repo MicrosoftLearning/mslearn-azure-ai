@@ -44,7 +44,7 @@
                 <!-- Flash Messages -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% for category, message in messages %}
-                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                        <div class="flash {{ category }}" role="{% if category == 'error' %}alert{% else %}status{% endif %}">{{ message }}</div>
                     {% endfor %}
                 {% endwith %}
 

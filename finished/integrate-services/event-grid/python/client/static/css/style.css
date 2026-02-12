@@ -167,6 +167,11 @@ button:focus {
     border-radius: 4px;
 }
 
+.results-container:focus {
+    outline: 2px solid #005a9e;
+    outline-offset: 2px;
+}
+
 /* Message cards */
 .message-card {
     padding: 12px;
@@ -304,6 +309,13 @@ button:focus {
 @media (max-width: 1024px) {
     .container {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    button {
+        transition: none;
     }
 }
 
