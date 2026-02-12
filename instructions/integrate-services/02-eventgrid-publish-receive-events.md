@@ -7,8 +7,6 @@ lab:
     duration: 30
 ---
 
-{% include under-construction.md %}
-
 # Publish and receive events with Azure Event Grid
 
 AI content moderation systems generate a high volume of events as they classify and review submissions. Azure Event Grid provides the routing layer that directs these events to the right downstream consumers based on event type, so each handler receives only the events it needs without polling or manual filtering.
