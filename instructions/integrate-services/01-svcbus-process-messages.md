@@ -230,7 +230,7 @@ In this section you use the Azure CLI to create the queue, topic, and subscripti
 
 ## Complete the app
 
-In this section you add code to the *service_bus_functions.py* file to complete the Service Bus messaging functions. The Flask app in *app.py* calls these functions and displays the results in the browser. You run the app later in the exercise, after confirming the messaging entities are created.
+In this section you add code to the *service_bus_functions.py* file to complete the Service Bus messaging functions. The Flask app in *app.py* calls these functions and displays the results in the browser. You run the app later in the exercise.
 
 1. Open the *client/service_bus_functions.py* file to begin adding code.
 
@@ -314,6 +314,8 @@ The function opens a **ServiceBusClient** using **DefaultAzureCredential** and c
         return results
     ```
 
+1. Take a few minutes to review the code.
+
 ### Add code to process messages with peek-lock
 
 In this section, you add code to receive messages from the queue using peek-lock mode. The processor validates the JSON payload, completes valid messages, and dead-letters messages with invalid JSON by providing a reason and error description.
@@ -367,6 +369,8 @@ The function creates a queue receiver with **get_queue_receiver()** using peek-l
         return results
     ```
 
+1. Save your changes and take a few minutes to review the code.
+
 ### Add code to inspect the dead-letter queue
 
 In this section, you add code to read messages from the dead-letter queue and display diagnostic information. The dead-letter queue captures messages that couldn't be processed, along with the reason and error description for troubleshooting.
@@ -406,6 +410,8 @@ The function creates a receiver that targets the dead-letter sub-queue by passin
 
         return results
     ```
+
+1. Save your changes and take a few minutes to review the code.
 
 ### Add code for topic messaging with filtered subscriptions
 
@@ -494,7 +500,7 @@ The function uses **get_topic_sender()** to open a sender bound to the topic, th
         }
     ```
 
-1. Save your changes to the *service_bus_functions.py* file.
+1. Save your changes and take a few minutes to review the code.
 
 ## Configure the Python environment
 

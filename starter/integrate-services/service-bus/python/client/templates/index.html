@@ -13,8 +13,8 @@
         <h1>Service Bus Messaging - Azure Service Bus</h1>
         <div class="left-panel">
             <!-- Queue Operations -->
-            <section class="section section-queue">
-                <h2>Queue Operations</h2>
+            <section class="section section-queue" aria-labelledby="queue-heading">
+                <h2 id="queue-heading">Queue Operations</h2>
                 <p>Send messages to the queue, process them with peek-lock delivery, and inspect the dead-letter queue.</p>
                 <div class="button-group">
                     <form action="/send-messages" method="post">
@@ -30,8 +30,8 @@
             </section>
 
             <!-- Topic Operations -->
-            <section class="section section-topic">
-                <h2>Topic Messaging</h2>
+            <section class="section section-topic" aria-labelledby="topic-heading">
+                <h2 id="topic-heading">Topic Messaging</h2>
                 <p>Send messages with different priorities to a topic and receive from filtered subscriptions.</p>
                 <form action="/topic-messaging" method="post">
                     <button type="submit" class="btn-primary">Send &amp; Receive Topic Messages</button>
@@ -41,8 +41,8 @@
 
         <div class="right-panel">
             <!-- Results Section -->
-            <section class="section section-results" aria-live="polite" aria-atomic="true">
-                <h2>Results</h2>
+            <section class="section section-results" aria-live="polite" aria-atomic="true" aria-labelledby="results-heading">
+                <h2 id="results-heading">Results</h2>
 
                 <!-- Flash Messages -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -54,13 +54,14 @@
                 <!-- Send Results -->
                 {% if send_results is defined and send_results %}
                     <h3>Messages Sent to Queue</h3>
-                    <div class="results-container">
+                    <div class="results-container" tabindex="0" role="region" aria-label="Messages sent to queue">
                         <table class="results-table">
+                            <caption class="sr-only">Messages sent to queue</caption>
                             <thead>
                                 <tr>
-                                    <th>Correlation ID</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
+                                    <th scope="col">Correlation ID</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -78,7 +79,7 @@
                 <!-- Process Results -->
                 {% elif process_results is defined and process_results %}
                     <h3>Processed Messages</h3>
-                    <div class="results-container">
+                    <div class="results-container" tabindex="0" role="region" aria-label="Processed messages">
                         {% for msg in process_results %}
                             <div class="message-card {{ 'card-completed' if msg.status == 'completed' else 'card-dead-lettered' }}">
                                 <div class="message-header">
@@ -102,7 +103,7 @@
                 <!-- DLQ Results -->
                 {% elif dlq_results is defined and dlq_results %}
                     <h3>Dead-Letter Queue Messages</h3>
-                    <div class="results-container">
+                    <div class="results-container" tabindex="0" role="region" aria-label="Dead-letter queue messages">
                         {% for msg in dlq_results %}
                             <div class="message-card card-dead-lettered">
                                 <div class="message-header">
@@ -123,12 +124,13 @@
                 <!-- Topic Results -->
                 {% elif topic_results is defined %}
                     <h3>Messages Sent to Topic</h3>
-                    <div class="results-container">
+                    <div class="results-container" tabindex="0" role="region" aria-label="Messages sent to topic">
                         <table class="results-table">
+                            <caption class="sr-only">Messages sent to topic</caption>
                             <thead>
                                 <tr>
-                                    <th>Document ID</th>
-                                    <th>Priority</th>
+                                    <th scope="col">Document ID</th>
+                                    <th scope="col">Priority</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -144,12 +146,13 @@
 
                     <h3>Notifications Subscription <span class="subtitle">(all messages)</span></h3>
                     <div class="query-info">Received {{ topic_results.notifications | length }} message(s)</div>
-                    <div class="results-container">
+                    <div class="results-container" tabindex="0" role="region" aria-label="Notifications subscription results">
                         <table class="results-table">
+                            <caption class="sr-only">Notifications subscription — all messages</caption>
                             <thead>
                                 <tr>
-                                    <th>Document ID</th>
-                                    <th>Priority</th>
+                                    <th scope="col">Document ID</th>
+                                    <th scope="col">Priority</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -165,12 +168,13 @@
 
                     <h3>High-Priority Subscription <span class="subtitle">(filtered)</span></h3>
                     <div class="query-info">Received {{ topic_results.high_priority | length }} message(s)</div>
-                    <div class="results-container">
+                    <div class="results-container" tabindex="0" role="region" aria-label="High-priority subscription results">
                         <table class="results-table">
+                            <caption class="sr-only">High-priority subscription — filtered messages</caption>
                             <thead>
                                 <tr>
-                                    <th>Document ID</th>
-                                    <th>Priority</th>
+                                    <th scope="col">Document ID</th>
+                                    <th scope="col">Priority</th>
                                 </tr>
                             </thead>
                             <tbody>
