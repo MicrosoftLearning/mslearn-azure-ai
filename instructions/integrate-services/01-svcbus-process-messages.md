@@ -7,8 +7,6 @@ lab:
     duration: 30
 ---
 
-{% include under-construction.md %}
-
 # Process messages with Azure Service Bus
 
 AI workflows often rely on messaging to decouple request intake from model inference and to route results to multiple downstream consumers. Azure Service Bus provides the reliability and routing layer that connects these components so each piece can scale and fail independently.
@@ -18,8 +16,7 @@ In this exercise, you create an Azure Service Bus namespace and build a Python F
 Tasks performed in this exercise:
 
 - Download the project starter files
-- Create an Azure Service Bus namespace
-- Create messaging entities using the Azure CLI
+- Create an Azure Service Bus namespace and messaging entities
 - Add code to the starter files to complete the app
 - Run the app to perform messaging operations
 
@@ -36,7 +33,7 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure Service Bus
 
-In this section you download the starter files for the app and use a script to deploy an Azure Service Bus namespace to your subscription.
+In this section you download the starter files for the app and use a script to deploy an Azure Service Bus namespace and messaging entities to your subscription.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -85,13 +82,15 @@ In this section you download the starter files for the app and use a script to d
 
     This option creates the resource group if it doesn't already exist, and deploys an Azure Service Bus namespace with the Standard tier. The namespace is the container for all messaging entities you create during the exercise.
 
-1. Enter **2** to run the **2. Assign role** option. This assigns the Azure Service Bus Data Owner role to your account so you can send and receive messages using Microsoft Entra authentication.
+1. Enter **2** to run the **2. Create messaging entities** option. This creates the queue, topic, subscriptions, and SQL filter that the app uses. The **inference-requests** queue is configured with a max delivery count of 5 and dead-lettering on message expiration. The **inference-results** topic has two subscriptions: **notifications** (receives all messages) and **high-priority** (filtered to only receive messages where the **priority** property equals **high**).
 
-1. Enter **3** to run the **3. Check deployment status** option. Verify the namespace status shows **Succeeded** and the role is assigned before continuing. If the namespace is still provisioning, wait a moment and try again.
+1. Enter **3** to run the **3. Assign role** option. This assigns the Azure Service Bus Data Owner role to your account so you can send and receive messages using Microsoft Entra authentication.
 
-1. Enter **4** to run the **4. Retrieve connection info** option. This creates the environment variable files with the resource group name, namespace name, and fully qualified domain name (FQDN).
+1. Enter **4** to run the **4. Check deployment status** option. Verify the namespace status shows **Succeeded**, the messaging entities are created, and the role is assigned before continuing. If the namespace is still provisioning, wait a moment and try again.
 
-1. Enter **5** to exit the deployment script.
+1. Enter **5** to run the **5. Retrieve connection info** option. This creates the environment variable file with the fully qualified domain name (FQDN) needed by the app.
+
+1. Enter **6** to exit the deployment script.
 
 1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -106,127 +105,6 @@ In this section you download the starter files for the app and use a script to d
     ```
 
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
-
-## Create messaging entities
-
-In this section you use the Azure CLI to create the queue, topic, and subscriptions that the console app uses. These are the types of operations a developer typically performs when setting up messaging resources for an application.
-
-1. Run the following command to create a queue named **inference-requests**. The queue is configured with a max delivery count of 5 so that poison messages are automatically moved to the dead-letter queue after five failed delivery attempts. Dead-lettering on message expiration is also enabled.
-
-    **Bash**
-    ```bash
-    az servicebus queue create \
-        --name inference-requests \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --max-delivery-count 5 \
-        --enable-dead-lettering-on-message-expiration true
-    ```
-
-    **PowerShell**
-    ```powershell
-    az servicebus queue create `
-        --name inference-requests `
-        --namespace-name $env:NAMESPACE_NAME `
-        --resource-group $env:RESOURCE_GROUP `
-        --max-delivery-count 5 `
-        --enable-dead-lettering-on-message-expiration true
-    ```
-
-1. Run the following command to create a topic named **inference-results**. Topics enable fan-out messaging where multiple subscriptions can each receive a copy of every message.
-
-    **Bash**
-    ```bash
-    az servicebus topic create \
-        --name inference-results \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP
-    ```
-
-    **PowerShell**
-    ```powershell
-    az servicebus topic create `
-        --name inference-results `
-        --namespace-name $env:NAMESPACE_NAME `
-        --resource-group $env:RESOURCE_GROUP
-    ```
-
-1. Run the following commands to create two subscriptions on the topic. The **notifications** subscription receives all messages, while the **high-priority** subscription will be configured with a filter in the next step.
-
-    **Bash**
-    ```bash
-    az servicebus topic subscription create \
-        --name notifications \
-        --topic-name inference-results \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP
-    ```
-
-    ```bash
-    az servicebus topic subscription create \
-        --name high-priority \
-        --topic-name inference-results \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP
-    ```
-
-    **PowerShell**
-    ```powershell
-    az servicebus topic subscription create `
-        --name notifications `
-        --topic-name inference-results `
-        --namespace-name $env:NAMESPACE_NAME `
-        --resource-group $env:RESOURCE_GROUP
-    ```
-    ```powershell
-    az servicebus topic subscription create `
-        --name high-priority `
-        --topic-name inference-results `
-        --namespace-name $env:NAMESPACE_NAME `
-        --resource-group $env:RESOURCE_GROUP
-    ```
-
-1. Run the following commands to add a SQL filter to the **high-priority** subscription. The first command removes the default **$Default** rule that accepts all messages. The second command creates a new rule that only allows messages where the **priority** application property equals **high**.
-
-    **Bash**
-    ```bash
-    az servicebus topic subscription rule delete \
-        --name '$Default' \
-        --subscription-name high-priority \
-        --topic-name inference-results \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP
-    ```
-
-    ```bash
-    az servicebus topic subscription rule create \
-        --name high-priority-filter \
-        --subscription-name high-priority \
-        --topic-name inference-results \
-        --namespace-name $NAMESPACE_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --filter-sql-expression "priority = 'high'"
-    ```
-
-    **PowerShell**
-    ```powershell
-    az servicebus topic subscription rule delete `
-        --name '$Default' `
-        --subscription-name high-priority `
-        --topic-name inference-results `
-        --namespace-name $env:NAMESPACE_NAME `
-        --resource-group $env:RESOURCE_GROUP
-    ```
-
-    ```powershell
-    az servicebus topic subscription rule create `
-        --name high-priority-filter `
-        --subscription-name high-priority `
-        --topic-name inference-results `
-        --namespace-name $env:NAMESPACE_NAME `
-        --resource-group $env:RESOURCE_GROUP `
-        --filter-sql-expression "priority = 'high'"
-    ```
 
 ## Complete the app
 
@@ -578,8 +456,8 @@ If you encounter issues while completing this exercise, try the following troubl
 - Verify the namespace tier is **Standard** (required for topics and subscriptions).
 
 **Check messaging entities**
-- Verify the queue, topic, and subscriptions were created by running **az servicebus queue list**, **az servicebus topic list**, and **az servicebus topic subscription list** commands.
-- Confirm the SQL filter was applied to the **high-priority** subscription by checking that the **$Default** rule was removed and the **high-priority-filter** rule exists.
+- Run the deployment script's **Check deployment status** option to verify the queue, topic, subscriptions, and SQL filter were all created successfully.
+- If any entities are missing, run the **Create messaging entities** option again.
 
 **Check code completeness and indentation**
 - Ensure all code blocks were added to the correct sections in *service_bus_functions.py* between the appropriate BEGIN/END comment markers.
@@ -587,7 +465,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project root and contains **SERVICE_BUS_FQDN**, **RESOURCE_GROUP**, and **NAMESPACE_NAME** values.
+- Check that the *.env* file exists in the project root and contains the **SERVICE_BUS_FQDN** value.
 - Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
 - If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
 
