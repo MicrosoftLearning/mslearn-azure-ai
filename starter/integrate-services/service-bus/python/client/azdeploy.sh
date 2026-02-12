@@ -56,7 +56,135 @@ create_servicebus_namespace() {
     fi
 
     echo ""
-    echo "Use option 2 to assign the data plane role."
+    echo "Use option 2 to create messaging entities."
+}
+
+# Function to create messaging entities (queue, topic, subscriptions, filter)
+create_messaging_entities() {
+    echo "Creating messaging entities..."
+
+    # Prereq check: namespace must exist and be ready
+    local status=$(az servicebus namespace show --resource-group $rg --name $namespace_name --query "provisioningState" -o tsv 2>/dev/null)
+    if [ -z "$status" ]; then
+        echo "Error: Service Bus namespace '$namespace_name' not found."
+        echo "Please run option 1 to create the namespace, then try again."
+        return 1
+    fi
+
+    if [ "$status" != "Succeeded" ]; then
+        echo "Error: Service Bus namespace is not ready (current state: $status)."
+        echo "Please wait for deployment to complete. Use option 4 to check status."
+        return 1
+    fi
+
+    # Create queue with dead-lettering configured
+    local queue_exists=$(az servicebus queue show --name inference-requests --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+    if [ -z "$queue_exists" ]; then
+        az servicebus queue create \
+            --name inference-requests \
+            --namespace-name $namespace_name \
+            --resource-group $rg \
+            --max-delivery-count 5 \
+            --enable-dead-lettering-on-message-expiration true > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Queue created: inference-requests"
+        else
+            echo "Error: Failed to create queue"
+            return 1
+        fi
+    else
+        echo "✓ Queue already exists: inference-requests"
+    fi
+
+    # Create topic
+    local topic_exists=$(az servicebus topic show --name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+    if [ -z "$topic_exists" ]; then
+        az servicebus topic create \
+            --name inference-results \
+            --namespace-name $namespace_name \
+            --resource-group $rg > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Topic created: inference-results"
+        else
+            echo "Error: Failed to create topic"
+            return 1
+        fi
+    else
+        echo "✓ Topic already exists: inference-results"
+    fi
+
+    # Create notifications subscription (receives all messages)
+    local notif_exists=$(az servicebus topic subscription show --name notifications --topic-name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+    if [ -z "$notif_exists" ]; then
+        az servicebus topic subscription create \
+            --name notifications \
+            --topic-name inference-results \
+            --namespace-name $namespace_name \
+            --resource-group $rg > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Subscription created: notifications"
+        else
+            echo "Error: Failed to create notifications subscription"
+            return 1
+        fi
+    else
+        echo "✓ Subscription already exists: notifications"
+    fi
+
+    # Create high-priority subscription (filtered)
+    local hp_exists=$(az servicebus topic subscription show --name high-priority --topic-name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+    if [ -z "$hp_exists" ]; then
+        az servicebus topic subscription create \
+            --name high-priority \
+            --topic-name inference-results \
+            --namespace-name $namespace_name \
+            --resource-group $rg > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Subscription created: high-priority"
+        else
+            echo "Error: Failed to create high-priority subscription"
+            return 1
+        fi
+    else
+        echo "✓ Subscription already exists: high-priority"
+    fi
+
+    # Configure SQL filter on high-priority subscription
+    local filter_exists=$(az servicebus topic subscription rule show --name high-priority-filter --subscription-name high-priority --topic-name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+    if [ -z "$filter_exists" ]; then
+        # Remove default rule
+        az servicebus topic subscription rule delete \
+            --name '\$Default' \
+            --subscription-name high-priority \
+            --topic-name inference-results \
+            --namespace-name $namespace_name \
+            --resource-group $rg > /dev/null 2>&1
+
+        # Create priority filter
+        az servicebus topic subscription rule create \
+            --name high-priority-filter \
+            --subscription-name high-priority \
+            --topic-name inference-results \
+            --namespace-name $namespace_name \
+            --resource-group $rg \
+            --filter-sql-expression "priority = 'high'" > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "✓ SQL filter created: high-priority-filter (priority = 'high')"
+        else
+            echo "Error: Failed to create SQL filter"
+            return 1
+        fi
+    else
+        echo "✓ SQL filter already exists: high-priority-filter"
+    fi
+
+    echo ""
+    echo "Use option 3 to assign the data plane role."
 }
 
 # Function to assign Azure Service Bus Data Owner role
@@ -73,7 +201,7 @@ assign_role() {
 
     if [ "$status" != "Succeeded" ]; then
         echo "Error: Service Bus namespace is not ready (current state: $status)."
-        echo "Please wait for deployment to complete. Use option 3 to check status."
+        echo "Please wait for deployment to complete. Use option 4 to check status."
         return 1
     fi
 
@@ -150,6 +278,45 @@ check_deployment_status() {
             else
                 echo "  ⚠ Role not assigned"
             fi
+
+            # Check messaging entities
+            echo ""
+            echo "Messaging Entities:"
+
+            local queue_exists=$(az servicebus queue show --name inference-requests --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+            if [ -n "$queue_exists" ]; then
+                echo "  ✓ Queue: inference-requests"
+            else
+                echo "  ⚠ Queue not created: inference-requests"
+            fi
+
+            local topic_exists=$(az servicebus topic show --name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+            if [ -n "$topic_exists" ]; then
+                echo "  ✓ Topic: inference-results"
+
+                local notif_exists=$(az servicebus topic subscription show --name notifications --topic-name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+                if [ -n "$notif_exists" ]; then
+                    echo "  ✓ Subscription: notifications"
+                else
+                    echo "  ⚠ Subscription not created: notifications"
+                fi
+
+                local hp_exists=$(az servicebus topic subscription show --name high-priority --topic-name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+                if [ -n "$hp_exists" ]; then
+                    echo "  ✓ Subscription: high-priority"
+
+                    local filter_exists=$(az servicebus topic subscription rule show --name high-priority-filter --subscription-name high-priority --topic-name inference-results --namespace-name $namespace_name --resource-group $rg --query "name" -o tsv 2>/dev/null)
+                    if [ -n "$filter_exists" ]; then
+                        echo "  ✓ SQL filter: high-priority-filter"
+                    else
+                        echo "  ⚠ SQL filter not created: high-priority-filter"
+                    fi
+                else
+                    echo "  ⚠ Subscription not created: high-priority"
+                fi
+            else
+                echo "  ⚠ Topic not created: inference-results"
+            fi
         else
             echo "  ⚠ Namespace is still provisioning. Please wait and try again."
         fi
@@ -178,7 +345,7 @@ retrieve_connection_info() {
 
     if [ -z "$role_exists" ]; then
         echo "Error: Azure Service Bus Data Owner role not assigned."
-        echo "Please run option 2 to assign the role, then try again."
+        echo "Please run option 3 to assign the role, then try again."
         return 1
     fi
 
@@ -188,8 +355,6 @@ retrieve_connection_info() {
     local env_file="$(dirname "$0")/.env"
 
     cat > "$env_file" << EOF
-export RESOURCE_GROUP="$rg"
-export NAMESPACE_NAME="$namespace_name"
 export SERVICE_BUS_FQDN="$fqdn"
 EOF
 
@@ -213,17 +378,18 @@ show_menu() {
     echo "Namespace: $namespace_name"
     echo "====================================================================="
     echo "1. Create Service Bus namespace"
-    echo "2. Assign role"
-    echo "3. Check deployment status"
-    echo "4. Retrieve connection info"
-    echo "5. Exit"
+    echo "2. Create messaging entities"
+    echo "3. Assign role"
+    echo "4. Check deployment status"
+    echo "5. Retrieve connection info"
+    echo "6. Exit"
     echo "====================================================================="
 }
 
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-5): " choice
+    read -p "Please select an option (1-6): " choice
 
     case $choice in
         1)
@@ -236,30 +402,36 @@ while true; do
             ;;
         2)
             echo ""
-            assign_role
+            create_messaging_entities
             echo ""
             read -p "Press Enter to continue..."
             ;;
         3)
             echo ""
-            check_deployment_status
+            assign_role
             echo ""
             read -p "Press Enter to continue..."
             ;;
         4)
             echo ""
-            retrieve_connection_info
+            check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
         5)
+            echo ""
+            retrieve_connection_info
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        6)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
             echo ""
-            echo "Invalid option. Please select 1-5."
+            echo "Invalid option. Please select 1-6."
             echo ""
             read -p "Press Enter to continue..."
             ;;
