@@ -124,7 +124,7 @@ In this section you add code to the *event_grid_functions.py* file to complete t
 
 In this section, you add code to publish five content moderation events to the Event Grid topic. The events use the CloudEvents v1.0 schema and represent different moderation outcomes — flagged content, approved content, and an escalated review — so you can observe how each subscription's event type filter determines which queue receives each event.
 
-The function creates an **EventGridPublisherClient** using **DefaultAzureCredential** for Microsoft Entra authentication. It constructs five **CloudEvent** objects, each with a **type** that identifies the moderation outcome, a **source** identifying the originating service, a **subject** identifying the specific content item, and a **data** payload with moderation details such as confidence score, category, and severity. The **send()** method publishes all events to the topic in a single request.
+The function loads event definitions from the *moderation_events.json* file, which contains the CloudEvent envelope fields (**type**, **source**, **subject**) and **data** payload for each event. At publish time, the function adds a unique **id** and a current UTC **timestamp** to each event, then creates **CloudEvent** objects and publishes them with the **send()** method in a single request. The **EventGridPublisherClient** uses **DefaultAzureCredential** for Microsoft Entra authentication.
 
 1. Locate the **# BEGIN PUBLISH EVENTS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -134,97 +134,27 @@ The function creates an **EventGridPublisherClient** using **DefaultAzureCredent
         client = get_eventgrid_client()
         results = []
 
-        # Build five CloudEvent objects representing different moderation outcomes.
-        # Each event has a type, source, subject, and data payload that mirrors
-        # a realistic AI content moderation pipeline.
-        events = [
-            CloudEvent(
-                type="com.contoso.ai.ContentFlagged",
-                source="/services/content-moderation",
-                subject="/content/images/img-4821",
-                data={
-                    "contentId": "img-4821",
-                    "contentType": "image",
-                    "modelName": "vision-moderator-v3",
-                    "modelVersion": "3.2.1",
-                    "confidence": 0.97,
-                    "category": "violence",
-                    "severity": "high",
-                    "reviewRequired": True,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                },
-                id=str(uuid.uuid4())
-            ),
-            CloudEvent(
-                type="com.contoso.ai.ContentApproved",
-                source="/services/content-moderation",
-                subject="/content/text/doc-1137",
-                data={
-                    "contentId": "doc-1137",
-                    "contentType": "text",
-                    "modelName": "text-moderator-v2",
-                    "modelVersion": "2.4.0",
-                    "confidence": 0.99,
-                    "category": "safe",
-                    "severity": "none",
-                    "reviewRequired": False,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                },
-                id=str(uuid.uuid4())
-            ),
-            CloudEvent(
-                type="com.contoso.ai.ContentFlagged",
-                source="/services/content-moderation",
-                subject="/content/text/doc-2054",
-                data={
-                    "contentId": "doc-2054",
-                    "contentType": "text",
-                    "modelName": "text-moderator-v2",
-                    "modelVersion": "2.4.0",
-                    "confidence": 0.88,
-                    "category": "hate-speech",
-                    "severity": "medium",
-                    "reviewRequired": True,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                },
-                id=str(uuid.uuid4())
-            ),
-            CloudEvent(
-                type="com.contoso.ai.ContentApproved",
-                source="/services/content-moderation",
-                subject="/content/images/img-7733",
-                data={
-                    "contentId": "img-7733",
-                    "contentType": "image",
-                    "modelName": "vision-moderator-v3",
-                    "modelVersion": "3.2.1",
-                    "confidence": 0.95,
-                    "category": "safe",
-                    "severity": "none",
-                    "reviewRequired": False,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                },
-                id=str(uuid.uuid4())
-            ),
-            CloudEvent(
-                type="com.contoso.ai.ReviewEscalated",
-                source="/services/content-moderation",
-                subject="/content/text/doc-3301",
-                data={
-                    "contentId": "doc-3301",
-                    "contentType": "text",
-                    "modelName": "text-moderator-v2",
-                    "modelVersion": "2.4.0",
-                    "confidence": 0.52,
-                    "category": "self-harm",
-                    "severity": "high",
-                    "reviewRequired": True,
-                    "escalationReason": "Low confidence requires human review",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                },
-                id=str(uuid.uuid4())
-            ),
-        ]
+        # Load event definitions from the JSON file. Each entry contains the
+        # CloudEvent envelope fields (type, source, subject) and the data
+        # payload that mirrors a realistic AI content moderation pipeline.
+        json_path = os.path.join(os.path.dirname(__file__), "moderation_events.json")
+        with open(json_path, "r") as f:
+            event_definitions = json.load(f)
+
+        # Build CloudEvent objects from the definitions, adding a unique id
+        # and a current UTC timestamp to each event at publish time.
+        events = []
+        for defn in event_definitions:
+            defn["data"]["timestamp"] = datetime.now(timezone.utc).isoformat()
+            events.append(
+                CloudEvent(
+                    type=defn["type"],
+                    source=defn["source"],
+                    subject=defn["subject"],
+                    data=defn["data"],
+                    id=str(uuid.uuid4())
+                )
+            )
 
         # send() publishes all events to the Event Grid custom topic in a
         # single request. Event Grid then evaluates each subscription's

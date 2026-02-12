@@ -51,97 +51,27 @@ def publish_moderation_events():
     client = get_eventgrid_client()
     results = []
 
-    # Build five CloudEvent objects representing different moderation outcomes.
-    # Each event has a type, source, subject, and data payload that mirrors
-    # a realistic AI content moderation pipeline.
-    events = [
-        CloudEvent(
-            type="com.contoso.ai.ContentFlagged",
-            source="/services/content-moderation",
-            subject="/content/images/img-4821",
-            data={
-                "contentId": "img-4821",
-                "contentType": "image",
-                "modelName": "vision-moderator-v3",
-                "modelVersion": "3.2.1",
-                "confidence": 0.97,
-                "category": "violence",
-                "severity": "high",
-                "reviewRequired": True,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            },
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.ContentApproved",
-            source="/services/content-moderation",
-            subject="/content/text/doc-1137",
-            data={
-                "contentId": "doc-1137",
-                "contentType": "text",
-                "modelName": "text-moderator-v2",
-                "modelVersion": "2.4.0",
-                "confidence": 0.99,
-                "category": "safe",
-                "severity": "none",
-                "reviewRequired": False,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            },
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.ContentFlagged",
-            source="/services/content-moderation",
-            subject="/content/text/doc-2054",
-            data={
-                "contentId": "doc-2054",
-                "contentType": "text",
-                "modelName": "text-moderator-v2",
-                "modelVersion": "2.4.0",
-                "confidence": 0.88,
-                "category": "hate-speech",
-                "severity": "medium",
-                "reviewRequired": True,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            },
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.ContentApproved",
-            source="/services/content-moderation",
-            subject="/content/images/img-7733",
-            data={
-                "contentId": "img-7733",
-                "contentType": "image",
-                "modelName": "vision-moderator-v3",
-                "modelVersion": "3.2.1",
-                "confidence": 0.95,
-                "category": "safe",
-                "severity": "none",
-                "reviewRequired": False,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            },
-            id=str(uuid.uuid4())
-        ),
-        CloudEvent(
-            type="com.contoso.ai.ReviewEscalated",
-            source="/services/content-moderation",
-            subject="/content/text/doc-3301",
-            data={
-                "contentId": "doc-3301",
-                "contentType": "text",
-                "modelName": "text-moderator-v2",
-                "modelVersion": "2.4.0",
-                "confidence": 0.52,
-                "category": "self-harm",
-                "severity": "high",
-                "reviewRequired": True,
-                "escalationReason": "Low confidence requires human review",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            },
-            id=str(uuid.uuid4())
-        ),
-    ]
+    # Load event definitions from the JSON file. Each entry contains the
+    # CloudEvent envelope fields (type, source, subject) and the data
+    # payload that mirrors a realistic AI content moderation pipeline.
+    json_path = os.path.join(os.path.dirname(__file__), "moderation_events.json")
+    with open(json_path, "r") as f:
+        event_definitions = json.load(f)
+
+    # Build CloudEvent objects from the definitions, adding a unique id
+    # and a current UTC timestamp to each event at publish time.
+    events = []
+    for defn in event_definitions:
+        defn["data"]["timestamp"] = datetime.now(timezone.utc).isoformat()
+        events.append(
+            CloudEvent(
+                type=defn["type"],
+                source=defn["source"],
+                subject=defn["subject"],
+                data=defn["data"],
+                id=str(uuid.uuid4())
+            )
+        )
 
     # send() publishes all events to the Event Grid custom topic in a
     # single request. Event Grid then evaluates each subscription's
