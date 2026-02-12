@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Content Moderation Events - Azure Event Grid</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Content Moderation Events - Azure Event Grid</h1>
+        <div class="left-panel">
+            <!-- Event Publishing -->
+            <section class="section section-publish" aria-labelledby="publish-heading">
+                <h2 id="publish-heading">Event Publishing</h2>
+                <p>Publish AI content moderation events to the Event Grid namespace topic. Events include flagged content, approved content, and escalated reviews.</p>
+                <form action="/publish-events" method="post">
+                    <button type="submit" class="btn-success">Publish Moderation Events</button>
+                </form>
+            </section>
+
+            <!-- Event Delivery -->
+            <section class="section section-delivery" aria-labelledby="delivery-heading">
+                <h2 id="delivery-heading">Event Delivery</h2>
+                <p>Receive events from filtered subscriptions using pull delivery, or inspect a CloudEvent envelope and reject the event.</p>
+                <div class="button-group">
+                    <form action="/check-delivery" method="post">
+                        <button type="submit" class="btn-primary">Receive &amp; Acknowledge Events</button>
+                    </form>
+                    <form action="/inspect-event" method="post">
+                        <button type="submit" class="btn-warning">Inspect &amp; Reject Event</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Results Section -->
+            <section class="section section-results" aria-live="polite" aria-atomic="true" aria-labelledby="results-heading">
+                <h2 id="results-heading">Results</h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="{% if category == 'error' %}alert{% else %}status{% endif %}">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                <!-- Publish Results -->
+                {% if publish_results is defined and publish_results %}
+                    <h3>Events Published to Topic</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Events published to topic">
+                        <table class="results-table">
+                            <caption class="sr-only">Events published to topic</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Content ID</th>
+                                    <th scope="col">Event Type</th>
+                                    <th scope="col">Category</th>
+                                    <th scope="col">Confidence</th>
+                                    <th scope="col">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for event in publish_results %}
+                                    <tr>
+                                        <td>{{ event.content_id }}</td>
+                                        <td><span class="tag tag-type-{{ event.event_type | lower }}">{{ event.event_type }}</span></td>
+                                        <td>{{ event.category }}</td>
+                                        <td>{{ "%.0f%%" | format(event.confidence * 100) }}</td>
+                                        <td><span class="tag tag-success">{{ event.status }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                <!-- Delivery Results -->
+                {% elif delivery_results is defined %}
+                    <h3>Flagged Subscription <span class="subtitle">(event type filter)</span></h3>
+                    <div class="query-info">Received {{ delivery_results.flagged | length }} event(s)</div>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Flagged subscription results">
+                        {% if delivery_results.flagged %}
+                            <table class="results-table">
+                                <caption class="sr-only">Flagged subscription — filtered events</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Content ID</th>
+                                        <th scope="col">Category</th>
+                                        <th scope="col">Severity</th>
+                                        <th scope="col">Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for event in delivery_results.flagged %}
+                                        <tr>
+                                            <td>{{ event.content_id }}</td>
+                                            <td><span class="tag tag-type-contentflagged">{{ event.category }}</span></td>
+                                            <td><span class="tag tag-severity-{{ event.severity }}">{{ event.severity }}</span></td>
+                                            <td>{{ "%.0f%%" | format(event.confidence * 100) }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="empty-state">No flagged events received.</div>
+                        {% endif %}
+                    </div>
+
+                    <h3>Approved Subscription <span class="subtitle">(event type filter)</span></h3>
+                    <div class="query-info">Received {{ delivery_results.approved | length }} event(s)</div>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Approved subscription results">
+                        {% if delivery_results.approved %}
+                            <table class="results-table">
+                                <caption class="sr-only">Approved subscription — filtered events</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Content ID</th>
+                                        <th scope="col">Category</th>
+                                        <th scope="col">Severity</th>
+                                        <th scope="col">Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for event in delivery_results.approved %}
+                                        <tr>
+                                            <td>{{ event.content_id }}</td>
+                                            <td><span class="tag tag-type-contentapproved">{{ event.category }}</span></td>
+                                            <td><span class="tag tag-severity-{{ event.severity }}">{{ event.severity }}</span></td>
+                                            <td>{{ "%.0f%%" | format(event.confidence * 100) }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="empty-state">No approved events received.</div>
+                        {% endif %}
+                    </div>
+
+                    <h3>All Events Subscription <span class="subtitle">(no filter — audit log)</span></h3>
+                    <div class="query-info">Received {{ delivery_results.all_events | length }} event(s)</div>
+                    <div class="results-container" tabindex="0" role="region" aria-label="All events subscription results">
+                        {% if delivery_results.all_events %}
+                            <table class="results-table">
+                                <caption class="sr-only">All events subscription — unfiltered audit log</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Content ID</th>
+                                        <th scope="col">Model</th>
+                                        <th scope="col">Category</th>
+                                        <th scope="col">Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for event in delivery_results.all_events %}
+                                        <tr>
+                                            <td>{{ event.content_id }}</td>
+                                            <td>{{ event.event_type }}</td>
+                                            <td>{{ event.category }}</td>
+                                            <td>{{ "%.0f%%" | format(event.confidence * 100) }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="empty-state">No events received.</div>
+                        {% endif %}
+                    </div>
+
+                <!-- Inspect Result -->
+                {% elif inspect_result is defined and inspect_result %}
+                    <h3>CloudEvent Structure</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="CloudEvent details">
+                        <div class="message-card card-inspect">
+                            <div class="message-header">
+                                <span class="message-id">CloudEvent Envelope</span>
+                            </div>
+                            <div class="message-detail"><strong>specversion:</strong> {{ inspect_result.specversion }}</div>
+                            <div class="message-detail"><strong>type:</strong> {{ inspect_result.type }}</div>
+                            <div class="message-detail"><strong>source:</strong> {{ inspect_result.source }}</div>
+                            <div class="message-detail"><strong>subject:</strong> {{ inspect_result.subject }}</div>
+                            <div class="message-detail"><strong>id:</strong> {{ inspect_result.id }}</div>
+                            <div class="message-detail"><strong>time:</strong> {{ inspect_result.time }}</div>
+                            {% for key, value in inspect_result.data.items() %}
+                                <div class="message-detail"><strong>data.{{ key }}:</strong> {{ value }}</div>
+                            {% endfor %}
+                            <div class="message-detail"><strong>delivery_count:</strong> {{ inspect_result.delivery_count }}</div>
+                            <div class="message-detail"><strong>action:</strong> <span class="tag tag-rejected">{{ inspect_result.action }}</span></div>
+                        </div>
+                    </div>
+
+                {% elif inspect_result is defined and not inspect_result %}
+                    <div class="empty-state">No events received from the subscription. Check that the namespace is deployed.</div>
+
+                {% else %}
+                    <div class="empty-state">
+                        Results will appear here after you perform an action.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>
