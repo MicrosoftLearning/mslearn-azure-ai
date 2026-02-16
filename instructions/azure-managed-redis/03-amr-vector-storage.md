@@ -27,7 +27,7 @@ To complete the exercise, you need:
 - An Azure subscription with the permission to create an Azure Managed Redis instance with an enterprise SKU. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
-- The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli?view=azure-cli-latest).
+- The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - The Azure CLI **redisenterprise** extension. You can install it by running the **az extension add --name redisenterprise** command.
 
 ## Download project starter files and deploy Azure Managed Redis

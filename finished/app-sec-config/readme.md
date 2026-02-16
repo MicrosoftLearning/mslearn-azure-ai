@@ -1,0 +1,1 @@
+Exercises for the *Manage application secrets and configuration* learning path.
