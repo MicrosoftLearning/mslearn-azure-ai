@@ -95,6 +95,11 @@
       "source": "starter/integrate-services/event-grid/python",
       "output": "downloads/python",
       "name": "event-grid-python.zip"
+    },
+    {
+      "source": "starter/app-sec-config/key-vault/python",
+      "output": "downloads/python",
+      "name": "key-vault-python.zip"
     }
   ]
 }

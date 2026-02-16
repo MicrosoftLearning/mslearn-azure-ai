@@ -1,7 +1,7 @@
 ---
 lab:
     topic: App secrets and configuration
-    title: 'Retrieve secrets from Azure Key Vault'
+    title: 'Manage secrets with Azure Key Vault'
     description: 'Learn how to store, retrieve, version, and cache secrets using Azure Key Vault with the Python SDK.'
     level: 200
     duration: 30
@@ -82,11 +82,11 @@ In this section you download the starter files for the app and use a script to d
 
     This option creates the resource group if it doesn't already exist, and deploys an Azure Key Vault with RBAC authorization enabled. RBAC authorization is the recommended model for controlling access to vault secrets instead of legacy access policies.
 
-1. Enter **2** to run the **2. Store secrets** option. This stores two sample secrets in the vault: an API key for a model endpoint (**openai-api-key**) and a database connection string (**cosmosdb-connection-string**). Both are tagged with metadata for environment and service identification.
+1. Enter **2** to run the **2. Assign role** option. This assigns the Key Vault Secrets Officer role to your account so you can read, create, update, and delete secrets using Microsoft Entra authentication.
 
-1. Enter **3** to run the **3. Assign role** option. This assigns the Key Vault Secrets Officer role to your account so you can read, create, update, and delete secrets using Microsoft Entra authentication.
+1. Enter **3** to run the **3. Store secrets** option. This stores two sample secrets in the vault: an API key for a model endpoint (**openai-api-key**) and a database connection string (**cosmosdb-connection-string**). Both are tagged with metadata for environment and service identification.
 
-1. Enter **4** to run the **4. Check deployment status** option. Verify the vault status shows **Succeeded**, the secrets are stored, and the role is assigned before continuing. If the vault is still provisioning, wait a moment and try again.
+1. Enter **4** to run the **4. Check deployment status** option. Verify the vault status shows **Succeeded**, the role is assigned, and the secrets are stored before continuing. If the vault is still provisioning, wait a moment and try again.
 
 1. Enter **5** to run the **5. Retrieve connection info** option. This creates the environment variable file with the Key Vault URL needed by the app.
 
@@ -253,7 +253,7 @@ The function uses **set_secret()** to write a new value for an existing secret n
 
 In this section, you add code that implements a time-based cache to reduce the number of Key Vault API calls when secrets are accessed frequently. The cache stores secret values in memory with a configurable time-to-live (TTL) and tracks cache hits and misses.
 
-The function creates a dictionary-based cache with a 30-second TTL using **time.monotonic()** for elapsed time tracking. It simulates five rounds of accessing two secrets. The first round produces cache misses and fetches from Key Vault. Subsequent rounds within the TTL return cached values without making API calls. The access log shows each hit or miss, and the summary reports total API calls versus total accesses to demonstrate the efficiency gain.
+The function creates a dictionary-based cache with a 30-second TTL using **time.monotonic()** for elapsed time tracking. It simulates five rounds of accessing two secrets. The first round produces cache misses because the cache starts empty and has no entries to return, so the code fetches each secret from Key Vault and stores it. Subsequent rounds within the TTL find the cached entries and return them without making API calls. The access log shows each hit or miss, and the summary reports total API calls versus total accesses to demonstrate the efficiency gain.
 
 1. Locate the **# BEGIN CACHED RETRIEVAL FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -359,6 +359,8 @@ In this section, you run the completed Flask application to perform various Key 
 1. Select **List Secret Properties**. This lists the properties of all secrets in the vault without exposing their values. The results show each secret's name, enabled status, content type, creation date, and last updated date. This operation is useful for inventory and audit scenarios.
 
 1. Select **Create New Version**. This creates a new version of the **openai-api-key** secret with a randomly generated value, simulating a credential rotation. The results show the previous version and value alongside the new version and value, confirming that **set_secret()** creates a new version while preserving the old one.
+
+1. Select **Retrieve Secrets** in the left panel to verify the secret was updated.
 
 1. Select **Run Cached Retrieval**. This simulates five rounds of accessing both secrets with a 30-second TTL cache. The first round shows two cache misses (one per secret) as the values are fetched from Key Vault. The remaining rounds show cache hits because the TTL has not expired. The summary confirms that only 2 Key Vault API calls were made for 10 total accesses.
 
