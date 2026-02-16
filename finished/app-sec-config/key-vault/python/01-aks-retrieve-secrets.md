@@ -7,7 +7,7 @@ lab:
     duration: 20
 ---
 
-# Retrieve secrets from Azure Key Vault
+# Manage secrets with Azure Key Vault
 
 AI applications typically depend on sensitive credentials such as API keys, connection strings, and certificates to access model endpoints and data stores. Azure Key Vault provides a centralized, secure store for these secrets with RBAC access control, automatic versioning, and audit logging so applications never need to embed credentials in code or configuration files.
 
