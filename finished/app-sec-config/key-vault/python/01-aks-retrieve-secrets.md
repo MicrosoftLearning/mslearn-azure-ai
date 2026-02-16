@@ -4,7 +4,7 @@ lab:
     title: 'Manage secrets with Azure Key Vault'
     description: 'Learn how to store, retrieve, version, and cache secrets using Azure Key Vault with the Python SDK.'
     level: 200
-    duration: 30
+    duration: 20
 ---
 
 # Retrieve secrets from Azure Key Vault
