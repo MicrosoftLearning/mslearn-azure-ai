@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Secret Management - Azure Key Vault</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Secret Management - Azure Key Vault</h1>
+        <div class="left-panel">
+            <!-- Secret Operations -->
+            <section class="section section-secrets" aria-labelledby="secrets-heading">
+                <h2 id="secrets-heading">Secret Operations</h2>
+                <p>Retrieve secrets from the vault, list all secret properties, and create a new secret version.</p>
+                <div class="button-group">
+                    <form action="/retrieve-secrets" method="post">
+                        <button type="submit" class="btn-primary">Retrieve Secrets</button>
+                    </form>
+                    <form action="/list-secrets" method="post">
+                        <button type="submit" class="btn-success">List Secret Properties</button>
+                    </form>
+                    <form action="/create-version" method="post">
+                        <button type="submit" class="btn-warning">Create New Version</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Caching -->
+            <section class="section section-cache" aria-labelledby="cache-heading">
+                <h2 id="cache-heading">Cached Retrieval</h2>
+                <p>Demonstrate time-based caching to reduce Key Vault API calls across multiple secret accesses.</p>
+                <form action="/cached-retrieval" method="post">
+                    <button type="submit" class="btn-primary">Run Cached Retrieval</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Results Section -->
+            <section class="section section-results" aria-live="polite" aria-atomic="true" aria-labelledby="results-heading">
+                <h2 id="results-heading">Results</h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                <!-- Retrieve Results -->
+                {% if retrieve_results is defined and retrieve_results %}
+                    <h3>Retrieved Secrets</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Retrieved secrets">
+                        {% for secret in retrieve_results %}
+                            <div class="message-card {{ 'card-completed' if secret.status == 'retrieved' else 'card-dead-lettered' }}">
+                                <div class="message-header">
+                                    <span class="message-id">{{ secret.name }}</span>
+                                    <span class="tag {% if secret.status == 'retrieved' %}tag-success{% else %}tag-error{% endif %}">{{ secret.status }}</span>
+                                </div>
+                                {% if secret.value %}
+                                    <div class="message-detail"><strong>Value:</strong> <code>{{ secret.value }}</code></div>
+                                    <div class="message-detail"><strong>Version:</strong> {{ secret.version }}</div>
+                                    <div class="message-detail"><strong>Content type:</strong> {{ secret.content_type }}</div>
+                                    <div class="message-detail"><strong>Created:</strong> {{ secret.created_on }}</div>
+                                    {% if secret.tags %}
+                                        <div class="message-detail"><strong>Tags:</strong>
+                                            {% for key, val in secret.tags.items() %}
+                                                <span class="tag tag-valid">{{ key }}={{ val }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                <!-- List Results -->
+                {% elif list_results is defined and list_results %}
+                    <h3>Secret Properties</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Secret properties">
+                        <table class="results-table">
+                            <caption class="sr-only">Secret properties in the vault</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Enabled</th>
+                                    <th scope="col">Content Type</th>
+                                    <th scope="col">Created</th>
+                                    <th scope="col">Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prop in list_results %}
+                                    <tr>
+                                        <td>{{ prop.name }}</td>
+                                        <td><span class="tag {% if prop.enabled %}tag-success{% else %}tag-error{% endif %}">{{ prop.enabled }}</span></td>
+                                        <td>{{ prop.content_type or '—' }}</td>
+                                        <td>{{ prop.created_on }}</td>
+                                        <td>{{ prop.updated_on }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                {% elif list_results is defined and not list_results %}
+                    <div class="empty-state">No secrets found in the vault.</div>
+
+                <!-- Version Result -->
+                {% elif version_result is defined and version_result %}
+                    <h3>Secret Version Updated</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Secret version update">
+                        <div class="message-card card-completed">
+                            <div class="message-header">
+                                <span class="message-id">{{ version_result.name }}</span>
+                                <span class="tag tag-success">updated</span>
+                            </div>
+                            <div class="message-detail"><strong>Previous version:</strong> {{ version_result.old_version or 'N/A' }}</div>
+                            <div class="message-detail"><strong>Previous value:</strong> <code>{{ version_result.old_value or 'N/A' }}</code></div>
+                            <div class="message-detail"><strong>New version:</strong> {{ version_result.new_version }}</div>
+                            <div class="message-detail"><strong>New value:</strong> <code>{{ version_result.new_value }}</code></div>
+                            <div class="message-detail"><strong>Created:</strong> {{ version_result.created_on }}</div>
+                            {% if version_result.tags %}
+                                <div class="message-detail"><strong>Tags:</strong>
+                                    {% for key, val in version_result.tags.items() %}
+                                        <span class="tag tag-valid">{{ key }}={{ val }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                <!-- Cache Results -->
+                {% elif cache_results is defined and cache_results %}
+                    <h3>Cache Performance</h3>
+                    <div class="query-info">
+                        {{ cache_results.vault_calls }} Key Vault API call(s) for {{ cache_results.total_accesses }} access(es) — TTL: {{ cache_results.cache_ttl_seconds }}s
+                    </div>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Cache performance results">
+                        <table class="results-table">
+                            <caption class="sr-only">Cached retrieval access log</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Round</th>
+                                    <th scope="col">Secret</th>
+                                    <th scope="col">Result</th>
+                                    <th scope="col">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in cache_results.access_log %}
+                                    <tr>
+                                        <td>{{ entry.round }}</td>
+                                        <td>{{ entry.secret }}</td>
+                                        <td><span class="tag {% if entry.result == 'cache hit' %}tag-success{% else %}tag-valid{% endif %}">{{ entry.result }}</span></td>
+                                        <td><code>{{ entry.value }}</code></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                {% else %}
+                    <div class="empty-state">
+                        Results will appear here after you perform an action.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>
