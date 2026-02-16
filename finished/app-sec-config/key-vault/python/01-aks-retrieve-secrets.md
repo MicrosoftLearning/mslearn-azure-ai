@@ -20,7 +20,7 @@ Tasks performed in this exercise:
 - Add code to the starter files to complete the app
 - Run the app to perform secret operations
 
-This exercise takes approximately **30** minutes to complete.
+This exercise takes approximately **20** minutes to complete.
 
 ## Before you start
 
