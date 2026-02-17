@@ -12,7 +12,6 @@ from azure.appconfiguration.provider import (
     SettingSelector,
     AzureAppConfigurationKeyVaultOptions
 )
-from azure.core.exceptions import ResourceNotFoundError
 
 # Module-level provider instance for refresh support
 _provider = None
@@ -58,7 +57,7 @@ def get_provider(force_new=False):
             SettingSelector(key_filter="*", label_filter="Production")
         ],
         key_vault_options=key_vault_options,
-        refresh_on=[{"key": "Sentinel"}],
+        refresh_on=["Sentinel"],
         refresh_interval=1
     )
 
@@ -68,7 +67,7 @@ def get_provider(force_new=False):
 # BEGIN LOAD SETTINGS FUNCTION
 def load_settings():
     """Load all settings with label stacking and Key Vault reference resolution."""
-    provider = get_provider(force_new=True)
+    provider = get_provider()
     results = []
 
     # The provider resolves Key Vault references automatically and
@@ -135,7 +134,7 @@ def refresh_configuration():
     client = get_client()
 
     # Capture current values before the change
-    tracked_keys = ["Pipeline:BatchSize", "Pipeline:RetryCount"]
+    tracked_keys = ["Pipeline:BatchSize"]
     before = {}
     for key in tracked_keys:
         try:
@@ -157,12 +156,10 @@ def refresh_configuration():
     )
     client.set_configuration_setting(setting)
 
-    # Increment the Sentinel to trigger a refresh
-    try:
-        sentinel = client.get_configuration_setting(key="Sentinel")
-        new_sentinel = str(int(sentinel.value) + 1)
-    except (ResourceNotFoundError, ValueError):
-        new_sentinel = "1"
+    # Update the Sentinel to signal the provider that settings have changed.
+    # Using a timestamp ensures the value is always different from whatever
+    # the provider has cached, even if settings were reset externally.
+    new_sentinel = str(int(time.time()))
 
     sentinel_setting = ConfigurationSetting(
         key="Sentinel",

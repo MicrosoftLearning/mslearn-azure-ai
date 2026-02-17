@@ -42,17 +42,31 @@ create_key_vault() {
 
     local kv_exists=$(az keyvault show --resource-group $rg --name $kv_name 2>/dev/null)
     if [ -z "$kv_exists" ]; then
-        az keyvault create \
-            --name $kv_name \
-            --resource-group $rg \
-            --location $location \
-            --enable-rbac-authorization true > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            echo "✓ Key Vault created: $kv_name"
+        # Check for a soft-deleted vault with the same name and recover it
+        local soft_deleted=$(az keyvault show-deleted --name $kv_name --query "name" -o tsv 2>/dev/null)
+        if [ -n "$soft_deleted" ]; then
+            echo "  Recovering soft-deleted Key Vault '$kv_name'..."
+            az keyvault recover --name $kv_name > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                echo "✓ Key Vault recovered: $kv_name"
+            else
+                echo "Error: Failed to recover soft-deleted Key Vault."
+                echo "You may need to purge it first: az keyvault purge --name $kv_name"
+                return 1
+            fi
         else
-            echo "Error: Failed to create Key Vault"
-            return 1
+            az keyvault create \
+                --name $kv_name \
+                --resource-group $rg \
+                --location $location \
+                --enable-rbac-authorization true > /dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+                echo "✓ Key Vault created: $kv_name"
+            else
+                echo "Error: Failed to create Key Vault"
+                return 1
+            fi
         fi
     else
         echo "✓ Key Vault already exists: $kv_name"

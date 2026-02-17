@@ -63,18 +63,34 @@ function Create-KeyVault {
 
     az keyvault show --resource-group $rg --name $kvName 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        az keyvault create `
-            --name $kvName `
-            --resource-group $rg `
-            --location $location `
-            --enable-rbac-authorization true 2>&1 | Out-Null
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Key Vault created: $kvName"
+        # Check for a soft-deleted vault with the same name and recover it
+        $softDeleted = az keyvault show-deleted --name $kvName --query "name" -o tsv 2>$null
+        if (-not [string]::IsNullOrWhiteSpace($softDeleted)) {
+            Write-Host "  Recovering soft-deleted Key Vault '$kvName'..."
+            az keyvault recover --name $kvName 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "✓ Key Vault recovered: $kvName"
+            }
+            else {
+                Write-Host "Error: Failed to recover soft-deleted Key Vault."
+                Write-Host "You may need to purge it first: az keyvault purge --name $kvName"
+                return
+            }
         }
         else {
-            Write-Host "Error: Failed to create Key Vault"
-            return
+            az keyvault create `
+                --name $kvName `
+                --resource-group $rg `
+                --location $location `
+                --enable-rbac-authorization true 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "✓ Key Vault created: $kvName"
+            }
+            else {
+                Write-Host "Error: Failed to create Key Vault"
+                return
+            }
         }
     }
     else {
