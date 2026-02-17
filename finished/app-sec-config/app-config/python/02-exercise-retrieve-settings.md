@@ -1,229 +1,428 @@
-In this exercise, you create an Azure App Configuration store and an Azure Key Vault, populate both with settings for an AI document processing pipeline, create Key Vault references, and build a Python application that retrieves all settings through the App Configuration provider. By the end of the exercise, your application loads non-sensitive settings and resolved Key Vault secrets through a single `load()` call.
+---
+lab:
+    topic: App secrets and configuration
+    title: 'Manage configuration with Azure App Configuration'
+    description: 'Learn how to load, list, update, and dynamically refresh configuration settings using Azure App Configuration with the Python SDK.'
+    level: 200
+    duration: 20
+---
 
-> [!NOTE]
-> This exercise uses the Azure CLI and Python. You can complete it in Azure Cloud Shell or in a local terminal with the Azure CLI installed. You need an Azure subscription with permissions to create resources.
+# Manage configuration with Azure App Configuration
 
-## Create the Azure resources
+AI applications depend on both non-sensitive configuration such as model endpoints and batch sizes, and sensitive credentials such as API keys. Azure App Configuration provides a centralized store for managing these settings with label-based environment overrides, Key Vault references for secrets, and sentinel-based dynamic refresh so applications can pick up configuration changes without restarting.
 
-You start by creating a resource group, an App Configuration store, and a Key Vault. These three resources form the configuration infrastructure for your application.
+In this exercise, you deploy an Azure App Configuration store and Key Vault pre-loaded with sample settings and build a Python Flask web application that demonstrates core configuration management patterns using the Azure SDK. You load settings with label stacking and automatic Key Vault reference resolution, list all setting properties and metadata, update a setting value, and trigger a sentinel-based refresh to pick up changes dynamically.
 
-1. You can set environment variables for the resource names you'll use throughout the exercise. Choose a unique suffix to avoid naming conflicts.
+Tasks performed in this exercise:
 
+- Download the project starter files
+- Create an Azure App Configuration store and Key Vault with sample settings
+- Add code to the starter files to complete the app
+- Run the app to perform configuration operations
+
+This exercise takes approximately **20** minutes to complete.
+
+## Before you start
+
+To complete the exercise, you need:
+
+- An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
+- [Python 3.12](https://www.python.org/downloads/) or greater.
+- The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+
+## Download project starter files and deploy Azure App Configuration
+
+In this section you download the starter files for the app and use a script to deploy an Azure App Configuration store and Key Vault with sample settings to your subscription.
+
+1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
+
+    ```
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/app-config-python.zip
+    ```
+
+1. Copy, or move, the file to a location in your system where you want to work on the project. Then unzip the file into a folder.
+
+1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
+
+1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+
+    ```
+    "<your-resource-group-name>" # Resource Group name
+    "<your-azure-region>" # Azure region for the resources
+    ```
+
+1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code.
+
+1. Run the following command to login to your Azure account. Answer the prompts to select your Azure account and subscription for the exercise.
+
+    ```
+    az login
+    ```
+
+1. Run the following commands to ensure your subscription has the necessary resource providers for the exercise.
+
+    ```
+    az provider register --namespace Microsoft.AppConfiguration
+    az provider register --namespace Microsoft.KeyVault
+    ```
+
+1. Run the appropriate command in the terminal to launch the script.
+
+    **Bash**
     ```bash
-    RESOURCE_GROUP="rg-appconfig-exercise"
-    LOCATION="eastus"
-    APPCONFIG_NAME="appconfig-docpipeline-$RANDOM"
-    KEYVAULT_NAME="kv-docpipeline-$RANDOM"
+    bash azdeploy.sh
     ```
 
-1. You can create the resource group.
-
-    ```azurecli
-    az group create --name $RESOURCE_GROUP --location $LOCATION
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
     ```
 
-1. You can create the App Configuration store.
+1. When the script is running, enter **1** to launch the **1. Create App Configuration** option.
 
-    ```azurecli
-    az appconfig create \
-        --name $APPCONFIG_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --location $LOCATION \
-        --sku Free
-    ```
+    This option creates the resource group if it doesn't already exist and deploys an Azure App Configuration store. App Configuration provides a centralized service for managing application settings separately from code.
 
-1. You can create the Key Vault.
+1. Enter **2** to run the **2. Create Key Vault** option. This creates an Azure Key Vault with RBAC authorization enabled. The Key Vault stores sensitive values such as API keys that App Configuration references securely.
 
-    ```azurecli
-    az keyvault create \
-        --name $KEYVAULT_NAME \
-        --resource-group $RESOURCE_GROUP \
-        --location $LOCATION
-    ```
+1. Enter **3** to run the **3. Assign roles** option. This assigns the App Configuration Data Owner role and the Key Vault Secrets Officer role to your account so you can read, create, and update settings and secrets using Microsoft Entra authentication.
 
-## Assign RBAC roles to your identity
+1. Enter **4** to run the **4. Store settings** option. This stores configuration settings in the App Configuration store including default (unlabeled) values and Production-labeled overrides for environment-specific settings. It also stores a secret in Key Vault and creates a Key Vault reference in App Configuration that points to the secret. Finally, it creates a sentinel key used for dynamic refresh.
 
-Your user identity needs permissions to read and write settings in App Configuration and secrets in Key Vault. You can assign the required roles using the Azure CLI.
+1. Enter **5** to run the **5. Check deployment status** option. Verify the App Configuration store and Key Vault both show **Succeeded**, the roles are assigned, and the settings are stored before continuing. If resources are still provisioning, wait a moment and try again.
 
-1. You can retrieve your signed-in user's object ID.
+1. Enter **6** to run the **6. Retrieve connection info** option. This creates the environment variable file with the App Configuration endpoint URL needed by the app.
 
-    ```azurecli
-    USER_ID=$(az ad signed-in-user show --query id -o tsv)
-    ```
+1. Enter **7** to exit the deployment script.
 
-1. You can assign the **App Configuration Data Owner** role so you can both read and write settings.
+1. Run the appropriate command to load the environment variables into your terminal session from the file created in a previous step.
 
-    ```azurecli
-    az role assignment create \
-        --role "App Configuration Data Owner" \
-        --assignee $USER_ID \
-        --scope $(az appconfig show --name $APPCONFIG_NAME --resource-group $RESOURCE_GROUP --query id -o tsv)
-    ```
-
-1. You can assign the **Key Vault Secrets Officer** role so you can create and read secrets.
-
-    ```azurecli
-    az role assignment create \
-        --role "Key Vault Secrets Officer" \
-        --assignee $USER_ID \
-        --scope $(az keyvault show --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --query id -o tsv)
-    ```
-
-    > [!NOTE]
-    > Role assignments can take a few minutes to propagate. If subsequent commands return authorization errors, wait two to three minutes and try again.
-
-## Add configuration settings with labels
-
-You can add non-sensitive configuration settings to the App Configuration store. You'll create default (unlabeled) settings and environment-specific overrides using labels.
-
-1. You can add default settings with no label. These serve as fallback values for any environment.
-
-    ```azurecli
-    az appconfig kv set --name $APPCONFIG_NAME --key "OpenAI:Endpoint" --value "https://my-openai.openai.azure.com/" --yes
-    az appconfig kv set --name $APPCONFIG_NAME --key "OpenAI:DeploymentName" --value "gpt-4o" --yes
-    az appconfig kv set --name $APPCONFIG_NAME --key "Pipeline:BatchSize" --value "10" --yes
-    az appconfig kv set --name $APPCONFIG_NAME --key "Pipeline:RetryCount" --value "3" --yes
-    ```
-
-1. You can add production-specific overrides with a `Production` label. These values override the defaults when the application loads with the `Production` label.
-
-    ```azurecli
-    az appconfig kv set --name $APPCONFIG_NAME --key "Pipeline:BatchSize" --value "200" --label "Production" --yes
-    az appconfig kv set --name $APPCONFIG_NAME --key "Pipeline:RetryCount" --value "5" --label "Production" --yes
-    ```
-
-1. You can add a sentinel key that the application watches for configuration refresh.
-
-    ```azurecli
-    az appconfig kv set --name $APPCONFIG_NAME --key "Sentinel" --value "1" --yes
-    ```
-
-## Store a secret in Key Vault and create a reference
-
-You can store a sensitive value in Key Vault and create a Key Vault reference in App Configuration that points to it.
-
-1. You can add a secret to Key Vault. This simulates storing an API key for the Azure OpenAI service.
-
-    ```azurecli
-    az keyvault secret set \
-        --vault-name $KEYVAULT_NAME \
-        --name "openai-api-key" \
-        --value "sk-exercise-sample-key-12345"
-    ```
-
-1. You can get the secret's URI to use in the Key Vault reference.
-
+    **Bash**
     ```bash
-    SECRET_URI=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "openai-api-key" --query id -o tsv)
+    source .env
     ```
 
-1. You can create a Key Vault reference in App Configuration that points to the secret.
-
-    ```azurecli
-    az appconfig kv set-keyvault \
-        --name $APPCONFIG_NAME \
-        --key "OpenAI:ApiKey" \
-        --secret-identifier $SECRET_URI \
-        --yes
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
     ```
 
-## Build the Python application
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
 
-You can now create a Python application that loads all settings and resolved secrets through a single `load()` call.
+## Complete the app
 
-1. You can create a working directory and install the required packages.
+In this section you add code to the *appconfig_functions.py* file to complete the App Configuration management functions. The Flask app in *app.py* calls these functions and displays the results in the browser. You run the app later in the exercise.
 
-    ```bash
-    mkdir appconfig-exercise && cd appconfig-exercise
-    pip install azure-appconfiguration-provider azure-identity
-    ```
+1. Open the *client/appconfig_functions.py* file to begin adding code.
 
-1. You can create a file named `app.py` with the following code. Replace `<your-appconfig-name>` with the name of your App Configuration store.
+>**Note:** The code blocks you add to the application should align with the comment for that section of the code.
+
+### Add code to load settings
+
+In this section, you add code to load all configuration settings from the App Configuration store with label stacking and automatic Key Vault reference resolution. The function creates a provider that merges unlabeled default values with Production-labeled overrides and resolves Key Vault references transparently.
+
+The function calls **load()** with two **SettingSelector** entries: the first selects all unlabeled settings (using the null label filter **\0**), and the second selects all Production-labeled settings. Because the Production selector appears second, its values override the defaults for any matching keys. The **AzureAppConfigurationKeyVaultOptions** parameter tells the provider to resolve Key Vault references automatically using the same credential, so the application receives the actual secret value rather than a reference URI.
+
+1. Locate the **# BEGIN LOAD SETTINGS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    from azure.appconfiguration.provider import (
-        load,
-        SettingSelector,
-        AzureAppConfigurationKeyVaultOptions,
-        WatchKey
-    )
-    from azure.identity import DefaultAzureCredential
-    import os
+    def load_settings():
+        """Load all settings with label stacking and Key Vault reference resolution."""
+        provider = get_provider(force_new=True)
+        results = []
 
-    endpoint = os.environ.get("AZURE_APPCONFIG_ENDPOINT")
-    credential = DefaultAzureCredential()
-    environment = os.environ.get("APP_ENVIRONMENT", "Production")
+        # The provider resolves Key Vault references automatically and
+        # applies label stacking: Production-labeled values override
+        # unlabeled defaults for matching keys
+        known_keys = [
+            "OpenAI:Endpoint",
+            "OpenAI:DeploymentName",
+            "OpenAI:ApiKey",
+            "Pipeline:BatchSize",
+            "Pipeline:RetryCount",
+            "Sentinel"
+        ]
 
-    # Configure Key Vault reference resolution
-    key_vault_options = AzureAppConfigurationKeyVaultOptions(credential=credential)
+        for key in known_keys:
+            try:
+                value = provider[key]
+                is_secret = key == "OpenAI:ApiKey"
+                display_value = value[:10] + "..." if is_secret and len(value) > 10 else value
+                results.append({
+                    "key": key,
+                    "value": display_value,
+                    "type": "Key Vault reference" if is_secret else "configuration",
+                    "status": "loaded"
+                })
+            except KeyError:
+                results.append({
+                    "key": key,
+                    "value": None,
+                    "type": "unknown",
+                    "status": "not found"
+                })
 
-    # Load settings with label stacking and Key Vault resolution
-    config = load(
-        endpoint=endpoint,
-        credential=credential,
-        selects=[
-            SettingSelector(key_filter="*", label_filter="\0"),
-            SettingSelector(key_filter="*", label_filter=environment)
-        ],
-        key_vault_options=key_vault_options,
-        refresh_on=[WatchKey("Sentinel")],
-        refresh_interval=30
-    )
-
-    # Display all loaded settings
-    print("=== Configuration Settings ===")
-    print(f"OpenAI Endpoint:       {config['OpenAI:Endpoint']}")
-    print(f"OpenAI Deployment:     {config['OpenAI:DeploymentName']}")
-    print(f"OpenAI API Key:        {config['OpenAI:ApiKey'][:10]}...")
-    print(f"Pipeline Batch Size:   {config['Pipeline:BatchSize']}")
-    print(f"Pipeline Retry Count:  {config['Pipeline:RetryCount']}")
+        return results
     ```
 
-1. You can set the endpoint environment variable and run the application.
+1. Take a few minutes to review the code.
 
+### Add code to list setting properties
+
+In this section, you add code to list the properties of all settings in the App Configuration store. Unlike the **load()** function which merges labels and resolves Key Vault references, this function shows the raw storage view with every individual setting entry, including all labels and content types.
+
+The function calls **list_configuration_settings()** on the management client, which returns an iterable of setting objects with metadata such as key, label, content type, last modified timestamp, and read-only status. This is useful for inventory and audit operations where you need to see exactly what is stored, including the separate unlabeled and Production-labeled entries.
+
+1. Locate the **# BEGIN LIST SETTINGS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def list_setting_properties():
+        """List all setting properties from the App Configuration store."""
+        client = get_client()
+        results = []
+
+        # list_configuration_settings returns every setting in the store
+        # including all labels, showing the raw storage view rather than
+        # the merged view that load() provides
+        for setting in client.list_configuration_settings():
+            results.append({
+                "key": setting.key,
+                "label": setting.label or "(no label)",
+                "content_type": setting.content_type or "—",
+                "last_modified": str(setting.last_modified) if setting.last_modified else "—",
+                "read_only": setting.read_only
+            })
+
+        return results
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to update a setting
+
+In this section, you add code to update an existing configuration setting and verify the change. The function retrieves the current value, writes a new value with **set_configuration_setting()**, and then confirms the update by retrieving the setting again.
+
+The function uses **set_configuration_setting()** to write a new value for an existing key and label combination. Unlike Key Vault which creates a new version for each update, App Configuration overwrites the previous value. The function retrieves the setting before and after the update to show the change, and it includes the label parameter so only the Production-labeled variant is modified.
+
+1. Locate the **# BEGIN UPDATE SETTING FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def update_setting(key, new_value, label=None):
+        """Update a configuration setting and verify the change."""
+        client = get_client()
+
+        # Retrieve the current setting before updating
+        try:
+            current = client.get_configuration_setting(key=key, label=label)
+            old_value = current.value
+            old_modified = str(current.last_modified) if current.last_modified else "—"
+        except ResourceNotFoundError:
+            old_value = None
+            old_modified = "—"
+
+        # set_configuration_setting creates or updates the setting.
+        # Unlike Key Vault, App Configuration does not version settings —
+        # the previous value is overwritten.
+        setting = ConfigurationSetting(
+            key=key,
+            value=new_value,
+            label=label,
+            content_type="text/plain"
+        )
+        client.set_configuration_setting(setting)
+
+        # Confirm the update by retrieving the setting again
+        confirmed = client.get_configuration_setting(key=key, label=label)
+
+        return {
+            "key": key,
+            "label": label or "(no label)",
+            "old_value": old_value,
+            "new_value": confirmed.value,
+            "old_modified": old_modified,
+            "new_modified": str(confirmed.last_modified) if confirmed.last_modified else "—"
+        }
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code for dynamic refresh
+
+In this section, you add code that demonstrates sentinel-based dynamic refresh. The function updates a setting and the sentinel key, then calls **refresh()** on the provider to reload configuration without restarting the application.
+
+The function captures the current provider values, then uses the management client to update **Pipeline:BatchSize** with a new random value and increment the **Sentinel** key. The sentinel acts as a change signal: the provider watches it, and when its value changes, a call to **refresh()** triggers a reload of all settings. The function waits briefly for the refresh interval to elapse, then calls **refresh()** and compares the before and after values to confirm the update propagated.
+
+1. Locate the **# BEGIN REFRESH CONFIGURATION FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def refresh_configuration():
+        """Demonstrate sentinel-based dynamic refresh of configuration settings."""
+        provider = get_provider()
+        client = get_client()
+
+        # Capture current values before the change
+        tracked_keys = ["Pipeline:BatchSize", "Pipeline:RetryCount"]
+        before = {}
+        for key in tracked_keys:
+            try:
+                before[key] = provider[key]
+            except KeyError:
+                before[key] = "—"
+
+        # Update Pipeline:BatchSize with a new value to simulate a
+        # configuration change, then increment the Sentinel key to
+        # signal the provider that settings have changed
+        import random
+        new_batch = str(random.randint(100, 999))
+
+        setting = ConfigurationSetting(
+            key="Pipeline:BatchSize",
+            value=new_batch,
+            label="Production",
+            content_type="text/plain"
+        )
+        client.set_configuration_setting(setting)
+
+        # Increment the Sentinel to trigger a refresh
+        try:
+            sentinel = client.get_configuration_setting(key="Sentinel")
+            new_sentinel = str(int(sentinel.value) + 1)
+        except (ResourceNotFoundError, ValueError):
+            new_sentinel = "1"
+
+        sentinel_setting = ConfigurationSetting(
+            key="Sentinel",
+            value=new_sentinel
+        )
+        client.set_configuration_setting(sentinel_setting)
+
+        # Wait briefly for the refresh interval to elapse, then call
+        # refresh() to reload settings from the store
+        time.sleep(2)
+        provider.refresh()
+
+        # Capture values after the refresh
+        after = {}
+        for key in tracked_keys:
+            try:
+                after[key] = provider[key]
+            except KeyError:
+                after[key] = "—"
+
+        settings = []
+        for key in tracked_keys:
+            settings.append({
+                "key": key,
+                "before": before[key],
+                "after": after[key],
+                "changed": before[key] != after[key]
+            })
+
+        return {
+            "settings": settings,
+            "sentinel_value": new_sentinel,
+            "new_batch_size": new_batch,
+            "batch_size_updated": after["Pipeline:BatchSize"] == new_batch
+        }
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+## Configure the Python environment
+
+In this section, you navigate to the client app directory, create the Python environment, and install the dependencies.
+
+1. Run the following command in the VS Code terminal to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
+1. Run the following command to create the Python environment.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
+
+    **Bash**
     ```bash
-    export AZURE_APPCONFIG_ENDPOINT="https://$APPCONFIG_NAME.azconfig.io"
+    source .venv/bin/activate
+    ```
+
+    **PowerShell**
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+1. Run the following command in the VS Code terminal to install the dependencies.
+
+    ```
+    pip install -r requirements.txt
+    ```
+
+## Run the app
+
+In this section, you run the completed Flask application to perform various App Configuration management operations. The app provides a web interface that lets you load settings, list their properties, update a setting value, and test dynamic refresh.
+
+1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
+
+    ```
     python app.py
     ```
 
-    The output shows default and production-overridden settings and the resolved Key Vault secret (partially masked).
+1. Open a browser and navigate to `http://localhost:5000` to access the app.
 
-## Verify dynamic refresh
+1. Select **Load Settings** in the left panel. This loads all configuration settings with label stacking and Key Vault reference resolution. The results show each setting's key, value, and type. Settings labeled as **configuration** are regular App Configuration values, while **Key Vault reference** indicates the value was resolved from a Key Vault secret. The **Pipeline:BatchSize** and **Pipeline:RetryCount** values reflect the Production-labeled overrides rather than the unlabeled defaults.
 
-You can change a setting in App Configuration and verify that the application picks up the change.
+1. Select **List Setting Properties**. This lists every individual setting entry in the store, including both unlabeled defaults and Production-labeled overrides as separate rows. The results show each setting's key, label, content type, last modified timestamp, and read-only status. Notice that **Pipeline:BatchSize** appears twice: once with no label and once with the **Production** label.
 
-1. You can update the batch size and the sentinel key to trigger a refresh.
+1. Select **Update Setting**. This updates the Production-labeled **Pipeline:BatchSize** setting with a randomly generated value. The results show the previous and new values alongside their last modified timestamps, confirming that **set_configuration_setting()** overwrites the existing value.
 
-    ```azurecli
-    az appconfig kv set --name $APPCONFIG_NAME --key "Pipeline:BatchSize" --value "500" --label "Production" --yes
-    az appconfig kv set --name $APPCONFIG_NAME --key "Sentinel" --value "2" --yes
-    ```
+1. Select **Load Settings** in the left panel to verify the updated **Pipeline:BatchSize** value is reflected in the loaded settings.
 
-1. You can modify `app.py` to call `config.refresh()` after a delay. Add the following code at the end of the file.
-
-    ```python
-    import time
-
-    print("\nWaiting 35 seconds for refresh interval...")
-    time.sleep(35)
-    config.refresh()
-
-    print("\n=== After Refresh ===")
-    print(f"Pipeline Batch Size:   {config['Pipeline:BatchSize']}")
-    ```
-
-1. You can run the application again to see the updated values.
-
-    ```bash
-    python app.py
-    ```
-
-    After the refresh interval, the application displays the updated batch size.
+1. Select **Refresh Configuration**. This demonstrates sentinel-based dynamic refresh. The function updates **Pipeline:BatchSize** with a new random value, increments the **Sentinel** key, waits briefly, and then calls **refresh()** on the provider. The results show the before and after values for tracked settings, confirming that the provider picked up the change without restarting the application.
 
 ## Clean up resources
 
-When you're finished with the exercise, you can delete the resource group to remove all resources.
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-```azurecli
-az group delete --name $RESOURCE_GROUP --yes --no-wait
-```
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
+
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
+
+## Troubleshooting
+
+If you encounter issues while completing this exercise, try the following troubleshooting steps:
+
+**Verify Azure App Configuration deployment**
+- Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
+- Confirm that the App Configuration store shows a **Provisioning State** of **Succeeded**.
+- Confirm that the Key Vault shows a **Provisioning State** of **Succeeded** and has RBAC authorization enabled.
+
+**Check settings**
+- Run the deployment script's **Check deployment status** option to verify the settings were stored successfully.
+- If settings are missing, run the **Store settings** option again.
+
+**Check code completeness and indentation**
+- Ensure all code blocks were added to the correct sections in *appconfig_functions.py* between the appropriate BEGIN/END comment markers.
+- Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
+- Confirm that no code was accidentally removed or modified outside the designated sections.
+
+**Verify environment variables**
+- Check that the *.env* file exists in the project root and contains the **AZURE_APPCONFIG_ENDPOINT** value.
+- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
+- If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
+
+**Check authentication**
+- Confirm you are logged in to Azure CLI by running **az account show**.
+- Verify the App Configuration Data Owner and Key Vault Secrets Officer roles are assigned to your account by checking the role assignments in the Azure portal or running the deployment script's option to assign the roles again.
+
+**Check Python environment and dependencies**
+- Confirm the virtual environment is activated before running the app.
+- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.

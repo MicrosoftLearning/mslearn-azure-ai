@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Configuration Management - Azure App Configuration</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Configuration Management - Azure App Configuration</h1>
+        <div class="left-panel">
+            <!-- Configuration Operations -->
+            <section class="section section-config" aria-labelledby="config-heading">
+                <h2 id="config-heading">Configuration Operations</h2>
+                <p>Load settings with label stacking and Key Vault resolution, list all setting properties, and update a setting value.</p>
+                <div class="button-group">
+                    <form action="/load-settings" method="post">
+                        <button type="submit" class="btn-primary">Load Settings</button>
+                    </form>
+                    <form action="/list-settings" method="post">
+                        <button type="submit" class="btn-success">List Setting Properties</button>
+                    </form>
+                    <form action="/update-setting" method="post">
+                        <button type="submit" class="btn-warning">Update Setting</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Dynamic Refresh -->
+            <section class="section section-refresh" aria-labelledby="refresh-heading">
+                <h2 id="refresh-heading">Dynamic Refresh</h2>
+                <p>Demonstrate sentinel-based dynamic refresh to pick up configuration changes without restarting the application.</p>
+                <form action="/refresh-settings" method="post">
+                    <button type="submit" class="btn-primary">Refresh Configuration</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Results Section -->
+            <section class="section section-results" aria-live="polite" aria-atomic="true" aria-labelledby="results-heading">
+                <h2 id="results-heading">Results</h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                <!-- Load Results -->
+                {% if load_results is defined and load_results %}
+                    <h3>Loaded Settings</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Loaded settings">
+                        {% for setting in load_results %}
+                            <div class="message-card {{ 'card-completed' if setting.status == 'loaded' else 'card-dead-lettered' }}">
+                                <div class="message-header">
+                                    <span class="message-id">{{ setting.key }}</span>
+                                    <span class="tag {% if setting.status == 'loaded' %}tag-success{% else %}tag-error{% endif %}">{{ setting.status }}</span>
+                                </div>
+                                {% if setting.value is not none %}
+                                    <div class="message-detail"><strong>Value:</strong> <code>{{ setting.value }}</code></div>
+                                    <div class="message-detail"><strong>Type:</strong>
+                                        <span class="tag {% if setting.type == 'Key Vault reference' %}tag-valid{% else %}tag-success{% endif %}">{{ setting.type }}</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                <!-- List Results -->
+                {% elif list_results is defined and list_results %}
+                    <h3>Setting Properties</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Setting properties">
+                        <table class="results-table">
+                            <caption class="sr-only">Configuration settings in the store</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Key</th>
+                                    <th scope="col">Label</th>
+                                    <th scope="col">Content Type</th>
+                                    <th scope="col">Last Modified</th>
+                                    <th scope="col">Read Only</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prop in list_results %}
+                                    <tr>
+                                        <td>{{ prop.key }}</td>
+                                        <td>{{ prop.label }}</td>
+                                        <td>{{ prop.content_type }}</td>
+                                        <td>{{ prop.last_modified }}</td>
+                                        <td><span class="tag {% if prop.read_only %}tag-error{% else %}tag-success{% endif %}">{{ prop.read_only }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                {% elif list_results is defined and not list_results %}
+                    <div class="empty-state">No settings found in the store.</div>
+
+                <!-- Update Result -->
+                {% elif update_result is defined and update_result %}
+                    <h3>Setting Updated</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Setting update">
+                        <div class="message-card card-completed">
+                            <div class="message-header">
+                                <span class="message-id">{{ update_result.key }}</span>
+                                <span class="tag tag-success">updated</span>
+                            </div>
+                            <div class="message-detail"><strong>Label:</strong> {{ update_result.label }}</div>
+                            <div class="message-detail"><strong>Previous value:</strong> <code>{{ update_result.old_value or 'N/A' }}</code></div>
+                            <div class="message-detail"><strong>New value:</strong> <code>{{ update_result.new_value }}</code></div>
+                            <div class="message-detail"><strong>Previous modified:</strong> {{ update_result.old_modified }}</div>
+                            <div class="message-detail"><strong>New modified:</strong> {{ update_result.new_modified }}</div>
+                        </div>
+                    </div>
+
+                <!-- Refresh Results -->
+                {% elif refresh_results is defined and refresh_results %}
+                    <h3>Refresh Results</h3>
+                    <div class="query-info">
+                        Sentinel updated to {{ refresh_results.sentinel_value }} — Batch size set to {{ refresh_results.new_batch_size }}
+                        {% if refresh_results.batch_size_updated %}
+                            — <strong>Refresh confirmed</strong>
+                        {% endif %}
+                    </div>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Refresh results">
+                        <table class="results-table">
+                            <caption class="sr-only">Configuration refresh comparison</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Key</th>
+                                    <th scope="col">Before</th>
+                                    <th scope="col">After</th>
+                                    <th scope="col">Changed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in refresh_results.settings %}
+                                    <tr>
+                                        <td>{{ entry.key }}</td>
+                                        <td><code>{{ entry.before }}</code></td>
+                                        <td><code>{{ entry.after }}</code></td>
+                                        <td><span class="tag {% if entry.changed %}tag-valid{% else %}tag-success{% endif %}">{{ entry.changed }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                {% else %}
+                    <div class="empty-state">
+                        Results will appear here after you perform an action.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>
