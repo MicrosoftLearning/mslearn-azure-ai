@@ -15,16 +15,13 @@
             <!-- Configuration Operations -->
             <section class="section section-config" aria-labelledby="config-heading">
                 <h2 id="config-heading">Configuration Operations</h2>
-                <p>Load settings with label stacking and Key Vault resolution, list all setting properties, and update a setting value.</p>
+                <p>Load settings with label stacking and Key Vault resolution, and list all setting properties.</p>
                 <div class="button-group">
                     <form action="/load-settings" method="post">
                         <button type="submit" class="btn-primary">Load Settings</button>
                     </form>
                     <form action="/list-settings" method="post">
                         <button type="submit" class="btn-success">List Setting Properties</button>
-                    </form>
-                    <form action="/update-setting" method="post">
-                        <button type="submit" class="btn-warning">Update Setting</button>
                     </form>
                 </div>
             </section>
@@ -102,23 +99,6 @@
 
                 {% elif list_results is defined and not list_results %}
                     <div class="empty-state">No settings found in the store.</div>
-
-                <!-- Update Result -->
-                {% elif update_result is defined and update_result %}
-                    <h3>Setting Updated</h3>
-                    <div class="results-container" tabindex="0" role="region" aria-label="Setting update">
-                        <div class="message-card card-completed">
-                            <div class="message-header">
-                                <span class="message-id">{{ update_result.key }}</span>
-                                <span class="tag tag-success">updated</span>
-                            </div>
-                            <div class="message-detail"><strong>Label:</strong> {{ update_result.label }}</div>
-                            <div class="message-detail"><strong>Previous value:</strong> <code>{{ update_result.old_value or 'N/A' }}</code></div>
-                            <div class="message-detail"><strong>New value:</strong> <code>{{ update_result.new_value }}</code></div>
-                            <div class="message-detail"><strong>Previous modified:</strong> {{ update_result.old_modified }}</div>
-                            <div class="message-detail"><strong>New modified:</strong> {{ update_result.new_modified }}</div>
-                        </div>
-                    </div>
 
                 <!-- Refresh Results -->
                 {% elif refresh_results is defined and refresh_results %}

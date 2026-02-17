@@ -1,17 +1,17 @@
 ---
 lab:
     topic: App secrets and configuration
-    title: 'Manage configuration with Azure App Configuration'
-    description: 'Learn how to load, list, update, and dynamically refresh configuration settings using Azure App Configuration with the Python SDK.'
+    title: 'Retrieve settings and secrets through App Configuration'
+    description: 'Learn how to load, list, and dynamically refresh configuration settings using Azure App Configuration with the Python SDK.'
     level: 200
-    duration: 20
+    duration: 30
 ---
 
-# Manage configuration with Azure App Configuration
+# Retrieve settings and secrets through App Configuration
 
 AI applications depend on both non-sensitive configuration such as model endpoints and batch sizes, and sensitive credentials such as API keys. Azure App Configuration provides a centralized store for managing these settings with label-based environment overrides, Key Vault references for secrets, and sentinel-based dynamic refresh so applications can pick up configuration changes without restarting.
 
-In this exercise, you deploy an Azure App Configuration store and Key Vault pre-loaded with sample settings and build a Python Flask web application that demonstrates core configuration management patterns using the Azure SDK. You load settings with label stacking and automatic Key Vault reference resolution, list all setting properties and metadata, update a setting value, and trigger a sentinel-based refresh to pick up changes dynamically.
+In this exercise, you deploy an Azure App Configuration store and Key Vault pre-loaded with sample settings and build a Python Flask web application that demonstrates core configuration management patterns using the Azure SDK. You load settings with label stacking and automatic Key Vault reference resolution, list all setting properties and metadata, and trigger a sentinel-based refresh to pick up changes dynamically.
 
 Tasks performed in this exercise:
 
@@ -20,7 +20,7 @@ Tasks performed in this exercise:
 - Add code to the starter files to complete the app
 - Run the app to perform configuration operations
 
-This exercise takes approximately **20** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 ## Before you start
 
@@ -198,54 +198,6 @@ The function calls **list_configuration_settings()** on the management client, w
 
 1. Save your changes and take a few minutes to review the code.
 
-### Add code to update a setting
-
-In this section, you add code to update an existing configuration setting and verify the change. The function retrieves the current value, writes a new value with **set_configuration_setting()**, and then confirms the update by retrieving the setting again.
-
-The function uses **set_configuration_setting()** to write a new value for an existing key and label combination. Unlike Key Vault which creates a new version for each update, App Configuration overwrites the previous value. The function retrieves the setting before and after the update to show the change, and it includes the label parameter so only the Production-labeled variant is modified.
-
-1. Locate the **# BEGIN UPDATE SETTING FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def update_setting(key, new_value, label=None):
-        """Update a configuration setting and verify the change."""
-        client = get_client()
-
-        # Retrieve the current setting before updating
-        try:
-            current = client.get_configuration_setting(key=key, label=label)
-            old_value = current.value
-            old_modified = str(current.last_modified) if current.last_modified else "—"
-        except ResourceNotFoundError:
-            old_value = None
-            old_modified = "—"
-
-        # set_configuration_setting creates or updates the setting.
-        # Unlike Key Vault, App Configuration does not version settings —
-        # the previous value is overwritten.
-        setting = ConfigurationSetting(
-            key=key,
-            value=new_value,
-            label=label,
-            content_type="text/plain"
-        )
-        client.set_configuration_setting(setting)
-
-        # Confirm the update by retrieving the setting again
-        confirmed = client.get_configuration_setting(key=key, label=label)
-
-        return {
-            "key": key,
-            "label": label or "(no label)",
-            "old_value": old_value,
-            "new_value": confirmed.value,
-            "old_modified": old_modified,
-            "new_modified": str(confirmed.last_modified) if confirmed.last_modified else "—"
-        }
-    ```
-
-1. Save your changes and take a few minutes to review the code.
-
 ### Add code for dynamic refresh
 
 In this section, you add code that demonstrates sentinel-based dynamic refresh. The function updates a setting and the sentinel key, then calls **refresh()** on the provider to reload configuration without restarting the application.
@@ -364,7 +316,7 @@ In this section, you navigate to the client app directory, create the Python env
 
 ## Run the app
 
-In this section, you run the completed Flask application to perform various App Configuration management operations. The app provides a web interface that lets you load settings, list their properties, update a setting value, and test dynamic refresh.
+In this section, you run the completed Flask application to perform various App Configuration management operations. The app provides a web interface that lets you load settings, list their properties, and test dynamic refresh.
 
 1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
 
@@ -377,10 +329,6 @@ In this section, you run the completed Flask application to perform various App 
 1. Select **Load Settings** in the left panel. This loads all configuration settings with label stacking and Key Vault reference resolution. The results show each setting's key, value, and type. Settings labeled as **configuration** are regular App Configuration values, while **Key Vault reference** indicates the value was resolved from a Key Vault secret. The **Pipeline:BatchSize** and **Pipeline:RetryCount** values reflect the Production-labeled overrides rather than the unlabeled defaults.
 
 1. Select **List Setting Properties**. This lists every individual setting entry in the store, including both unlabeled defaults and Production-labeled overrides as separate rows. The results show each setting's key, label, content type, last modified timestamp, and read-only status. Notice that **Pipeline:BatchSize** appears twice: once with no label and once with the **Production** label.
-
-1. Select **Update Setting**. This updates the Production-labeled **Pipeline:BatchSize** setting with a randomly generated value. The results show the previous and new values alongside their last modified timestamps, confirming that **set_configuration_setting()** overwrites the existing value.
-
-1. Select **Load Settings** in the left panel to verify the updated **Pipeline:BatchSize** value is reflected in the loaded settings.
 
 1. Select **Refresh Configuration**. This demonstrates sentinel-based dynamic refresh. The function updates **Pipeline:BatchSize** with a new random value, increments the **Sentinel** key, waits briefly, and then calls **refresh()** on the provider. The results show the before and after values for tracked settings, confirming that the provider picked up the change without restarting the application.
 

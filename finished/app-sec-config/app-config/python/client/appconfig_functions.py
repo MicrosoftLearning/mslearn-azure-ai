@@ -1,5 +1,5 @@
 """
-App Configuration management functions for loading, listing, updating,
+App Configuration management functions for loading, listing,
 and refreshing configuration settings.
 These functions serve as the interface between the Flask app and Azure App Configuration.
 """
@@ -126,45 +126,6 @@ def list_setting_properties():
 
     return results
 # END LIST SETTINGS FUNCTION
-
-
-# BEGIN UPDATE SETTING FUNCTION
-def update_setting(key, new_value, label=None):
-    """Update a configuration setting and verify the change."""
-    client = get_client()
-
-    # Retrieve the current setting before updating
-    try:
-        current = client.get_configuration_setting(key=key, label=label)
-        old_value = current.value
-        old_modified = str(current.last_modified) if current.last_modified else "—"
-    except ResourceNotFoundError:
-        old_value = None
-        old_modified = "—"
-
-    # set_configuration_setting creates or updates the setting.
-    # Unlike Key Vault, App Configuration does not version settings —
-    # the previous value is overwritten.
-    setting = ConfigurationSetting(
-        key=key,
-        value=new_value,
-        label=label,
-        content_type="text/plain"
-    )
-    client.set_configuration_setting(setting)
-
-    # Confirm the update by retrieving the setting again
-    confirmed = client.get_configuration_setting(key=key, label=label)
-
-    return {
-        "key": key,
-        "label": label or "(no label)",
-        "old_value": old_value,
-        "new_value": confirmed.value,
-        "old_modified": old_modified,
-        "new_modified": str(confirmed.last_modified) if confirmed.last_modified else "—"
-    }
-# END UPDATE SETTING FUNCTION
 
 
 # BEGIN REFRESH CONFIGURATION FUNCTION

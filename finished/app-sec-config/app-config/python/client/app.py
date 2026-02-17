@@ -1,15 +1,14 @@
 """
 Flask application demonstrating configuration management with Azure App Configuration.
+Provides routes for loading, listing, and dynamically refreshing settings.
 """
 import logging
 import os
-import random
 from flask import Flask, render_template, redirect, url_for, flash
 
 from appconfig_functions import (
     load_settings,
     list_setting_properties,
-    update_setting,
     refresh_configuration
 )
 
@@ -45,19 +44,6 @@ def list_settings():
         return render_template("index.html", list_results=results)
     except Exception as e:
         flash(f"Error listing settings: {str(e)}", "error")
-        return redirect(url_for("index"))
-
-
-@app.route("/update-setting", methods=["POST"])
-def update():
-    """Update a configuration setting."""
-    try:
-        new_value = str(random.randint(100, 999))
-        result = update_setting("Pipeline:BatchSize", new_value, "Production")
-        flash("Successfully updated the setting.", "success")
-        return render_template("index.html", update_result=result)
-    except Exception as e:
-        flash(f"Error updating setting: {str(e)}", "error")
         return redirect(url_for("index"))
 
 
