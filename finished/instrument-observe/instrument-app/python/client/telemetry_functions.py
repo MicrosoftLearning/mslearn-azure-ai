@@ -8,6 +8,7 @@ import random
 from azure.identity import DefaultAzureCredential
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
+from opentelemetry.sdk.resources import Resource
 
 
 def get_tracer():
@@ -32,7 +33,7 @@ def configure_telemetry(app):
     configure_azure_monitor(
         connection_string=connection_string,
         credential=credential,
-        resource_attributes={"cloud.role.name": "document-pipeline-app"}
+        resource=Resource.create({"cloud.role.name": "document-pipeline-app"})
     )
 # END CONFIGURE TELEMETRY FUNCTION
 
@@ -67,7 +68,7 @@ def process_documents(doc_count):
 # END PROCESS DOCUMENTS FUNCTION
 
 
-# BEGIN VALIDATE DOCUMENT FUNCTION
+# BEGIN PIPELINE STAGE FUNCTIONS
 def validate_document(doc_id):
     """Validate a document and record a traced span."""
     tracer = get_tracer()
@@ -84,10 +85,8 @@ def validate_document(doc_id):
         span.set_status(StatusCode.OK)
 
     return {"status": "valid", "duration_ms": round(random.uniform(50, 150))}
-# END VALIDATE DOCUMENT FUNCTION
 
 
-# BEGIN ENRICH DOCUMENT FUNCTION
 def enrich_document(doc_id):
     """Enrich a document with metadata and record a traced span."""
     tracer = get_tracer()
@@ -115,10 +114,8 @@ def enrich_document(doc_id):
         "duration_ms": round(delay * 1000),
         "slow": doc_id in ("DOC-0003", "DOC-0005")
     }
-# END ENRICH DOCUMENT FUNCTION
 
 
-# BEGIN STORE DOCUMENT FUNCTION
 def store_document(doc_id):
     """Store a document and record a traced span."""
     tracer = get_tracer()
@@ -134,7 +131,7 @@ def store_document(doc_id):
         span.set_status(StatusCode.OK)
 
     return {"status": "stored", "duration_ms": round(random.uniform(50, 200))}
-# END STORE DOCUMENT FUNCTION
+# END PIPELINE STAGE FUNCTIONS
 
 
 def check_telemetry_status():

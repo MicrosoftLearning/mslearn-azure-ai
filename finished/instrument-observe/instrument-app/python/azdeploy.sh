@@ -43,13 +43,25 @@ create_application_insights() {
 
     local law_exists=$(az monitor log-analytics workspace show --resource-group $rg --workspace-name $law_name --query "name" -o tsv 2>/dev/null)
     if [ -z "$law_exists" ]; then
+        # Check for a soft-deleted workspace with the same name and recover it
+        local soft_deleted=$(az monitor log-analytics workspace list-deleted-workspaces \
+            --resource-group-name $rg \
+            --query "[?name=='$law_name'].name" -o tsv 2>/dev/null)
+        if [ -n "$soft_deleted" ]; then
+            echo "  Recovering soft-deleted Log Analytics workspace '$law_name'..."
+        fi
+
         az monitor log-analytics workspace create \
             --resource-group $rg \
             --workspace-name $law_name \
             --location $location > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
-            echo "✓ Log Analytics workspace created: $law_name"
+            if [ -n "$soft_deleted" ]; then
+                echo "✓ Log Analytics workspace recovered: $law_name"
+            else
+                echo "✓ Log Analytics workspace created: $law_name"
+            fi
         else
             echo "Error: Failed to create Log Analytics workspace"
             return 1

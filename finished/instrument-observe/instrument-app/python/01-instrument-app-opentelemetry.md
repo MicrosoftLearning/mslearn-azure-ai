@@ -66,6 +66,12 @@ In this section you download the starter files for the app and use a script to d
     az provider register --namespace Microsoft.Insights
     ```
 
+1. Run the following command to add the Application Insights CLI extension. This extension provides the commands the deployment script uses to create and manage the Application Insights resource.
+
+    ```
+    az extension add --name application-insights
+    ```
+
 1. Run the appropriate command in the terminal to launch the script.
 
     **Bash**
@@ -114,9 +120,9 @@ In this section you add code to the *telemetry_functions.py* file to complete th
 
 ### Add code to configure telemetry
 
-In this section you add code to configure the Azure Monitor OpenTelemetry Distro so the application exports traces to Application Insights. The function reads the connection string from an environment variable, creates a **DefaultAzureCredential** for Microsoft Entra authentication, and sets a resource attribute that identifies the application in the Application Map.
+In this section you add code to configure the Azure Monitor OpenTelemetry Distro so the application exports traces to Application Insights. The function reads the connection string from an environment variable, creates a **DefaultAzureCredential** for Microsoft Entra authentication, and sets a resource attribute that identifies the application in the Application Map. The credential excludes the managed identity provider because the app runs locally — without this setting, the credential chain would attempt to reach the Azure Instance Metadata Service on every telemetry export, and those failed HTTP calls would appear as noise in the Application Map.
 
-The function calls **configure_azure_monitor()** from the Azure Monitor OpenTelemetry Distro package. This single call configures the OpenTelemetry SDK with the Azure Monitor trace exporter and sets up automatic instrumentation for Flask requests. The **credential** parameter enables Entra-based authentication so the app publishes telemetry using the Monitoring Metrics Publisher role instead of the instrumentation key. The **cloud.role.name** resource attribute controls how the application node appears in the Application Map.
+The function calls **configure_azure_monitor()** from the Azure Monitor OpenTelemetry Distro package. This single call configures the OpenTelemetry SDK with the Azure Monitor trace exporter and sets up automatic instrumentation for Flask requests. The **credential** parameter enables Entra-based authentication so the app publishes telemetry using the Monitoring Metrics Publisher role instead of the instrumentation key. The **resource** parameter accepts an OpenTelemetry **Resource** object whose **cloud.role.name** attribute controls how the application node appears in the Application Map.
 
 1. Locate the **# BEGIN CONFIGURE TELEMETRY FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -132,12 +138,14 @@ The function calls **configure_azure_monitor()** from the Azure Monitor OpenTele
 
         from azure.monitor.opentelemetry import configure_azure_monitor
 
-        credential = DefaultAzureCredential()
+        credential = DefaultAzureCredential(
+            exclude_managed_identity_credential=True
+        )
 
         configure_azure_monitor(
             connection_string=connection_string,
             credential=credential,
-            resource_attributes={"cloud.role.name": "document-pipeline-app"}
+            resource=Resource.create({"cloud.role.name": "document-pipeline-app"})
         )
     ```
 
@@ -182,13 +190,13 @@ The function uses **start_as_current_span()** to create a parent span named "pro
 
 1. Save your changes and take a few minutes to review the code.
 
-### Add code to validate documents
+### Add code to trace pipeline stages
 
-In this section you add code that creates a child span for the document validation stage. The span records the document identifier and processing stage as attributes, enabling you to filter and search for specific documents in Application Insights.
+In this section you add three functions that each create a child span for one stage of the document pipeline: validate, enrich, and store. All three follow the same pattern — call **start_as_current_span()** to create a span that automatically becomes a child of the active parent, then call **set_attribute()** to attach searchable metadata and **set_status()** to mark the result.
 
-The function calls **start_as_current_span()** to create a span named "validate-document" that automatically becomes a child of the active parent span. The **set_attribute()** calls add searchable metadata to the span. The **set_status()** call marks the span as successful, which is reflected in the success rate metrics in Application Insights.
+The **enrich_document** function also includes a deliberate latency issue. Documents **DOC-0003** and **DOC-0005** experience a delay of 1.5 to 3 seconds, simulating an external service bottleneck. The **enrichment.slow** attribute flags affected spans so you can filter for them in Application Insights. When you examine the end-to-end transaction view later, these spans will stand out as the source of pipeline latency.
 
-1. Locate the **# BEGIN VALIDATE DOCUMENT FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+1. Locate the **# BEGIN PIPELINE STAGE FUNCTIONS** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
     def validate_document(doc_id):
@@ -207,19 +215,8 @@ The function calls **start_as_current_span()** to create a span named "validate-
             span.set_status(StatusCode.OK)
 
         return {"status": "valid", "duration_ms": round(random.uniform(50, 150))}
-    ```
 
-1. Save your changes and take a few minutes to review the code.
 
-### Add code to enrich documents
-
-In this section you add code that creates a child span for the document enrichment stage. This function contains a simulated latency issue that causes certain documents to take significantly longer to process, creating a visible performance bottleneck that you diagnose later using the Application Map.
-
-The function introduces a deliberate delay for documents **DOC-0003** and **DOC-0005**, simulating an external service call that intermittently takes 1.5 to 3 seconds. The **enrichment.slow** attribute flags affected spans so you can filter for them in Application Insights. When you examine the end-to-end transaction view later, these spans will stand out as the source of pipeline latency.
-
-1. Locate the **# BEGIN ENRICH DOCUMENT FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
     def enrich_document(doc_id):
         """Enrich a document with metadata and record a traced span."""
         tracer = get_tracer()
@@ -247,19 +244,8 @@ The function introduces a deliberate delay for documents **DOC-0003** and **DOC-
             "duration_ms": round(delay * 1000),
             "slow": doc_id in ("DOC-0003", "DOC-0005")
         }
-    ```
 
-1. Save your changes and take a few minutes to review the code.
 
-### Add code to store documents
-
-In this section you add code that creates a child span for the document storage stage. The span records the document identifier, processing stage, and storage type as attributes.
-
-The function creates a span named "store-document" and adds a **storage.type** attribute to indicate the destination. Like the other pipeline stages, this span becomes a child of the "process-documents" parent span, completing the three-stage trace tree for each document.
-
-1. Locate the **# BEGIN STORE DOCUMENT FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
     def store_document(doc_id):
         """Store a document and record a traced span."""
         tracer = get_tracer()

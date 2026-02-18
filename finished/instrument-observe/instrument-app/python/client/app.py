@@ -42,18 +42,6 @@ def process():
         return redirect(url_for("index"))
 
 
-@app.route("/single-request", methods=["POST"])
-def single():
-    """Process a single document to generate a simple trace."""
-    try:
-        results = process_documents(1)
-        flash("Processed 1 document. Check Application Insights for the trace.", "success")
-        return render_template("index.html", process_results=results)
-    except Exception as e:
-        flash(f"Error processing document: {str(e)}", "error")
-        return redirect(url_for("index"))
-
-
 @app.route("/check-status", methods=["POST"])
 def status():
     """Check the telemetry configuration status."""
