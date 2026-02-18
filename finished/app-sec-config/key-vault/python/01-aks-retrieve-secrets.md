@@ -3,7 +3,7 @@ lab:
     topic: App secrets and configuration
     title: 'Manage secrets with Azure Key Vault'
     description: 'Learn how to store, retrieve, version, and cache secrets using Azure Key Vault with the Python SDK.'
-    level: 200
+    level: 300
     duration: 20
 ---
 

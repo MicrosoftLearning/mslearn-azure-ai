@@ -3,7 +3,7 @@ lab:
     topic: Azure Kubernetes Service
     title: 'Troubleshoot apps on Azure Kubernetes Service'
     description: 'Learn how to diagnose and resolve common Kubernetes issues including label mismatches, CrashLoopBackOff errors, and readiness probe failures.'
-    level: 200
+    level: 300
     duration: 30
 ---
 

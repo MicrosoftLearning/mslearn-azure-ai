@@ -3,7 +3,7 @@ lab:
     topic: Integrate backend services
     title: 'Process messages with Azure Service Bus'
     description: 'Learn how to send, receive, and route messages using Azure Service Bus queues, topics, and subscriptions with the Python SDK.'
-    level: 200
+    level: 300
     duration: 30
 ---
 

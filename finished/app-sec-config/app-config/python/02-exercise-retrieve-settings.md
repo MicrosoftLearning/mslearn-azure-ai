@@ -3,7 +3,7 @@ lab:
     topic: App secrets and configuration
     title: 'Retrieve settings and secrets from Azure App Configuration'
     description: 'Learn how to load, list, and dynamically refresh configuration settings using Azure App Configuration and Key Vault with the Python SDK.'
-    level: 200
+    level: 300
     duration: 30
 ---
 
