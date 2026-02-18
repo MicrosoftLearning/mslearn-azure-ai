@@ -8,7 +8,6 @@ import random
 from azure.identity import DefaultAzureCredential
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
-from opentelemetry.sdk.resources import Resource
 
 
 def get_tracer():
@@ -17,7 +16,7 @@ def get_tracer():
 
 
 # BEGIN CONFIGURE TELEMETRY FUNCTION
-def configure_telemetry(app):
+def configure_telemetry():
     """Configure the Azure Monitor OpenTelemetry Distro."""
     connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
 
@@ -28,12 +27,13 @@ def configure_telemetry(app):
 
     from azure.monitor.opentelemetry import configure_azure_monitor
 
-    credential = DefaultAzureCredential()
+    credential = DefaultAzureCredential(
+        exclude_managed_identity_credential=True
+    )
 
     configure_azure_monitor(
         connection_string=connection_string,
         credential=credential,
-        resource=Resource.create({"cloud.role.name": "document-pipeline-app"})
     )
 # END CONFIGURE TELEMETRY FUNCTION
 

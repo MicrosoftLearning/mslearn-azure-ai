@@ -12,11 +12,13 @@ from telemetry_functions import (
     check_telemetry_status
 )
 
+# Configure OpenTelemetry before creating the Flask app.
+# The distro replaces flask.Flask with an instrumented subclass,
+# so this call must happen before Flask(__name__).
+configure_telemetry()
+
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-
-# Configure OpenTelemetry at startup
-configure_telemetry(app)
 
 
 @app.route("/")

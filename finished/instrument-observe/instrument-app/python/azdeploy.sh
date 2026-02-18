@@ -21,7 +21,6 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 
 # Resource names with hash for uniqueness
-law_name="law-exercise-${user_hash}"
 appinsights_name="appi-exercise-${user_hash}"
 
 # Function to create resource group if it doesn't exist
@@ -37,51 +36,16 @@ create_resource_group() {
     fi
 }
 
-# Function to create Application Insights with a Log Analytics workspace
+# Function to create Application Insights
 create_application_insights() {
-    echo "Creating Log Analytics workspace '$law_name'..."
-
-    local law_exists=$(az monitor log-analytics workspace show --resource-group $rg --workspace-name $law_name --query "name" -o tsv 2>/dev/null)
-    if [ -z "$law_exists" ]; then
-        # Check for a soft-deleted workspace with the same name and recover it
-        local soft_deleted=$(az monitor log-analytics workspace list-deleted-workspaces \
-            --resource-group-name $rg \
-            --query "[?name=='$law_name'].name" -o tsv 2>/dev/null)
-        if [ -n "$soft_deleted" ]; then
-            echo "  Recovering soft-deleted Log Analytics workspace '$law_name'..."
-        fi
-
-        az monitor log-analytics workspace create \
-            --resource-group $rg \
-            --workspace-name $law_name \
-            --location $location > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-            if [ -n "$soft_deleted" ]; then
-                echo "✓ Log Analytics workspace recovered: $law_name"
-            else
-                echo "✓ Log Analytics workspace created: $law_name"
-            fi
-        else
-            echo "Error: Failed to create Log Analytics workspace"
-            return 1
-        fi
-    else
-        echo "✓ Log Analytics workspace already exists: $law_name"
-    fi
-
-    echo ""
     echo "Creating Application Insights '$appinsights_name'..."
 
     local appi_exists=$(az monitor app-insights component show --resource-group $rg --app $appinsights_name --query "name" -o tsv 2>/dev/null)
     if [ -z "$appi_exists" ]; then
-        local law_id=$(az monitor log-analytics workspace show --resource-group $rg --workspace-name $law_name --query "id" -o tsv)
-
         az monitor app-insights component create \
             --resource-group $rg \
             --app $appinsights_name \
-            --location $location \
-            --workspace "$law_id" > /dev/null 2>&1
+            --location $location > /dev/null 2>&1
 
         if [ $? -eq 0 ]; then
             echo "✓ Application Insights created: $appinsights_name"
@@ -153,21 +117,6 @@ check_deployment_status() {
     echo "Checking deployment status..."
     echo ""
 
-    echo "Log Analytics Workspace ($law_name):"
-    local law_status=$(az monitor log-analytics workspace show --resource-group $rg --workspace-name $law_name --query "provisioningState" -o tsv 2>/dev/null)
-
-    if [ -z "$law_status" ]; then
-        echo "  Status: Not created"
-    else
-        echo "  Status: $law_status"
-        if [ "$law_status" = "Succeeded" ]; then
-            echo "  ✓ Log Analytics workspace is ready"
-        else
-            echo "  ⚠ Log Analytics workspace is still provisioning. Please wait and try again."
-        fi
-    fi
-
-    echo ""
     echo "Application Insights ($appinsights_name):"
     local appi_status=$(az monitor app-insights component show --resource-group $rg --app $appinsights_name --query "provisioningState" -o tsv 2>/dev/null)
 
@@ -240,6 +189,7 @@ retrieve_connection_info() {
 
     cat > "$env_file" << EOF
 export APPLICATIONINSIGHTS_CONNECTION_STRING="$conn_string"
+export OTEL_SERVICE_NAME="document-pipeline-app"
 EOF
 
     echo ""
@@ -259,9 +209,8 @@ show_menu() {
     echo "====================================================================="
     echo "Resource Group: $rg"
     echo "Location: $location"
-    echo "Log Analytics: $law_name"
     echo "App Insights: $appinsights_name"
-    echo "====================================================================="
+    echo "===================================================================="
     echo "1. Create Application Insights"
     echo "2. Assign role"
     echo "3. Check deployment status"

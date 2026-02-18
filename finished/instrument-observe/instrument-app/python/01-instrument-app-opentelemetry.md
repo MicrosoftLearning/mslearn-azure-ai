@@ -86,13 +86,13 @@ In this section you download the starter files for the app and use a script to d
 
 1. When the script is running, enter **1** to launch the **1. Create Application Insights** option.
 
-    This option creates the resource group if it doesn't already exist, deploys a Log Analytics workspace, and creates an Application Insights resource connected to that workspace.
+    This option creates the resource group if it doesn't already exist and creates an Application Insights resource.
 
 1. Enter **2** to run the **2. Assign role** option. This assigns the Monitoring Metrics Publisher role to your account so the app can publish telemetry to Application Insights using Microsoft Entra authentication.
 
 1. Enter **3** to run the **3. Check deployment status** option. Verify the Application Insights resource shows **Succeeded** and the role is assigned before continuing. If the resource is still provisioning, wait a moment and try again.
 
-1. Enter **4** to run the **4. Retrieve connection info** option. This creates the environment variable file with the Application Insights connection string needed by the app.
+1. Enter **4** to run the **4. Retrieve connection info** option. This creates the environment variable file with the Application Insights connection string and the **OTEL_SERVICE_NAME** variable needed by the app.
 
 1. Enter **5** to exit the deployment script.
 
@@ -120,14 +120,14 @@ In this section you add code to the *telemetry_functions.py* file to complete th
 
 ### Add code to configure telemetry
 
-In this section you add code to configure the Azure Monitor OpenTelemetry Distro so the application exports traces to Application Insights. The function reads the connection string from an environment variable, creates a **DefaultAzureCredential** for Microsoft Entra authentication, and sets a resource attribute that identifies the application in the Application Map. The credential excludes the managed identity provider because the app runs locally — without this setting, the credential chain would attempt to reach the Azure Instance Metadata Service on every telemetry export, and those failed HTTP calls would appear as noise in the Application Map.
+In this section you add code to configure the Azure Monitor OpenTelemetry Distro so the application exports traces to Application Insights. The function reads the connection string from an environment variable, creates a **DefaultAzureCredential** for Microsoft Entra authentication, and configures the Azure Monitor exporter. The credential excludes the managed identity provider because the app runs locally — without this setting, the credential chain would attempt to reach the Azure Instance Metadata Service on every telemetry export, and those failed HTTP calls would appear as noise in the Application Map.
 
-The function calls **configure_azure_monitor()** from the Azure Monitor OpenTelemetry Distro package. This single call configures the OpenTelemetry SDK with the Azure Monitor trace exporter and sets up automatic instrumentation for Flask requests. The **credential** parameter enables Entra-based authentication so the app publishes telemetry using the Monitoring Metrics Publisher role instead of the instrumentation key. The **resource** parameter accepts an OpenTelemetry **Resource** object whose **cloud.role.name** attribute controls how the application node appears in the Application Map.
+The function calls **configure_azure_monitor()** from the Azure Monitor OpenTelemetry Distro package. This single call configures the OpenTelemetry SDK with the Azure Monitor trace exporter and sets up automatic instrumentation for Flask requests. The **credential** parameter enables Entra-based authentication so the app publishes telemetry using the Monitoring Metrics Publisher role instead of the instrumentation key. The **OTEL_SERVICE_NAME** environment variable, set in the *.env* file by the deployment script, controls the **cloud.role.name** that appears on the Application Map.
 
 1. Locate the **# BEGIN CONFIGURE TELEMETRY FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-    def configure_telemetry(app):
+    def configure_telemetry():
         """Configure the Azure Monitor OpenTelemetry Distro."""
         connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
 
@@ -145,7 +145,6 @@ The function calls **configure_azure_monitor()** from the Azure Monitor OpenTele
         configure_azure_monitor(
             connection_string=connection_string,
             credential=credential,
-            resource=Resource.create({"cloud.role.name": "document-pipeline-app"})
         )
     ```
 
@@ -311,7 +310,7 @@ In this section you run the completed Flask application to generate telemetry an
 
 1. Open a browser and navigate to `http://localhost:5000` to access the app.
 
-1. Select **Check Telemetry Status** in the left panel. Verify that the telemetry status shows **active** and the resource attributes include **cloud.role.name** with the value **document-pipeline-app**. This confirms the Azure Monitor OpenTelemetry Distro is configured and exporting telemetry.
+1. Select **Check Telemetry Status** in the left panel. Verify that the telemetry status shows **active** and the resource attributes include **service.name** with the value **document-pipeline-app**. This confirms the Azure Monitor OpenTelemetry Distro is configured and exporting telemetry.
 
 1. Select **Process Documents** in the left panel. This processes five documents through the pipeline and displays the results in a table. Notice that documents **DOC-0003** and **DOC-0005** show significantly higher enrichment durations and a **SLOW** tag, while the other documents complete quickly.
 
@@ -321,7 +320,7 @@ In this section you run the completed Flask application to generate telemetry an
 
 1. Navigate to the [Azure portal](https://portal.azure.com) and locate your Application Insights resource in the resource group you created earlier.
 
-1. In the Application Insights resource, select **Application map** in the left navigation under **Investigate**. The map should display a node labeled **document-pipeline-app** (the **cloud.role.name** you configured). The node shows the request count and average response time, providing an at-a-glance view of application health.
+1. In the Application Insights resource, select **Application map** in the left navigation under **Investigate**. The map should display a node labeled **document-pipeline-app** (the **OTEL_SERVICE_NAME** you configured). The node shows the request count and average response time, providing an at-a-glance view of application health.
 
 1. Select the **document-pipeline-app** node to open the details panel. Select a request to view the end-to-end transaction details. The transaction view displays the full span hierarchy: the root HTTP request span, the "process-documents" parent span, and the child spans for each pipeline stage (validate, enrich, store).
 
@@ -348,7 +347,6 @@ If you encounter issues while completing this exercise, try the following troubl
 **Verify Application Insights deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
 - Confirm that the Application Insights resource shows a **Provisioning State** of **Succeeded**.
-- Verify the resource is connected to a Log Analytics workspace.
 
 **Check the connection string**
 - Run the deployment script's **Check deployment status** option to verify the resource was created successfully.
