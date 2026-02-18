@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Document Pipeline - OpenTelemetry</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Document Pipeline - OpenTelemetry Instrumentation</h1>
+        <div class="left-panel">
+            <!-- Pipeline Operations -->
+            <section class="section section-pipeline" aria-labelledby="pipeline-heading">
+                <h2 id="pipeline-heading">Pipeline Operations</h2>
+                <p>Process documents through the instrumented pipeline to generate traces with custom spans and attributes.</p>
+                <div class="button-group">
+                    <form action="/process-documents" method="post">
+                        <button type="submit" class="btn-primary">Process Documents</button>
+                    </form>
+                    <form action="/single-request" method="post">
+                        <button type="submit" class="btn-success">Send Single Request</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Telemetry Status -->
+            <section class="section section-status" aria-labelledby="status-heading">
+                <h2 id="status-heading">Telemetry Status</h2>
+                <p>Verify that the OpenTelemetry SDK is configured and exporting telemetry to Application Insights.</p>
+                <form action="/check-status" method="post">
+                    <button type="submit" class="btn-warning">Check Telemetry Status</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Results Section -->
+            <section class="section section-results" aria-live="polite" aria-atomic="true" aria-labelledby="results-heading">
+                <h2 id="results-heading">Results</h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                <!-- Process Results -->
+                {% if process_results is defined and process_results %}
+                    <h3>Pipeline Results</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Pipeline processing results">
+                        <table class="results-table">
+                            <caption class="sr-only">Document processing pipeline results</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Document</th>
+                                    <th scope="col">Validate</th>
+                                    <th scope="col">Enrich</th>
+                                    <th scope="col">Store</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for doc in process_results %}
+                                    <tr>
+                                        <td><strong>{{ doc.doc_id }}</strong></td>
+                                        <td>
+                                            <span class="tag tag-success">{{ doc.validate.status }}</span>
+                                            <span class="duration">{{ doc.validate.duration_ms }}ms</span>
+                                        </td>
+                                        <td>
+                                            <span class="tag {% if doc.enrich.slow %}tag-error{% else %}tag-success{% endif %}">
+                                                {{ doc.enrich.status }}
+                                            </span>
+                                            <span class="duration {% if doc.enrich.slow %}slow{% endif %}">{{ doc.enrich.duration_ms }}ms</span>
+                                            {% if doc.enrich.slow %}
+                                                <span class="tag tag-error">SLOW</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="tag tag-success">{{ doc.store.status }}</span>
+                                            <span class="duration">{{ doc.store.duration_ms }}ms</span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                <!-- Status Result -->
+                {% elif status_result is defined and status_result %}
+                    <h3>Telemetry Configuration</h3>
+                    <div class="results-container" tabindex="0" role="region" aria-label="Telemetry configuration status">
+                        <div class="message-card {{ 'card-completed' if status_result.configured else 'card-dead-lettered' }}">
+                            <div class="message-header">
+                                <span class="message-id">Tracer Provider</span>
+                                <span class="tag {% if status_result.configured %}tag-success{% else %}tag-error{% endif %}">
+                                    {{ 'active' if status_result.configured else 'not configured' }}
+                                </span>
+                            </div>
+                            <div class="message-detail"><strong>Provider:</strong> {{ status_result.tracer_provider }}</div>
+                            {% if status_result.resource_attributes %}
+                                <div class="message-detail"><strong>Resource attributes:</strong></div>
+                                {% for key, val in status_result.resource_attributes.items() %}
+                                    <div class="message-detail" style="padding-left: 16px;">
+                                        <span class="tag tag-valid">{{ key }}</span> = <code>{{ val }}</code>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                            {% if status_result.span_processors %}
+                                <div class="message-detail"><strong>Span processors:</strong></div>
+                                {% for sp in status_result.span_processors %}
+                                    <div class="message-detail" style="padding-left: 16px;">
+                                        <span class="tag tag-valid">{{ sp }}</span>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                {% else %}
+                    <div class="empty-state">
+                        Results will appear here after you perform an action.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>

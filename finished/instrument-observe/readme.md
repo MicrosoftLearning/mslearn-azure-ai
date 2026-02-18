@@ -1,0 +1,1 @@
+Folder contains completed exercise files for instrument an app with OpenTelemetry and querying logs.
