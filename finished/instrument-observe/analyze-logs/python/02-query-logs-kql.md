@@ -2,7 +2,7 @@
 lab:
     topic: Instrument and observe apps
     title: 'Query logs with KQL'
-    description: 'Learn how to generate application telemetry, query logs using KQL in the Application Insights Logs blade, and configure alert rules with the Azure CLI.'
+    description: 'Learn how to query requests, exceptions, and dependencies using KQL in Application Insights, and create a scheduled query alert rule with the Azure CLI.'
     level: 300
     duration: 20
 ---
