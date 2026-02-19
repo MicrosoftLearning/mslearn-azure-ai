@@ -151,8 +151,8 @@ def generate_exceptions():
 
             time.sleep(random.uniform(0.05, 0.2))
 
-            exception = Exception(exc_message)
-            exception.__class__.__name__ = exc_type
+            exc_class = type(exc_type, (Exception,), {})
+            exception = exc_class(exc_message)
             span.record_exception(exception)
             span.set_status(StatusCode.ERROR, exc_message)
 
