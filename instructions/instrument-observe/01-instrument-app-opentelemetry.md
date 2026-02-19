@@ -1,7 +1,7 @@
 ---
 lab:
     topic: Instrument and observe apps
-    title: 'Instrument an app with OpenTelemetry'
+    title: 'Instrument an app with the OpenTelemetry SDK'
     description: 'Learn how to instrument an application with OpenTelemetry, create custom spans and attributes, export telemetry to Application Insights, and diagnose performance issues using Transaction search and log queries.'
     level: 300
     duration: 25
