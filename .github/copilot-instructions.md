@@ -135,3 +135,112 @@ Before answering questions about Azure CLI commands, generating CLI commands, or
    - Run `az <command> --help` in the terminal to see actual available options
    - Fetch the official Microsoft Learn documentation for the command
    - Don't assume a parameter exists just because it seems logical
+
+### Exercise Markdown Structure
+
+Every exercise markdown file must follow this exact structure. Use *finished/app-sec-config/key-vault/python/01-aks-retrieve-secrets.md* as the canonical reference.
+
+1. **YAML frontmatter** — Required at the top of the file:
+   ```yaml
+   ---
+   lab:
+       topic: '<topic area>'
+       title: '<exercise title>'
+       description: '<one-sentence description>'
+       level: 300
+       duration: <minutes>
+   ---
+   ```
+
+2. **`#` heading** — A single top-level heading matching the `title` in frontmatter.
+
+3. **Intro paragraphs** — Two paragraphs:
+   - First: Explain the technology and why it matters.
+   - Second: Start with "In this exercise, you..." and describe what the student will do end-to-end.
+
+4. **Task list** — A bullet list of high-level tasks (download, create resources, add code, run the app).
+
+5. **Time estimate** — "This exercise takes approximately **N** minutes to complete."
+
+6. **Required sections in order**:
+   - `## Before you start` — Prerequisites (Azure subscription, VS Code, Python version, Azure CLI).
+   - `## Download project starter files and deploy <resource>` — Download zip, open in VS Code, edit script variables, `az login`, register provider, run deployment script with numbered menu walkthrough, load env vars.
+   - `## Complete the app` — Intro sentence, then `### Add code to <do something>` subsections. Each subsection must include:
+     - "In this section you..." intro sentence.
+     - Explanatory paragraph about what the code does (use **bold** for function/method names).
+     - Numbered step: "Locate the **# BEGIN ...** comment and add the following code under the comment."
+     - Code block with the student code.
+     - "Save your changes and take a few minutes to review the code." (or "Take a few minutes to review the code.")
+   - `## Configure the Python environment` — cd client, create venv, activate (Bash + PowerShell), pip install.
+   - `## Run the app` — Start Flask, open browser, step-by-step UI walkthrough.
+   - `## Clean up resources` — Exact verbiage (see "Clean Up Resources Section" above).
+   - `## Troubleshooting` — Common issues grouped by bold headings with bullet-point fixes.
+
+### Client App Patterns
+
+All exercises that include a Python client app follow the same project structure. Use *finished/app-sec-config/key-vault/python/client/* as the canonical reference.
+
+**Directory structure:**
+```
+client/
+├── app.py                  # Flask application (pre-written, student does NOT modify)
+├── <topic>_functions.py    # Student code module with BEGIN/END markers
+├── requirements.txt        # Pinned dependencies
+├── static/
+│   └── css/
+│       └── style.css       # Fluent-inspired CSS (reuse across exercises)
+└── templates/
+    └── index.html          # Two-panel layout (actions left, results right)
+```
+
+**Conventions:**
+
+1. **Student code module** (`<topic>_functions.py`):
+   - Name matches the exercise topic (e.g., `keyvault_functions.py`, `telemetry_functions.py`, `service_bus_functions.py`).
+   - Contains a helper function (e.g., `get_client()`, `get_tracer()`) that creates the SDK client or tracer.
+   - Each student code section is wrapped in `# BEGIN <SECTION NAME>` and `# END <SECTION NAME>` comment markers.
+   - Functions between the markers are what the student adds. Helper functions and imports outside the markers are pre-written.
+
+2. **Flask app** (`app.py`):
+   - Student does NOT modify this file. It is complete and ready to use.
+   - Uses `Flask`, `render_template`, `redirect`, `url_for`, `flash` from Flask.
+   - Uses `os.urandom(24)` for `app.secret_key`.
+   - Routes call functions from the student code module and pass results to the template.
+   - Runs on port 5000 with `debug=False` and `host="0.0.0.0"`.
+   - Suppresses werkzeug logging: `logging.getLogger("werkzeug").setLevel(logging.WARNING)`.
+
+3. **HTML template** (`templates/index.html`):
+   - Two-panel grid layout: left panel has action buttons (forms with POST), right panel displays results.
+   - Uses flash messages for success/error feedback.
+   - Includes accessibility: `skip-link`, `aria-labelledby`, `aria-live="polite"`, `sr-only` captions.
+   - Results are conditionally rendered with `{% if ... is defined and ... %}` blocks.
+
+4. **CSS** (`static/css/style.css`):
+   - Reuse the Fluent-inspired stylesheet from the key-vault reference across all exercises.
+   - Only change the `section-*` color accent values (`border-bottom-color`) to match the exercise topic.
+
+5. **Dependencies** (`requirements.txt`):
+   - Pin exact versions for all packages.
+   - Always include `azure-identity` when the app uses Azure SDK clients.
+
+### Authentication
+
+All exercises must use Microsoft Entra ID authentication via **DefaultAzureCredential**. Never use API keys, access keys, or connection-string-only authentication.
+
+1. **Client code** — Import `DefaultAzureCredential` from `azure.identity` and pass it as the `credential` parameter to SDK clients:
+   ```python
+   from azure.identity import DefaultAzureCredential
+   credential = DefaultAzureCredential()
+   ```
+
+2. **Deployment script** — The *azdeploy.sh* / *azdeploy.ps1* script must include a menu option to assign the appropriate RBAC role scoped to the Azure resource. Common role mappings:
+   - Key Vault: **Key Vault Secrets Officer**
+   - Application Insights: **Monitoring Metrics Publisher**
+   - Service Bus: **Azure Service Bus Data Owner**
+   - Event Grid: **EventGrid Data Sender**
+   - Cosmos DB: use Entra authentication with the appropriate data-plane role
+   - App Configuration: **App Configuration Data Reader**
+
+3. **Environment variables** — The *.env* file should contain resource endpoints and connection strings, but authentication is always handled by `DefaultAzureCredential`, not by keys embedded in environment variables. The connection string may include an instrumentation key (e.g., Application Insights), but the `credential` parameter tells the SDK to authenticate via Entra ID instead.
+
+4. **Exercise instructions** — When describing the role assignment step, explain what the role allows (e.g., "publish telemetry using Entra authentication") so the student understands why it's needed.
