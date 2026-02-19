@@ -110,6 +110,16 @@
       "source": "starter/instrument-observe/instrument-app/python",
       "output": "downloads/python",
       "name": "instrument-app-python.zip"
+    },
+    {
+      "source": "starter/instrument-observe/analyze-logs/python",
+      "output": "downloads/python",
+      "name": "analyze-logs-python.zip"
+    },
+    {
+      "source": "starter/instrument-observe/analyze-logs/python",
+      "output": "downloads/python",
+      "name": "analyze-logs-python.zip"
     }
   ]
 }
