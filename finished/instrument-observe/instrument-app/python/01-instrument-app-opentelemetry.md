@@ -2,7 +2,7 @@
 lab:
     topic: Instrument and observe apps
     title: 'Instrument an app with OpenTelemetry'
-    description: 'Learn how to instrument a Python Flask application with OpenTelemetry, create custom spans and attributes, export telemetry to Application Insights, and diagnose performance issues using the Application Map.'
+    description: 'Learn how to instrument a Python Flask application with OpenTelemetry, create custom spans and attributes, export telemetry to Application Insights, and diagnose performance issues using Transaction search and log queries.'
     level: 300
     duration: 25
 ---
@@ -11,7 +11,7 @@ lab:
 
 OpenTelemetry is an open-source observability framework that provides a standardized way to collect traces, metrics, and logs from applications. The Azure Monitor OpenTelemetry Distro packages the OpenTelemetry SDK with the Azure Monitor exporter so Python applications can send telemetry to Application Insights with minimal configuration. Custom spans let you trace application-specific operations and add attributes that enrich trace data with business context.
 
-In this exercise, you deploy an Application Insights resource and build a Python Flask web application that demonstrates OpenTelemetry instrumentation for a document processing pipeline. You configure the Azure Monitor OpenTelemetry Distro, create custom parent and child spans for each pipeline stage, add span attributes to capture document metadata, and use the Application Map and end-to-end transaction view in the Azure portal to diagnose a simulated latency bottleneck.
+In this exercise, you deploy an Application Insights resource and build a Python Flask web application that demonstrates OpenTelemetry instrumentation for a document processing pipeline. You configure the Azure Monitor OpenTelemetry Distro, create custom parent and child spans for each pipeline stage, add span attributes to capture document metadata, and use Transaction search and log queries in the Azure portal to verify your telemetry and diagnose a simulated latency bottleneck.
 
 Tasks performed in this exercise:
 
@@ -300,7 +300,7 @@ In this section you navigate to the client app directory, create the Python envi
 
 ## Run the app
 
-In this section you run the completed Flask application to generate telemetry and diagnose a simulated performance bottleneck using the Application Map and end-to-end transaction view in Application Insights.
+In this section you run the completed Flask application to generate telemetry, then use Transaction search and log queries in the Azure portal to verify the spans and diagnose a simulated performance bottleneck.
 
 1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
 
@@ -320,13 +320,42 @@ In this section you run the completed Flask application to generate telemetry an
 
 1. Navigate to the [Azure portal](https://portal.azure.com) and locate your Application Insights resource in the resource group you created earlier.
 
-1. In the Application Insights resource, select **Application map** in the left navigation under **Investigate**. The map should display a node labeled **document-pipeline-app** (the **OTEL_SERVICE_NAME** you configured). The node shows the request count and average response time, providing an at-a-glance view of application health.
+### View the end-to-end transaction
 
-1. Select the **document-pipeline-app** node to open the details panel. Select a request to view the end-to-end transaction details. The transaction view displays the full span hierarchy: the root HTTP request span, the "process-documents" parent span, and the child spans for each pipeline stage (validate, enrich, store).
+1. In the Application Insights resource, select **Search** in the left navigation under **Investigate**. This view lists all incoming requests and their related telemetry.
 
-1. In the transaction timeline, identify the "enrich-document" spans with durations of 1.5 seconds or more. These are the spans for documents **DOC-0003** and **DOC-0005** that exhibit the simulated latency. Expand one of these spans to view its attributes, including **document.id**, **document.stage**, and **enrichment.slow = True**.
+1. In the results list, locate one of the **POST /process-documents** entries and select it. The end-to-end transaction view opens, displaying the full span hierarchy: the root HTTP request span, the "process-documents" parent span, and the child spans for each pipeline stage (validate, enrich, store).
 
-1. Compare the enrich spans for slow documents to those for fast documents. The fast documents complete enrichment in under 200 milliseconds, while the slow documents take 1.5 to 3 seconds. This clearly identifies the enrichment stage as the bottleneck and the specific document IDs affected.
+1. In the transaction timeline, identify the "enrich-document" spans with durations of 1.5 seconds or more. These are the spans for documents **DOC-0003** and **DOC-0005** that exhibit the simulated latency. Select one of these spans to view its attributes, including **document.id**, **document.stage**, and **enrichment.slow = True**.
+
+### Query the telemetry with KQL
+
+1. In the Application Insights resource, select **Logs** in the left navigation under **Monitoring**. Close any query template dialog that appears. **Note:** Be sure to select **KQL mode** in the drop-down selector in the query bar.
+
+1. Copy and paste the following query into the query editor and select **Run**. This query retrieves the custom spans your code created, along with the span attributes you set.
+
+    ```kusto
+    dependencies
+    | where timestamp > ago(1h)
+    | project timestamp, name, duration,
+        documentId = customDimensions["document.id"],
+        stage = customDimensions["document.stage"],
+        slow = customDimensions["enrichment.slow"]
+    | order by timestamp desc
+    ```
+
+1. Review the results. You should see rows for each pipeline stage — validate-document, enrich-document, and store-document — with the **documentId** and **stage** attributes you added in the code. The **slow** column shows **True** for DOC-0003 and DOC-0005 rows.
+
+1. Copy and paste the following query to compare the average duration of slow versus fast enrichment spans.
+
+    ```kusto
+    dependencies
+    | where timestamp > ago(1h) and name == "enrich-document"
+    | extend slow = tostring(customDimensions["enrichment.slow"])
+    | summarize avgDuration = round(avg(duration), 0) by slow
+    ```
+
+1. Review the results. The **True** row shows an average duration of 1,500 milliseconds or more, while the **False** row shows an average of under 200 milliseconds. This confirms that the enrichment stage is the bottleneck and that the span attributes clearly identify which documents are affected.
 
 ## Clean up resources
 
@@ -373,7 +402,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - If **azure-monitor-opentelemetry** is not installed, run **pip install -r requirements.txt** again.
 
 **Telemetry not appearing in Application Insights**
-- Telemetry can take two to five minutes to appear in the portal after the app sends it. Wait and refresh the Application Map.
+- Telemetry can take two to five minutes to appear in the portal after the app sends it. Wait and refresh the query results.
 - Verify the connection string is correct by comparing it to the value shown in the Azure portal under the Application Insights resource's **Overview** page.
 - Check the VS Code terminal output for any errors related to telemetry export.
-- Ensure you selected **Process Documents** at least twice to generate enough data for the Application Map to display.
+- If the KQL queries return no results, widen the time range in the **where** clause (for example, change **ago(1h)** to **ago(4h)**).

@@ -4,7 +4,6 @@ for a document processing pipeline.
 """
 import logging
 import os
-from flask import Flask, render_template, redirect, url_for, flash
 
 from telemetry_functions import (
     configure_telemetry,
@@ -12,10 +11,12 @@ from telemetry_functions import (
     check_telemetry_status
 )
 
-# Configure OpenTelemetry before creating the Flask app.
+# Configure OpenTelemetry before importing Flask.
 # The distro replaces flask.Flask with an instrumented subclass,
-# so this call must happen before Flask(__name__).
+# so this call must happen before Flask is imported into this module.
 configure_telemetry()
+
+from flask import Flask, render_template, redirect, url_for, flash
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
