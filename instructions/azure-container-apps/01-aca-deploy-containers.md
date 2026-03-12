@@ -1,11 +1,15 @@
 ---
 lab:
-    topic: Azure Container Apps
-    title: 'Deploy a containerized backend API to Container Apps'
-    description: 'Learn how to deploy a container image from Azure Container Registry (ACR) to Azure Container Apps using a managed identity for secure image pulls, then verify the deployment and view logs.'
-    level: 300
-    duration: 30
-    islab: true
+  topic: Azure Container Apps
+  title: Deploy a containerized backend API to Container Apps
+  description: Learn how to deploy a container image from Azure Container Registry (ACR) to Azure Container Apps using a managed identity for secure image pulls, then verify the deployment and view logs.
+  level: 300
+  duration: 30
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure Container Apps
+    - Azure Container Registry
 ---
 
 # Deploy a containerized backend API to Azure Container Apps
