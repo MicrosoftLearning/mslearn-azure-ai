@@ -1,11 +1,14 @@
 ---
 lab:
-    topic: Container hosting
-    title: 'Build and run a container image with ACR Tasks'
-    description: 'Learn how to use Azure Container Registry (ACR) Tasks to build and manage container images entirely in the cloud, without requiring a local Docker installation.'
-    level: 300
-    duration: 30
-    islab: true
+  topic: Container hosting
+  title: Build and run a container image with ACR Tasks
+  description: Learn how to use Azure Container Registry (ACR) Tasks to build and manage container images entirely in the cloud, without requiring a local Docker installation.
+  level: 300
+  duration: 30
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure Container Registry
 ---
 
 # Build and run a container image with ACR Tasks

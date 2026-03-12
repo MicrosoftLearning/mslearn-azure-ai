@@ -1,11 +1,14 @@
 ---
 lab:
-    topic: Integrate backend services
-    title: 'Publish and receive events with Azure Event Grid'
-    description: 'Learn how to publish, receive, and route content moderation events using Azure Event Grid Namespaces with pull delivery and filtered subscriptions.'
-    level: 300
-    duration: 30
-    islab: true
+  topic: Integrate backend services
+  title: Publish and receive events with Azure Event Grid
+  description: Learn how to publish, receive, and route content moderation events using Azure Event Grid Namespaces with pull delivery and filtered subscriptions.
+  level: 300
+  duration: 30
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure Event Grid
 ---
 
 # Publish and receive events with Azure Event Grid

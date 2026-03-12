@@ -1,11 +1,14 @@
 ---
 lab:
-    topic: Azure Database for PostgreSQL
-    title: 'Optimize vector search performance in Azure Database for PostgreSQL'
-    description: 'Learn how to optimize vector search performance in Azure Database for PostgreSQL using indexes and parameter tuning'
-    level: 300
-    duration: 30
-    islab: true
+  topic: Azure Database for PostgreSQL
+  title: Optimize vector search performance in Azure Database for PostgreSQL
+  description: Learn how to optimize vector search performance in Azure Database for PostgreSQL using indexes and parameter tuning
+  level: 300
+  duration: 30
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure Database for PostgreSQL
 ---
 
 # Optimize vector search performance in Azure Database for PostgreSQL
