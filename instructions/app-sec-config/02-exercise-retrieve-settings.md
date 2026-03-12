@@ -1,11 +1,14 @@
 ---
 lab:
-    topic: App secrets and configuration
-    title: 'Retrieve settings and secrets from Azure App Configuration'
-    description: 'Learn how to load, list, and dynamically refresh configuration settings using Azure App Configuration and Key Vault with the Python SDK.'
-    level: 300
-    duration: 30
-    islab: true
+  topic: App secrets and configuration
+  title: Retrieve settings and secrets from Azure App Configuration
+  description: Learn how to load, list, and dynamically refresh configuration settings using Azure App Configuration and Key Vault with the Python SDK.
+  level: 300
+  duration: 30
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure App Configuration
 ---
 
 # Retrieve settings and secrets from Azure App Configuration
