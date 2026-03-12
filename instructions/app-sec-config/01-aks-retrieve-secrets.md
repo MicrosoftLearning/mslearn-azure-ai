@@ -1,11 +1,14 @@
 ---
 lab:
-    topic: App secrets and configuration
-    title: 'Manage secrets with Azure Key Vault'
-    description: 'Learn how to store, retrieve, version, and cache secrets using Azure Key Vault with the Python SDK.'
-    level: 300
-    duration: 20
-    islab: true
+  topic: App secrets and configuration
+  title: Manage secrets with Azure Key Vault
+  description: Learn how to store, retrieve, version, and cache secrets using Azure Key Vault with the Python SDK.
+  level: 300
+  duration: 20
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure Key Vault
 ---
 
 # Manage secrets with Azure Key Vault
