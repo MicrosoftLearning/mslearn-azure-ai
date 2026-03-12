@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to publish, receive, and route content moderation events using Azure Event Grid Namespaces with pull delivery and filtered subscriptions.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Publish and receive events with Azure Event Grid

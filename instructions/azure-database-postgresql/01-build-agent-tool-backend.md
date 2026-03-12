@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to build persistent memory storage for AI agents using Azure Database for PostgreSQL'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Build an agent tool backend on Azure Database for PostgreSQL

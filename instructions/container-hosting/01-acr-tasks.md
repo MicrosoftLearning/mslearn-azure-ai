@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to use Azure Container Registry (ACR) Tasks to build and manage container images entirely in the cloud, without requiring a local Docker installation.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Build and run a container image with ACR Tasks

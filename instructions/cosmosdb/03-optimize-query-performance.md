@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to compare and tune vector indexing strategies in Azure Cosmos DB for NoSQL to optimize query performance and reduce RU costs'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Optimize query performance with vector indexes on Azure Cosmos DB for NoSQL

@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to create and test an MCP server using Azure Functions that exposes tool trigger functions for AI agents and language models to discover and invoke.'
     level: 300
     duration: 25
+    islab: true
 ---
 
 # Create an MCP server with Azure Functions

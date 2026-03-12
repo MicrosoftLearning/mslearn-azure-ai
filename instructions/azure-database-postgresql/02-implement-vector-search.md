@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to implement vector similarity search using Azure Database for PostgreSQL and the pgvector extension'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Implement vector search on Azure Database for PostgreSQL

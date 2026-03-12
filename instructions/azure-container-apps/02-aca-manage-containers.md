@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to troubleshoot Azure Container Apps by diagnosing missing environment variables, ingress misconfigurations, and querying Log Analytics for historical troubleshooting.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Diagnose and fix a failing deployment

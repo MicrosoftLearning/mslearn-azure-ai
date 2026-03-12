@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to build publisher and subscriber applications that implement pub/sub patterns in Azure Managed Redis using the redis-py Python library.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Publish and subscribe to events in Azure Managed Redis

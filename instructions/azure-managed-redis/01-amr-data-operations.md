@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to perform data operations in Azure Managed Redis using the redis-py Python library.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Perform data operations in Azure Managed Redis

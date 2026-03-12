@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings. '
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Configure apps on Azure Kubernetes Service
