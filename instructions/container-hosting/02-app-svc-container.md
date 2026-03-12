@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to deploy a container image from Azure Container Registry (ACR) to Azure App Service using a managed identity for secure image pulls, then verify and troubleshoot the running container.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Deploy a container to Azure App Service

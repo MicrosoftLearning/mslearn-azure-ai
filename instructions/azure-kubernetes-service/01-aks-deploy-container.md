@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to create Kubernetes deployment and service manifests to deploy an AI inference API container to Azure Kubernetes Service.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Deploy an AI inference API to Azure Kubernetes Service

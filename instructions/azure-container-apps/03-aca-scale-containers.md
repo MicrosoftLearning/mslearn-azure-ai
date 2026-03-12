@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to configure KEDA-based autoscaling in Azure Container Apps using HTTP concurrency triggers.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Configure autoscaling using KEDA triggers

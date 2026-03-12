@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to send, receive, and route messages using Azure Service Bus queues, topics, and subscriptions with the Python SDK.'
     level: 300
     duration: 30
+    islab: true
 ---
 
 # Process messages with Azure Service Bus

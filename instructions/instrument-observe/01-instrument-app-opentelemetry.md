@@ -5,6 +5,7 @@ lab:
     description: 'Learn how to instrument an application with OpenTelemetry, create custom spans and attributes, export telemetry to Application Insights, and diagnose performance issues using Transaction search and log queries.'
     level: 300
     duration: 25
+    islab: true
 ---
 
 # Instrument an app with OpenTelemetry
