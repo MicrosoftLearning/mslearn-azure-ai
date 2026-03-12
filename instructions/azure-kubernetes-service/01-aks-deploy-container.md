@@ -1,11 +1,13 @@
 ---
 lab:
-    topic: Azure Kubernetes Service
-    title: 'Deploy an AI inference API to Azure Kubernetes Service'
-    description: 'Learn how to create Kubernetes deployment and service manifests to deploy an AI inference API container to Azure Kubernetes Service.'
-    level: 300
-    duration: 30
-    islab: true
+  topic: Azure Kubernetes Service
+  title: Deploy an AI inference API to Azure Kubernetes Service
+  description: Learn how to create Kubernetes deployment and service manifests to deploy an AI inference API container to Azure Kubernetes Service.
+  level: 300
+  duration: 30
+  islab: true
+  primarytopics:
+    - Azure
 ---
 
 # Deploy an AI inference API to Azure Kubernetes Service
