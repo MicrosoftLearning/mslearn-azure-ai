@@ -1,11 +1,13 @@
 ---
 lab:
-    topic: Azure Kubernetes Service
-    title: 'Configure apps on Azure Kubernetes Service'
-    description: 'Learn how to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings. '
-    level: 300
-    duration: 30
-    islab: true
+  topic: Azure Kubernetes Service
+  title: Configure apps on Azure Kubernetes Service
+  description: 'Learn how to configure Kubernetes deployments with persistent storage, and store sensitive and non-sensitive settings. '
+  level: 300
+  duration: 30
+  islab: true
+  primarytopics:
+    - Azure
 ---
 
 # Configure apps on Azure Kubernetes Service
