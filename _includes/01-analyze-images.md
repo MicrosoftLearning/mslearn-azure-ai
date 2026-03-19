@@ -1,5 +1,7 @@
 
-# Analyze images
+# Analyze images (deprecated)
+
+> **Note**: This exercise is deprecated. Consider reviewing the QuickStart tutorial at <https://learn.microsoft.com/azure/ai-services/computer-vision/quickstarts-sdk/image-analysis-client-library-40>.
 
 Azure AI Vision is an artificial intelligence capability that enables software systems to interpret visual input by analyzing images. In Microsoft Azure, the **Vision** Azure AI service provides pre-built models for common computer vision tasks, including analysis of images to suggest captions and tags, detection of common objects and people. You can also use the Azure AI Vision service to remove the background or create a foreground matting of images.
 
@@ -22,11 +24,11 @@ If you don't already have one in your subscription, you'll need to provision an 
 1. Open the [Azure portal](https://portal.azure.com) at `https://portal.azure.com`, and sign in using your Azure credentials. Close any welcome messages or tips that are displayed.
 1. Select **Create a resource**.
 1. In the search bar, search for `Computer Vision`, select **Computer Vision**, and create the resource with the following settings:
-    - **Subscription**: *Your Azure subscription*
-    - **Resource group**: *Create or select a resource group*
-    - **Region**: *Choose from **East US**, **West US**, **France Central**, **Korea Central**, **North Europe**, **Southeast Asia**, **West Europe**, or **East Asia**\**
-    - **Name**: *A valid name for your Computer Vision resource*
-    - **Pricing tier**: Free F0
+    * **Subscription**: *Your Azure subscription*
+    * **Resource group**: *Create or select a resource group*
+    * **Region**: *Choose from **East US**, **West US**, **France Central**, **Korea Central**, **North Europe**, **Southeast Asia**, **West Europe**, or **East Asia**\**
+    * **Name**: *A valid name for your Computer Vision resource*
+    * **Pricing tier**: Free F0
 
     \*Azure AI Vision 4.0 full feature sets are currently only available in these regions.
 
@@ -65,7 +67,7 @@ In this exercise, you'll complete a partially implemented client application tha
 
     > **Tip**: As you paste commands into the cloudshell, the output may take up a large amount of the screen buffer. You can clear the screen by entering the `cls` command to make it easier to focus on each task.
 
-1. After the repo has been cloned, use the following command to navigate to and view the folder containing the application code files:   
+1. After the repo has been cloned, use the following command to navigate to and view the folder containing the application code files:
 
     ```
    cd mslearn-ai-vision/Labfiles/analyze-images/python/image-analysis
@@ -73,7 +75,7 @@ In this exercise, you'll complete a partially implemented client application tha
     ```
 
     The folder contains application configuration and code files for your app. It also contains a **/images** subfolder, which contains some image files for your app to analyze.
-    
+
 1. Install the Azure AI Vision SDK package and other required packages by running the following commands:
 
     ```
@@ -259,4 +261,3 @@ If you've finished exploring Azure AI Vision, you should delete the resources yo
 1. In the top search bar, search for *Computer Vision*, and select the Computer Vision resource you created in this lab.
 
 1. On the resource page, select **Delete** and follow the instructions to delete the resource.
-
