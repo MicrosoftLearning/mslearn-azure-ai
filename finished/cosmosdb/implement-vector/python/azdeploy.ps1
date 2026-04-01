@@ -33,10 +33,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -58,7 +58,7 @@ function Create-CosmosDBAccount {
             --default-consistency-level Session 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Cosmos DB account created with vector search capability"
+            Write-Host "$([char]0x2713) Cosmos DB account created with vector search capability"
         }
         else {
             Write-Host "Error: Failed to create Cosmos DB account"
@@ -66,7 +66,7 @@ function Create-CosmosDBAccount {
         }
     }
     else {
-        Write-Host "✓ Cosmos DB account already exists: $accountName"
+        Write-Host "$([char]0x2713) Cosmos DB account already exists: $accountName"
     }
 
     # Create database
@@ -79,7 +79,7 @@ function Create-CosmosDBAccount {
             --name $databaseName 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Database created: $databaseName"
+            Write-Host "$([char]0x2713) Database created: $databaseName"
         }
         else {
             Write-Host "Error: Failed to create database"
@@ -87,7 +87,7 @@ function Create-CosmosDBAccount {
         }
     }
     else {
-        Write-Host "✓ Database already exists: $databaseName"
+        Write-Host "$([char]0x2713) Database already exists: $databaseName"
     }
 
     Write-Host ""
@@ -132,7 +132,7 @@ function Configure-EntraAccess {
         --query "[0].id" -o tsv 2>$null)
 
     if (-not [string]::IsNullOrWhiteSpace($azureRoleExists)) {
-        Write-Host "✓ Azure RBAC Contributor role already assigned"
+        Write-Host "$([char]0x2713) Azure RBAC Contributor role already assigned"
     }
     else {
         az role assignment create `
@@ -141,7 +141,7 @@ function Configure-EntraAccess {
             --role "Contributor" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Azure RBAC Contributor role assigned"
+            Write-Host "$([char]0x2713) Azure RBAC Contributor role assigned"
         }
         else {
             Write-Host "Error: Failed to assign Azure RBAC Contributor role"
@@ -163,7 +163,7 @@ function Configure-EntraAccess {
         -o tsv 2>$null)
 
     if (-not [string]::IsNullOrWhiteSpace($cosmosRoleExists)) {
-        Write-Host "✓ Cosmos DB Data Contributor role already assigned"
+        Write-Host "$([char]0x2713) Cosmos DB Data Contributor role already assigned"
     }
     else {
         az cosmosdb sql role assignment create `
@@ -174,7 +174,7 @@ function Configure-EntraAccess {
             --scope $accountId 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Cosmos DB Data Contributor role assigned"
+            Write-Host "$([char]0x2713) Cosmos DB Data Contributor role assigned"
         }
         else {
             Write-Host "Error: Failed to assign Cosmos DB Data Contributor role"
@@ -203,24 +203,24 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $status"
         if ($status -eq "Succeeded") {
-            Write-Host "  ✓ Cosmos DB account is ready"
+            Write-Host "  $([char]0x2713) Cosmos DB account is ready"
 
             # Check for vector search capability
             $capabilities = (az cosmosdb show --resource-group $rg --name $accountName --query "capabilities[].name" -o tsv 2>$null)
             if ($capabilities -match "EnableNoSQLVectorSearch") {
-                Write-Host "  ✓ Vector search capability enabled"
+                Write-Host "  $([char]0x2713) Vector search capability enabled"
             }
             else {
-                Write-Host "  ⚠ Vector search capability not enabled"
+                Write-Host "  $([char]0x26A0) Vector search capability not enabled"
             }
 
             # Check database
             az cosmosdb sql database show --resource-group $rg --account-name $accountName --name $databaseName 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "  ✓ Database: $databaseName"
+                Write-Host "  $([char]0x2713) Database: $databaseName"
             }
             else {
-                Write-Host "  ⚠ Database not created"
+                Write-Host "  $([char]0x26A0) Database not created"
             }
 
             # Check Entra ID RBAC
@@ -242,16 +242,16 @@ function Check-DeploymentStatus {
                 -o tsv 2>$null)
 
             if (-not [string]::IsNullOrWhiteSpace($azureRole) -and -not [string]::IsNullOrWhiteSpace($cosmosRole)) {
-                Write-Host "  ✓ Entra ID access: $userUpn (full control)"
+                Write-Host "  $([char]0x2713) Entra ID access: $userUpn (full control)"
             }
             elseif (-not [string]::IsNullOrWhiteSpace($cosmosRole)) {
-                Write-Host "  ⚠ Entra ID access: $userUpn (data only, missing Azure RBAC)"
+                Write-Host "  $([char]0x26A0) Entra ID access: $userUpn (data only, missing Azure RBAC)"
             }
             elseif (-not [string]::IsNullOrWhiteSpace($azureRole)) {
-                Write-Host "  ⚠ Entra ID access: $userUpn (control plane only, missing data role)"
+                Write-Host "  $([char]0x26A0) Entra ID access: $userUpn (control plane only, missing data role)"
             }
             else {
-                Write-Host "  ⚠ Entra ID access not configured"
+                Write-Host "  $([char]0x26A0) Entra ID access not configured"
             }
         }
     }

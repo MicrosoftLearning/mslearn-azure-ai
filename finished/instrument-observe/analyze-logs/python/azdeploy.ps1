@@ -53,10 +53,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -71,7 +71,7 @@ function Create-ApplicationInsights {
             --location $location 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Application Insights created: $appinsightsName"
+            Write-Host "$([char]0x2713) Application Insights created: $appinsightsName"
         }
         else {
             Write-Host "Error: Failed to create Application Insights"
@@ -79,7 +79,7 @@ function Create-ApplicationInsights {
         }
     }
     else {
-        Write-Host "✓ Application Insights already exists: $appinsightsName"
+        Write-Host "$([char]0x2713) Application Insights already exists: $appinsightsName"
     }
 
     Write-Host ""
@@ -116,7 +116,7 @@ function Assign-Role {
         --query "[0].id" -o tsv 2>$null
 
     if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-        Write-Host "✓ Monitoring Metrics Publisher role already assigned"
+        Write-Host "$([char]0x2713) Monitoring Metrics Publisher role already assigned"
     }
     else {
         az role assignment create `
@@ -125,7 +125,7 @@ function Assign-Role {
             --scope "$appiId" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Monitoring Metrics Publisher role assigned"
+            Write-Host "$([char]0x2713) Monitoring Metrics Publisher role assigned"
         }
         else {
             Write-Host "Error: Failed to assign Monitoring Metrics Publisher role"
@@ -151,12 +151,12 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $appiStatus"
         if ($appiStatus -eq "Succeeded") {
-            Write-Host "  ✓ Application Insights is ready"
+            Write-Host "  $([char]0x2713) Application Insights is ready"
             $connString = az monitor app-insights component show --resource-group $rg --app $appinsightsName --query "connectionString" -o tsv 2>$null
             Write-Host "  Connection string: $($connString.Substring(0, [Math]::Min(60, $connString.Length)))..."
         }
         else {
-            Write-Host "  ⚠ Application Insights is still provisioning. Please wait and try again."
+            Write-Host "  $([char]0x26A0) Application Insights is still provisioning. Please wait and try again."
         }
     }
 
@@ -174,14 +174,14 @@ function Check-DeploymentStatus {
             --query "[0].id" -o tsv 2>$null
 
         if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-            Write-Host "  ✓ Role assigned: $userUpn (Monitoring Metrics Publisher)"
+            Write-Host "  $([char]0x2713) Role assigned: $userUpn (Monitoring Metrics Publisher)"
         }
         else {
-            Write-Host "  ⚠ Role not assigned"
+            Write-Host "  $([char]0x26A0) Role not assigned"
         }
     }
     else {
-        Write-Host "  ⚠ Application Insights not created yet"
+        Write-Host "  $([char]0x26A0) Application Insights not created yet"
     }
 }
 

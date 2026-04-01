@@ -54,10 +54,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -72,7 +72,7 @@ function Create-KeyVault {
             Write-Host "  Recovering soft-deleted Key Vault '$kvName'..."
             az keyvault recover --name $kvName 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✓ Key Vault recovered: $kvName"
+                Write-Host "$([char]0x2713) Key Vault recovered: $kvName"
             }
             else {
                 Write-Host "Error: Failed to recover soft-deleted Key Vault."
@@ -88,7 +88,7 @@ function Create-KeyVault {
                 --enable-rbac-authorization true 2>&1 | Out-Null
 
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✓ Key Vault created: $kvName"
+                Write-Host "$([char]0x2713) Key Vault created: $kvName"
             }
             else {
                 Write-Host "Error: Failed to create Key Vault"
@@ -97,7 +97,7 @@ function Create-KeyVault {
         }
     }
     else {
-        Write-Host "✓ Key Vault already exists: $kvName"
+        Write-Host "$([char]0x2713) Key Vault already exists: $kvName"
     }
 
     Write-Host ""
@@ -140,7 +140,7 @@ function Assign-Role {
         --query "[0].id" -o tsv 2>$null
 
     if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-        Write-Host "✓ Key Vault Secrets Officer role already assigned"
+        Write-Host "$([char]0x2713) Key Vault Secrets Officer role already assigned"
     }
     else {
         az role assignment create `
@@ -149,7 +149,7 @@ function Assign-Role {
             --scope "$kvId" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Key Vault Secrets Officer role assigned"
+            Write-Host "$([char]0x2713) Key Vault Secrets Officer role assigned"
         }
         else {
             Write-Host "Error: Failed to assign Key Vault Secrets Officer role"
@@ -188,7 +188,7 @@ function Store-Secrets {
         --tags environment=development service=openai 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Secret stored: openai-api-key"
+        Write-Host "$([char]0x2713) Secret stored: openai-api-key"
     }
     else {
         Write-Host "Error: Failed to store openai-api-key secret"
@@ -204,7 +204,7 @@ function Store-Secrets {
         --tags environment=development service=cosmosdb 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Secret stored: cosmosdb-connection-string"
+        Write-Host "$([char]0x2713) Secret stored: cosmosdb-connection-string"
     }
     else {
         Write-Host "Error: Failed to store cosmosdb-connection-string secret"
@@ -228,7 +228,7 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $kvStatus"
         if ($kvStatus -eq "Succeeded") {
-            Write-Host "  ✓ Key Vault is ready"
+            Write-Host "  $([char]0x2713) Key Vault is ready"
             $kvUri = az keyvault show --resource-group $rg --name $kvName --query "properties.vaultUri" -o tsv 2>$null
             Write-Host "  Vault URI: $kvUri"
 
@@ -238,18 +238,18 @@ function Check-DeploymentStatus {
 
             $apiKeyExists = az keyvault secret show --vault-name $kvName --name "openai-api-key" --query "name" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($apiKeyExists)) {
-                Write-Host "  ✓ Secret stored: openai-api-key"
+                Write-Host "  $([char]0x2713) Secret stored: openai-api-key"
             }
             else {
-                Write-Host "  ⚠ Secret not stored: openai-api-key"
+                Write-Host "  $([char]0x26A0) Secret not stored: openai-api-key"
             }
 
             $connStrExists = az keyvault secret show --vault-name $kvName --name "cosmosdb-connection-string" --query "name" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($connStrExists)) {
-                Write-Host "  ✓ Secret stored: cosmosdb-connection-string"
+                Write-Host "  $([char]0x2713) Secret stored: cosmosdb-connection-string"
             }
             else {
-                Write-Host "  ⚠ Secret not stored: cosmosdb-connection-string"
+                Write-Host "  $([char]0x26A0) Secret not stored: cosmosdb-connection-string"
             }
 
             # Check role assignment
@@ -265,14 +265,14 @@ function Check-DeploymentStatus {
                 --query "[0].id" -o tsv 2>$null
 
             if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-                Write-Host "  ✓ Role assigned: $userUpn (Key Vault Secrets Officer)"
+                Write-Host "  $([char]0x2713) Role assigned: $userUpn (Key Vault Secrets Officer)"
             }
             else {
-                Write-Host "  ⚠ Role not assigned"
+                Write-Host "  $([char]0x26A0) Role not assigned"
             }
         }
         else {
-            Write-Host "  ⚠ Key Vault is still provisioning. Please wait and try again."
+            Write-Host "  $([char]0x26A0) Key Vault is still provisioning. Please wait and try again."
         }
     }
 }

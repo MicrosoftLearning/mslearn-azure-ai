@@ -55,10 +55,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -74,7 +74,7 @@ function Create-AcrAndBuildImage {
             --admin-enabled false 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ ACR created: $acrName"
+            Write-Host "$([char]0x2713) ACR created: $acrName"
             Write-Host "  Login server: $acrName.azurecr.io"
         }
         else {
@@ -83,7 +83,7 @@ function Create-AcrAndBuildImage {
         }
     }
     else {
-        Write-Host "✓ ACR already exists: $acrName"
+        Write-Host "$([char]0x2713) ACR already exists: $acrName"
         Write-Host "  Login server: $acrName.azurecr.io"
     }
 
@@ -99,7 +99,7 @@ function Create-AcrAndBuildImage {
         api/ 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Image built and pushed: $acrName.azurecr.io/$containerImage"
+        Write-Host "$([char]0x2713) Image built and pushed: $acrName.azurecr.io/$containerImage"
     }
     else {
         Write-Host "Error: Failed to build/push image"
@@ -148,7 +148,7 @@ function Create-ContainerAppsEnvironment {
             --location $location 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Container Apps environment created: $acaEnv"
+            Write-Host "$([char]0x2713) Container Apps environment created: $acaEnv"
         }
         else {
             Write-Host "Error: Failed to create Container Apps environment"
@@ -156,7 +156,7 @@ function Create-ContainerAppsEnvironment {
         }
     }
     else {
-        Write-Host "✓ Container Apps environment already exists: $acaEnv"
+        Write-Host "$([char]0x2713) Container Apps environment already exists: $acaEnv"
     }
 }
 
@@ -203,10 +203,10 @@ function Create-ContainerApp {
             Write-Host "Error: Failed to create Container App"
             return
         }
-        Write-Host "✓ Container App created: $containerAppName"
+        Write-Host "$([char]0x2713) Container App created: $containerAppName"
     }
     else {
-        Write-Host "✓ Container App already exists: $containerAppName"
+        Write-Host "$([char]0x2713) Container App already exists: $containerAppName"
     }
 
     # Ensure the system-assigned identity can pull from ACR
@@ -235,7 +235,7 @@ function Create-ContainerApp {
         --role "AcrPull" `
         --scope $acrId 2>&1 | Out-Null
 
-    Write-Host "✓ AcrPull role assigned (or already present)"
+    Write-Host "$([char]0x2713) AcrPull role assigned (or already present)"
 
     # Persist env vars for the lab + dashboard
     Write-EnvFile
@@ -250,7 +250,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrWhiteSpace($envStatus)) {
         Write-Host "  Status: $envStatus"
         if ($envStatus -eq "Succeeded") {
-            Write-Host "  ✓ Container Apps environment is ready"
+            Write-Host "  $([char]0x2713) Container Apps environment is ready"
         }
     }
     else {
@@ -263,10 +263,10 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrWhiteSpace($acrStatus)) {
         Write-Host "  Status: $acrStatus"
         if ($acrStatus -eq "Succeeded") {
-            Write-Host "  ✓ ACR is ready"
+            Write-Host "  $([char]0x2713) ACR is ready"
             az acr repository show --name $acrName --image $containerImage 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "  ✓ Container image: $containerImage"
+                Write-Host "  $([char]0x2713) Container image: $containerImage"
             }
             else {
                 Write-Host "  Container image not found"
@@ -284,17 +284,17 @@ function Check-DeploymentStatus {
         Write-Host "  Status: $appStatus"
         $hasIdentity = az containerapp identity show --resource-group $rg --name $containerAppName --query "principalId" -o tsv 2>$null
         if (-not [string]::IsNullOrWhiteSpace($hasIdentity)) {
-            Write-Host "  ✓ System-assigned identity configured"
+            Write-Host "  $([char]0x2713) System-assigned identity configured"
         }
         else {
-            Write-Host "  ⚠ No system-assigned identity"
+            Write-Host "  $([char]0x26A0) No system-assigned identity"
         }
         $fqdn = az containerapp show --resource-group $rg --name $containerAppName --query "properties.configuration.ingress.fqdn" -o tsv 2>$null
         if (-not [string]::IsNullOrWhiteSpace($fqdn)) {
-            Write-Host "  ✓ Ingress FQDN: $fqdn"
+            Write-Host "  $([char]0x2713) Ingress FQDN: $fqdn"
         }
         else {
-            Write-Host "  ⚠ Ingress not enabled (no FQDN)"
+            Write-Host "  $([char]0x26A0) Ingress not enabled (no FQDN)"
         }
         $replicaCount = az containerapp replica list --resource-group $rg --name $containerAppName --query "length([])" -o tsv 2>$null
         if ([string]::IsNullOrWhiteSpace($replicaCount)) { $replicaCount = "0" }

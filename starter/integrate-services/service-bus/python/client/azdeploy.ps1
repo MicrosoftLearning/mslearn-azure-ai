@@ -51,10 +51,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -70,7 +70,7 @@ function Create-ServiceBusNamespace {
             --sku Standard 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Service Bus namespace created: $namespaceName"
+            Write-Host "$([char]0x2713) Service Bus namespace created: $namespaceName"
         }
         else {
             Write-Host "Error: Failed to create Service Bus namespace"
@@ -78,7 +78,7 @@ function Create-ServiceBusNamespace {
         }
     }
     else {
-        Write-Host "✓ Service Bus namespace already exists: $namespaceName"
+        Write-Host "$([char]0x2713) Service Bus namespace already exists: $namespaceName"
     }
 
     Write-Host ""
@@ -113,7 +113,7 @@ function Create-MessagingEntities {
             --enable-dead-lettering-on-message-expiration true 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Queue created: inference-requests"
+            Write-Host "$([char]0x2713) Queue created: inference-requests"
         }
         else {
             Write-Host "Error: Failed to create queue"
@@ -121,7 +121,7 @@ function Create-MessagingEntities {
         }
     }
     else {
-        Write-Host "✓ Queue already exists: inference-requests"
+        Write-Host "$([char]0x2713) Queue already exists: inference-requests"
     }
 
     # Create topic
@@ -133,7 +133,7 @@ function Create-MessagingEntities {
             --resource-group $rg 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Topic created: inference-results"
+            Write-Host "$([char]0x2713) Topic created: inference-results"
         }
         else {
             Write-Host "Error: Failed to create topic"
@@ -141,7 +141,7 @@ function Create-MessagingEntities {
         }
     }
     else {
-        Write-Host "✓ Topic already exists: inference-results"
+        Write-Host "$([char]0x2713) Topic already exists: inference-results"
     }
 
     # Create notifications subscription (receives all messages)
@@ -154,7 +154,7 @@ function Create-MessagingEntities {
             --resource-group $rg 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Subscription created: notifications"
+            Write-Host "$([char]0x2713) Subscription created: notifications"
         }
         else {
             Write-Host "Error: Failed to create notifications subscription"
@@ -162,7 +162,7 @@ function Create-MessagingEntities {
         }
     }
     else {
-        Write-Host "✓ Subscription already exists: notifications"
+        Write-Host "$([char]0x2713) Subscription already exists: notifications"
     }
 
     # Create high-priority subscription (filtered)
@@ -175,7 +175,7 @@ function Create-MessagingEntities {
             --resource-group $rg 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Subscription created: high-priority"
+            Write-Host "$([char]0x2713) Subscription created: high-priority"
         }
         else {
             Write-Host "Error: Failed to create high-priority subscription"
@@ -183,7 +183,7 @@ function Create-MessagingEntities {
         }
     }
     else {
-        Write-Host "✓ Subscription already exists: high-priority"
+        Write-Host "$([char]0x2713) Subscription already exists: high-priority"
     }
 
     # Configure SQL filter on high-priority subscription
@@ -207,7 +207,7 @@ function Create-MessagingEntities {
             --filter-sql-expression "priority = 'high'" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ SQL filter created: high-priority-filter (priority = 'high')"
+            Write-Host "$([char]0x2713) SQL filter created: high-priority-filter (priority = 'high')"
         }
         else {
             Write-Host "Error: Failed to create SQL filter"
@@ -215,7 +215,7 @@ function Create-MessagingEntities {
         }
     }
     else {
-        Write-Host "✓ SQL filter already exists: high-priority-filter"
+        Write-Host "$([char]0x2713) SQL filter already exists: high-priority-filter"
     }
 
     Write-Host ""
@@ -258,7 +258,7 @@ function Assign-Role {
         --query "[0].id" -o tsv 2>$null
 
     if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-        Write-Host "✓ Azure Service Bus Data Owner role already assigned"
+        Write-Host "$([char]0x2713) Azure Service Bus Data Owner role already assigned"
     }
     else {
         az role assignment create `
@@ -267,7 +267,7 @@ function Assign-Role {
             --scope "$nsId" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Azure Service Bus Data Owner role assigned"
+            Write-Host "$([char]0x2713) Azure Service Bus Data Owner role assigned"
         }
         else {
             Write-Host "Error: Failed to assign Azure Service Bus Data Owner role"
@@ -293,7 +293,7 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $nsStatus"
         if ($nsStatus -eq "Succeeded") {
-            Write-Host "  ✓ Namespace is ready"
+            Write-Host "  $([char]0x2713) Namespace is ready"
             $nsSku = az servicebus namespace show --resource-group $rg --name $namespaceName --query "sku.name" -o tsv 2>$null
             Write-Host "  SKU: $nsSku"
             $nsEndpoint = az servicebus namespace show --resource-group $rg --name $namespaceName --query "serviceBusEndpoint" -o tsv 2>$null
@@ -310,10 +310,10 @@ function Check-DeploymentStatus {
                 --query "[0].id" -o tsv 2>$null
 
             if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-                Write-Host "  ✓ Role assigned: $userUpn (Azure Service Bus Data Owner)"
+                Write-Host "  $([char]0x2713) Role assigned: $userUpn (Azure Service Bus Data Owner)"
             }
             else {
-                Write-Host "  ⚠ Role not assigned"
+                Write-Host "  $([char]0x26A0) Role not assigned"
             }
 
             # Check messaging entities
@@ -322,46 +322,46 @@ function Check-DeploymentStatus {
 
             $queueExists = az servicebus queue show --name inference-requests --namespace-name $namespaceName --resource-group $rg --query "name" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($queueExists)) {
-                Write-Host "  ✓ Queue: inference-requests"
+                Write-Host "  $([char]0x2713) Queue: inference-requests"
             }
             else {
-                Write-Host "  ⚠ Queue not created: inference-requests"
+                Write-Host "  $([char]0x26A0) Queue not created: inference-requests"
             }
 
             $topicExists = az servicebus topic show --name inference-results --namespace-name $namespaceName --resource-group $rg --query "name" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($topicExists)) {
-                Write-Host "  ✓ Topic: inference-results"
+                Write-Host "  $([char]0x2713) Topic: inference-results"
 
                 $notifExists = az servicebus topic subscription show --name notifications --topic-name inference-results --namespace-name $namespaceName --resource-group $rg --query "name" -o tsv 2>$null
                 if (-not [string]::IsNullOrWhiteSpace($notifExists)) {
-                    Write-Host "  ✓ Subscription: notifications"
+                    Write-Host "  $([char]0x2713) Subscription: notifications"
                 }
                 else {
-                    Write-Host "  ⚠ Subscription not created: notifications"
+                    Write-Host "  $([char]0x26A0) Subscription not created: notifications"
                 }
 
                 $hpExists = az servicebus topic subscription show --name high-priority --topic-name inference-results --namespace-name $namespaceName --resource-group $rg --query "name" -o tsv 2>$null
                 if (-not [string]::IsNullOrWhiteSpace($hpExists)) {
-                    Write-Host "  ✓ Subscription: high-priority"
+                    Write-Host "  $([char]0x2713) Subscription: high-priority"
 
                     $filterExists = az servicebus topic subscription rule show --name high-priority-filter --subscription-name high-priority --topic-name inference-results --namespace-name $namespaceName --resource-group $rg --query "name" -o tsv 2>$null
                     if (-not [string]::IsNullOrWhiteSpace($filterExists)) {
-                        Write-Host "  ✓ SQL filter: high-priority-filter"
+                        Write-Host "  $([char]0x2713) SQL filter: high-priority-filter"
                     }
                     else {
-                        Write-Host "  ⚠ SQL filter not created: high-priority-filter"
+                        Write-Host "  $([char]0x26A0) SQL filter not created: high-priority-filter"
                     }
                 }
                 else {
-                    Write-Host "  ⚠ Subscription not created: high-priority"
+                    Write-Host "  $([char]0x26A0) Subscription not created: high-priority"
                 }
             }
             else {
-                Write-Host "  ⚠ Topic not created: inference-results"
+                Write-Host "  $([char]0x26A0) Topic not created: inference-results"
             }
         }
         else {
-            Write-Host "  ⚠ Namespace is still provisioning. Please wait and try again."
+            Write-Host "  $([char]0x26A0) Namespace is still provisioning. Please wait and try again."
         }
     }
 }

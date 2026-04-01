@@ -75,7 +75,7 @@ function Provision-FoundryResources {
         }
     }
     else {
-        Write-Host "✓ Resource group already exists"
+        Write-Host "$([char]0x2713) Resource group already exists"
     }
 
     # Create Foundry resource (AIServices kind)
@@ -98,12 +98,12 @@ function Provision-FoundryResources {
             Write-Host "Error details: $createResult" -ForegroundColor Red
             return $false
         }
-        Write-Host "✓ Foundry resource created"
+        Write-Host "$([char]0x2713) Foundry resource created"
         Write-Host "Waiting for resource to be fully ready..."
         Start-Sleep -Seconds 10
     }
     else {
-        Write-Host "✓ Foundry resource already exists"
+        Write-Host "$([char]0x2713) Foundry resource already exists"
     }
 
     # Retrieve endpoint and key for the resource
@@ -123,7 +123,7 @@ function Provision-FoundryResources {
         Write-Host "Error: Failed to retrieve endpoint or key."
         return $false
     }
-    Write-Host "✓ Credentials retrieved successfully"
+    Write-Host "$([char]0x2713) Credentials retrieved successfully"
 
     # Deploy gpt-4o-mini model
     Write-Host ""
@@ -142,10 +142,10 @@ function Provision-FoundryResources {
         Write-Host "Error: Failed to deploy model."
         return $false
     }
-    Write-Host "✓ Model deployed successfully"
+    Write-Host "$([char]0x2713) Model deployed successfully"
 
     Write-Host ""
-    Write-Host "✓ Foundry provisioning complete!"
+    Write-Host "$([char]0x2713) Foundry provisioning complete!"
     Write-Host ""
     Write-Host "Foundry Resource Details:"
     Write-Host "  Resource: $foundryResource"
@@ -255,7 +255,7 @@ function Create-AKSCluster {
         $minutes = [math]::Floor($duration.TotalMinutes)
         $seconds = $duration.Seconds
 
-        Write-Host "✓ AKS cluster creation completed: $aksCluster"
+        Write-Host "$([char]0x2713) AKS cluster creation completed: $aksCluster"
         Write-Host "  Deployment time: ${minutes}m ${seconds}s"
     }
     else {
@@ -281,7 +281,7 @@ function Deploy-ToAKS {
         Write-Host "Error: Failed to get AKS credentials."
         return $false
     }
-    Write-Host "✓ AKS credentials configured"
+    Write-Host "$([char]0x2713) AKS credentials configured"
     Write-Host ""
 
     # Get Foundry credentials
@@ -294,7 +294,7 @@ function Deploy-ToAKS {
         Write-Host "Error: Could not retrieve Foundry credentials."
         return $false
     }
-    Write-Host "✓ Foundry credentials retrieved"
+    Write-Host "$([char]0x2713) Foundry credentials retrieved"
     Write-Host ""
 
     # Create or update the foundry-credentials secret
@@ -310,7 +310,7 @@ function Deploy-ToAKS {
         Write-Host "Details: $secretOutput"
         return $false
     }
-    Write-Host "✓ Foundry credentials secret created"
+    Write-Host "$([char]0x2713) Foundry credentials secret created"
     Write-Host ""
 
     # Update the deployment.yaml with the correct ACR endpoint
@@ -324,7 +324,7 @@ function Deploy-ToAKS {
         return $false
     }
 
-    Write-Host "✓ Deployment manifest updated with ACR endpoint: $acrName.azurecr.io"
+    Write-Host "$([char]0x2713) Deployment manifest updated with ACR endpoint: $acrName.azurecr.io"
 
     # Apply the service manifest
     kubectl apply -f k8s/service.yaml -n default 2>&1 | Out-Null
@@ -334,7 +334,7 @@ function Deploy-ToAKS {
         return $false
     }
 
-    Write-Host "✓ Service manifest applied"
+    Write-Host "$([char]0x2713) Service manifest applied"
     Write-Host ""
 
     # Wait for LoadBalancer service to get external IP
@@ -358,7 +358,7 @@ function Deploy-ToAKS {
         return $false
     }
 
-    Write-Host "✓ External IP obtained: $externalIp"
+    Write-Host "$([char]0x2713) External IP obtained: $externalIp"
     Write-Host ""
 
     # Update client/.env with the API endpoint
@@ -367,7 +367,7 @@ function Deploy-ToAKS {
 # API Endpoint for AKS-deployed service
 API_ENDPOINT=http://$externalIp
 "@ | Out-File -FilePath client/.env -Encoding utf8
-    Write-Host "✓ client/.env updated"
+    Write-Host "$([char]0x2713) client/.env updated"
     Write-Host ""
     Write-Host "=========================================="
     Write-Host "Deployment completed successfully!"
@@ -410,7 +410,7 @@ function Delete-FoundryResource {
         return $false
     }
 
-    Write-Host "✓ Resource deleted"
+    Write-Host "$([char]0x2713) Resource deleted"
     Write-Host ""
     Write-Host "Purging resource to free up the name..."
     $purgeOutput = az cognitiveservices account purge `
@@ -424,7 +424,7 @@ function Delete-FoundryResource {
         return $false
     }
 
-    Write-Host "✓ Resource purged"
+    Write-Host "$([char]0x2713) Resource purged"
     Write-Host "The Foundry resource has been deleted and purged."
 
     return $true
@@ -442,7 +442,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrEmpty($foundryDeploymentStatus)) {
         Write-Host "  Status: $foundryDeploymentStatus"
         if ($foundryDeploymentStatus -eq "Succeeded") {
-            Write-Host "  ✓ Model deployed and ready"
+            Write-Host "  $([char]0x2713) Model deployed and ready"
         }
     }
     else {
@@ -467,7 +467,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrEmpty($aksStatus)) {
         Write-Host "  Status: $aksStatus"
         if ($aksStatus -eq "Succeeded") {
-            Write-Host "  ✓ AKS cluster is ready for deployment"
+            Write-Host "  $([char]0x2713) AKS cluster is ready for deployment"
         }
     }
     else {

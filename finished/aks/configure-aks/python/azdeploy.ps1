@@ -150,7 +150,7 @@ function Create-AKSCluster {
         $minutes = [math]::Floor($duration.TotalMinutes)
         $seconds = $duration.Seconds
 
-        Write-Host "✓ AKS cluster creation completed: $aksCluster"
+        Write-Host "$([char]0x2713) AKS cluster creation completed: $aksCluster"
         Write-Host "  Deployment time: ${minutes}m ${seconds}s"
 
         # Assign Storage Account Contributor role to kubelet identity for Azure Files support
@@ -164,7 +164,7 @@ function Create-AKSCluster {
             --assignee $kubeletId `
             --scope "/subscriptions/$subscriptionId/resourceGroups/$nodeRg" 2>&1 | Out-Null
 
-        Write-Host "✓ Storage permissions configured"
+        Write-Host "$([char]0x2713) Storage permissions configured"
     }
     else {
         Write-Host "AKS cluster already exists: $aksCluster"
@@ -188,7 +188,7 @@ function Get-AKSCredentials {
         Write-Host "Error: Failed to get AKS credentials."
         return $false
     }
-    Write-Host "✓ AKS credentials configured"
+    Write-Host "$([char]0x2713) AKS credentials configured"
     Write-Host ""
     Write-Host "You can now use kubectl to interact with your AKS cluster."
     Write-Host ""
@@ -213,7 +213,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrEmpty($acrStatus)) {
         Write-Host "  Status: $acrStatus"
         if ($acrStatus -eq "Succeeded") {
-            Write-Host "  ✓ ACR is ready"
+            Write-Host "  $([char]0x2713) ACR is ready"
         }
     }
     else {
@@ -227,7 +227,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrEmpty($aksStatus)) {
         Write-Host "  Status: $aksStatus"
         if ($aksStatus -eq "Succeeded") {
-            Write-Host "  ✓ AKS cluster is ready for deployment"
+            Write-Host "  $([char]0x2713) AKS cluster is ready for deployment"
         }
     }
     else {
@@ -243,7 +243,7 @@ function Check-DeploymentStatus {
         # Check ConfigMap
         $configMapStatus = kubectl get configmap api-config -n default -o jsonpath='{.metadata.name}' 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  ConfigMap: ✓ Created"
+            Write-Host "  ConfigMap: $([char]0x2713) Created"
         } else {
             Write-Host "  ConfigMap: Not created"
         }
@@ -251,7 +251,7 @@ function Check-DeploymentStatus {
         # Check Secret
         $secretStatus = kubectl get secret api-secrets -n default -o jsonpath='{.metadata.name}' 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  Secrets: ✓ Created"
+            Write-Host "  Secrets: $([char]0x2713) Created"
         } else {
             Write-Host "  Secrets: Not created"
         }
@@ -267,7 +267,7 @@ function Check-DeploymentStatus {
         # Check Deployment
         $deploymentStatus = kubectl get deployment aks-config-api -n default -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>&1
         if ($deploymentStatus -eq "True") {
-            Write-Host "  Deployment: ✓ Available"
+            Write-Host "  Deployment: $([char]0x2713) Available"
         } else {
             Write-Host "  Deployment: Not available"
         }
@@ -275,7 +275,7 @@ function Check-DeploymentStatus {
         # Check Service
         $serviceIp = kubectl get svc aks-config-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>&1
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty($serviceIp)) {
-            Write-Host "  Service: ✓ Exposed at $serviceIp"
+            Write-Host "  Service: $([char]0x2713) Exposed at $serviceIp"
         } else {
             Write-Host "  Service: LoadBalancer IP pending or not created"
         }
