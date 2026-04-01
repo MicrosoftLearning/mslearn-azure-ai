@@ -56,10 +56,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -76,7 +76,7 @@ function Create-AcrAndBuildImage {
             --admin-enabled false 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ ACR created: $acrName"
+            Write-Host "$([char]0x2713) ACR created: $acrName"
             Write-Host "  Login server: $acrName.azurecr.io"
         }
         else {
@@ -85,7 +85,7 @@ function Create-AcrAndBuildImage {
         }
     }
     else {
-        Write-Host "✓ ACR already exists: $acrName"
+        Write-Host "$([char]0x2713) ACR already exists: $acrName"
         Write-Host "  Login server: $acrName.azurecr.io"
     }
 
@@ -101,7 +101,7 @@ function Create-AcrAndBuildImage {
         api/ 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Image built and pushed: $acrName.azurecr.io/$containerImage"
+        Write-Host "$([char]0x2713) Image built and pushed: $acrName.azurecr.io/$containerImage"
     }
     else {
         Write-Host "Error: Failed to build/push image"
@@ -121,7 +121,7 @@ function Create-ContainerAppsEnvironment {
             --location $location 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Container Apps environment created: $acaEnv"
+            Write-Host "$([char]0x2713) Container Apps environment created: $acaEnv"
         }
         else {
             Write-Host "Error: Failed to create Container Apps environment"
@@ -129,7 +129,7 @@ function Create-ContainerAppsEnvironment {
         }
     }
     else {
-        Write-Host "✓ Container Apps environment already exists: $acaEnv"
+        Write-Host "$([char]0x2713) Container Apps environment already exists: $acaEnv"
     }
 }
 
@@ -197,7 +197,7 @@ function Deploy-ContainerAppAndConfigureSecrets {
             --registry-identity system 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Container App created: $containerAppName"
+            Write-Host "$([char]0x2713) Container App created: $containerAppName"
         }
         else {
             Write-Host "Error: Failed to create Container App"
@@ -205,7 +205,7 @@ function Deploy-ContainerAppAndConfigureSecrets {
         }
     }
     else {
-        Write-Host "✓ Container App already exists: $containerAppName"
+        Write-Host "$([char]0x2713) Container App already exists: $containerAppName"
     }
 
     # Configure secrets
@@ -228,7 +228,7 @@ function Deploy-ContainerAppAndConfigureSecrets {
         --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Container App updated with secret reference"
+        Write-Host "$([char]0x2713) Container App updated with secret reference"
     }
     else {
         Write-Host "Error: Failed to update Container App configuration"
@@ -250,10 +250,10 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrWhiteSpace($acrStatus)) {
         Write-Host "  Status: $acrStatus"
         if ($acrStatus -eq "Succeeded") {
-            Write-Host "  ✓ ACR is ready"
+            Write-Host "  $([char]0x2713) ACR is ready"
             az acr repository show --name $acrName --image $containerImage 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "  ✓ Container image: $containerImage"
+                Write-Host "  $([char]0x2713) Container image: $containerImage"
             }
             else {
                 Write-Host "  Container image not found"
@@ -270,7 +270,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrWhiteSpace($envStatus)) {
         Write-Host "  Status: $envStatus"
         if ($envStatus -eq "Succeeded") {
-            Write-Host "  ✓ Container Apps environment is ready"
+            Write-Host "  $([char]0x2713) Container Apps environment is ready"
         }
     }
     else {
@@ -284,7 +284,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrWhiteSpace($appStatus)) {
         Write-Host "  Status: $appStatus"
         if ($appStatus -eq "Succeeded") {
-            Write-Host "  ✓ Container App is deployed"
+            Write-Host "  $([char]0x2713) Container App is deployed"
         }
     }
     else {

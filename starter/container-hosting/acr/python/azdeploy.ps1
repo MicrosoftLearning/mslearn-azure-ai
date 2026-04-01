@@ -36,10 +36,10 @@ Write-Host "Creating resource group '$rg'..."
 $exists = az group exists --name $rg
 if ($exists -eq "false") {
     az group create --name $rg --location $location --output none
-    Write-Host "✓ Resource group created: $rg"
+    Write-Host "$([char]0x2713) Resource group created: $rg"
 }
 else {
-    Write-Host "✓ Resource group already exists: $rg"
+    Write-Host "$([char]0x2713) Resource group already exists: $rg"
 }
 Write-Host ""
 
@@ -52,7 +52,7 @@ az acr create `
     --output none
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ ACR created: $acrName"
+    Write-Host "$([char]0x2713) ACR created: $acrName"
     Write-Host "  Login server: $acrName.azurecr.io"
 }
 else {

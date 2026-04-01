@@ -54,10 +54,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -73,7 +73,7 @@ function Create-AppConfiguration {
             --sku Standard 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ App Configuration store created: $appconfigName"
+            Write-Host "$([char]0x2713) App Configuration store created: $appconfigName"
         }
         else {
             Write-Host "Error: Failed to create App Configuration store"
@@ -81,7 +81,7 @@ function Create-AppConfiguration {
         }
     }
     else {
-        Write-Host "✓ App Configuration store already exists: $appconfigName"
+        Write-Host "$([char]0x2713) App Configuration store already exists: $appconfigName"
     }
 
     Write-Host ""
@@ -99,7 +99,7 @@ function Create-KeyVault {
             Write-Host "  Recovering soft-deleted Key Vault '$kvName'..."
             az keyvault recover --name $kvName 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✓ Key Vault recovered: $kvName"
+                Write-Host "$([char]0x2713) Key Vault recovered: $kvName"
             }
             else {
                 Write-Host "Error: Failed to recover soft-deleted Key Vault."
@@ -115,7 +115,7 @@ function Create-KeyVault {
                 --enable-rbac-authorization true 2>&1 | Out-Null
 
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✓ Key Vault created: $kvName"
+                Write-Host "$([char]0x2713) Key Vault created: $kvName"
             }
             else {
                 Write-Host "Error: Failed to create Key Vault"
@@ -124,7 +124,7 @@ function Create-KeyVault {
         }
     }
     else {
-        Write-Host "✓ Key Vault already exists: $kvName"
+        Write-Host "$([char]0x2713) Key Vault already exists: $kvName"
     }
 
     Write-Host ""
@@ -160,7 +160,7 @@ function Assign-Roles {
         --query "[0].id" -o tsv 2>$null
 
     if (-not [string]::IsNullOrWhiteSpace($acRoleExists)) {
-        Write-Host "✓ App Configuration Data Owner role already assigned"
+        Write-Host "$([char]0x2713) App Configuration Data Owner role already assigned"
     }
     else {
         az role assignment create `
@@ -169,7 +169,7 @@ function Assign-Roles {
             --scope "$acId" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ App Configuration Data Owner role assigned"
+            Write-Host "$([char]0x2713) App Configuration Data Owner role assigned"
         }
         else {
             Write-Host "Error: Failed to assign App Configuration Data Owner role"
@@ -194,7 +194,7 @@ function Assign-Roles {
         --query "[0].id" -o tsv 2>$null
 
     if (-not [string]::IsNullOrWhiteSpace($kvRoleExists)) {
-        Write-Host "✓ Key Vault Secrets Officer role already assigned"
+        Write-Host "$([char]0x2713) Key Vault Secrets Officer role already assigned"
     }
     else {
         az role assignment create `
@@ -203,7 +203,7 @@ function Assign-Roles {
             --scope "$kvId" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Key Vault Secrets Officer role assigned"
+            Write-Host "$([char]0x2713) Key Vault Secrets Officer role assigned"
         }
         else {
             Write-Host "Error: Failed to assign Key Vault Secrets Officer role"
@@ -251,33 +251,33 @@ function Store-Settings {
     # Store default (unlabeled) configuration settings
     az appconfig kv set --name $appconfigName --key "OpenAI:Endpoint" `
         --value "https://my-openai.openai.azure.com/" --yes 2>&1 | Out-Null
-    Write-Host "✓ Setting stored: OpenAI:Endpoint (no label)"
+    Write-Host "$([char]0x2713) Setting stored: OpenAI:Endpoint (no label)"
 
     az appconfig kv set --name $appconfigName --key "OpenAI:DeploymentName" `
         --value "gpt-4o" --yes 2>&1 | Out-Null
-    Write-Host "✓ Setting stored: OpenAI:DeploymentName (no label)"
+    Write-Host "$([char]0x2713) Setting stored: OpenAI:DeploymentName (no label)"
 
     az appconfig kv set --name $appconfigName --key "Pipeline:BatchSize" `
         --value "10" --yes 2>&1 | Out-Null
-    Write-Host "✓ Setting stored: Pipeline:BatchSize = 10 (no label)"
+    Write-Host "$([char]0x2713) Setting stored: Pipeline:BatchSize = 10 (no label)"
 
     az appconfig kv set --name $appconfigName --key "Pipeline:RetryCount" `
         --value "3" --yes 2>&1 | Out-Null
-    Write-Host "✓ Setting stored: Pipeline:RetryCount = 3 (no label)"
+    Write-Host "$([char]0x2713) Setting stored: Pipeline:RetryCount = 3 (no label)"
 
     # Store Production-labeled overrides
     az appconfig kv set --name $appconfigName --key "Pipeline:BatchSize" `
         --value "200" --label "Production" --yes 2>&1 | Out-Null
-    Write-Host "✓ Setting stored: Pipeline:BatchSize = 200 (Production)"
+    Write-Host "$([char]0x2713) Setting stored: Pipeline:BatchSize = 200 (Production)"
 
     az appconfig kv set --name $appconfigName --key "Pipeline:RetryCount" `
         --value "5" --label "Production" --yes 2>&1 | Out-Null
-    Write-Host "✓ Setting stored: Pipeline:RetryCount = 5 (Production)"
+    Write-Host "$([char]0x2713) Setting stored: Pipeline:RetryCount = 5 (Production)"
 
     # Store sentinel key for dynamic refresh
     az appconfig kv set --name $appconfigName --key "Sentinel" `
         --value "1" --yes 2>&1 | Out-Null
-    Write-Host "✓ Setting stored: Sentinel = 1"
+    Write-Host "$([char]0x2713) Setting stored: Sentinel = 1"
 
     # Store secret in Key Vault
     az keyvault secret set `
@@ -287,7 +287,7 @@ function Store-Settings {
         --content-type "application/x-api-key" 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Secret stored in Key Vault: openai-api-key"
+        Write-Host "$([char]0x2713) Secret stored in Key Vault: openai-api-key"
     }
     else {
         Write-Host "Error: Failed to store openai-api-key secret in Key Vault"
@@ -304,7 +304,7 @@ function Store-Settings {
         --yes 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Key Vault reference created: OpenAI:ApiKey → openai-api-key"
+        Write-Host "$([char]0x2713) Key Vault reference created: OpenAI:ApiKey → openai-api-key"
     }
     else {
         Write-Host "Error: Failed to create Key Vault reference"
@@ -329,7 +329,7 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $acStatus"
         if ($acStatus -eq "Succeeded") {
-            Write-Host "  ✓ App Configuration store is ready"
+            Write-Host "  $([char]0x2713) App Configuration store is ready"
             $acEndpoint = az appconfig show --resource-group $rg --name $appconfigName --query "endpoint" -o tsv 2>$null
             Write-Host "  Endpoint: $acEndpoint"
 
@@ -339,23 +339,23 @@ function Check-DeploymentStatus {
 
             $settingCount = az appconfig kv list --name $appconfigName --query "length(@)" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($settingCount) -and [int]$settingCount -gt 0) {
-                Write-Host "  ✓ $settingCount setting(s) stored"
+                Write-Host "  $([char]0x2713) $settingCount setting(s) stored"
             }
             else {
-                Write-Host "  ⚠ No settings stored"
+                Write-Host "  $([char]0x26A0) No settings stored"
             }
 
             # Check Key Vault reference
             $kvRef = az appconfig kv list --name $appconfigName --key "OpenAI:ApiKey" --query "[0].contentType" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($kvRef)) {
-                Write-Host "  ✓ Key Vault reference: OpenAI:ApiKey"
+                Write-Host "  $([char]0x2713) Key Vault reference: OpenAI:ApiKey"
             }
             else {
-                Write-Host "  ⚠ Key Vault reference not found: OpenAI:ApiKey"
+                Write-Host "  $([char]0x26A0) Key Vault reference not found: OpenAI:ApiKey"
             }
         }
         else {
-            Write-Host "  ⚠ App Configuration store is still provisioning. Please wait and try again."
+            Write-Host "  $([char]0x26A0) App Configuration store is still provisioning. Please wait and try again."
         }
     }
 
@@ -371,7 +371,7 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $kvStatus"
         if ($kvStatus -eq "Succeeded") {
-            Write-Host "  ✓ Key Vault is ready"
+            Write-Host "  $([char]0x2713) Key Vault is ready"
             $kvUri = az keyvault show --resource-group $rg --name $kvName --query "properties.vaultUri" -o tsv 2>$null
             Write-Host "  Vault URI: $kvUri"
 
@@ -380,14 +380,14 @@ function Check-DeploymentStatus {
             Write-Host "  Secrets:"
             $apiKeyExists = az keyvault secret show --vault-name $kvName --name "openai-api-key" --query "name" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($apiKeyExists)) {
-                Write-Host "  ✓ Secret stored: openai-api-key"
+                Write-Host "  $([char]0x2713) Secret stored: openai-api-key"
             }
             else {
-                Write-Host "  ⚠ Secret not stored: openai-api-key"
+                Write-Host "  $([char]0x26A0) Secret not stored: openai-api-key"
             }
         }
         else {
-            Write-Host "  ⚠ Key Vault is still provisioning. Please wait and try again."
+            Write-Host "  $([char]0x26A0) Key Vault is still provisioning. Please wait and try again."
         }
     }
 
@@ -405,10 +405,10 @@ function Check-DeploymentStatus {
             --query "[0].id" -o tsv 2>$null
 
         if (-not [string]::IsNullOrWhiteSpace($acRoleExists)) {
-            Write-Host "  ✓ Role assigned: $userUpn (App Configuration Data Owner)"
+            Write-Host "  $([char]0x2713) Role assigned: $userUpn (App Configuration Data Owner)"
         }
         else {
-            Write-Host "  ⚠ App Configuration Data Owner role not assigned"
+            Write-Host "  $([char]0x26A0) App Configuration Data Owner role not assigned"
         }
     }
 
@@ -421,10 +421,10 @@ function Check-DeploymentStatus {
             --query "[0].id" -o tsv 2>$null
 
         if (-not [string]::IsNullOrWhiteSpace($kvRoleExists)) {
-            Write-Host "  ✓ Role assigned: $userUpn (Key Vault Secrets Officer)"
+            Write-Host "  $([char]0x2713) Role assigned: $userUpn (Key Vault Secrets Officer)"
         }
         else {
-            Write-Host "  ⚠ Key Vault Secrets Officer role not assigned"
+            Write-Host "  $([char]0x26A0) Key Vault Secrets Officer role not assigned"
         }
     }
 }

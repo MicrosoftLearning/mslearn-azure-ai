@@ -58,10 +58,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -77,7 +77,7 @@ function Create-NamespaceAndTopic {
             --sku "{name:standard,capacity:1}" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Event Grid namespace created: $namespaceName"
+            Write-Host "$([char]0x2713) Event Grid namespace created: $namespaceName"
         }
         else {
             Write-Host "Error: Failed to create Event Grid namespace"
@@ -85,7 +85,7 @@ function Create-NamespaceAndTopic {
         }
     }
     else {
-        Write-Host "✓ Event Grid namespace already exists: $namespaceName"
+        Write-Host "$([char]0x2713) Event Grid namespace already exists: $namespaceName"
     }
 
     Write-Host ""
@@ -102,7 +102,7 @@ function Create-NamespaceAndTopic {
             --input-schema CloudEventSchemaV1_0 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Namespace topic created: $topicName"
+            Write-Host "$([char]0x2713) Namespace topic created: $topicName"
         }
         else {
             Write-Host "Error: Failed to create namespace topic"
@@ -110,7 +110,7 @@ function Create-NamespaceAndTopic {
         }
     }
     else {
-        Write-Host "✓ Namespace topic already exists: $topicName"
+        Write-Host "$([char]0x2713) Namespace topic already exists: $topicName"
     }
 }
 
@@ -146,7 +146,7 @@ function Create-EventSubscriptions {
             --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentFlagged']}" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Subscription created: $subFlagged (ContentFlagged events only)"
+            Write-Host "$([char]0x2713) Subscription created: $subFlagged (ContentFlagged events only)"
         }
         else {
             Write-Host "Error: Failed to create subscription '$subFlagged'"
@@ -154,7 +154,7 @@ function Create-EventSubscriptions {
         }
     }
     else {
-        Write-Host "✓ Subscription already exists: $subFlagged"
+        Write-Host "$([char]0x2713) Subscription already exists: $subFlagged"
     }
 
     # Subscription for approved content only
@@ -170,7 +170,7 @@ function Create-EventSubscriptions {
             --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentApproved']}" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Subscription created: $subApproved (ContentApproved events only)"
+            Write-Host "$([char]0x2713) Subscription created: $subApproved (ContentApproved events only)"
         }
         else {
             Write-Host "Error: Failed to create subscription '$subApproved'"
@@ -178,7 +178,7 @@ function Create-EventSubscriptions {
         }
     }
     else {
-        Write-Host "✓ Subscription already exists: $subApproved"
+        Write-Host "$([char]0x2713) Subscription already exists: $subApproved"
     }
 
     # Subscription for all events (no filter — audit log)
@@ -193,7 +193,7 @@ function Create-EventSubscriptions {
             --event-delivery-schema CloudEventSchemaV1_0 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Subscription created: $subAll (all events — audit log)"
+            Write-Host "$([char]0x2713) Subscription created: $subAll (all events — audit log)"
         }
         else {
             Write-Host "Error: Failed to create subscription '$subAll'"
@@ -201,7 +201,7 @@ function Create-EventSubscriptions {
         }
     }
     else {
-        Write-Host "✓ Subscription already exists: $subAll"
+        Write-Host "$([char]0x2713) Subscription already exists: $subAll"
     }
 }
 
@@ -234,7 +234,7 @@ function Assign-Roles {
         --query "[0].id" -o tsv 2>$null
 
     if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-        Write-Host "✓ EventGrid Data Sender role already assigned"
+        Write-Host "$([char]0x2713) EventGrid Data Sender role already assigned"
     }
     else {
         az role assignment create `
@@ -243,7 +243,7 @@ function Assign-Roles {
             --scope "$nsId" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ EventGrid Data Sender role assigned"
+            Write-Host "$([char]0x2713) EventGrid Data Sender role assigned"
         }
         else {
             Write-Host "Error: Failed to assign EventGrid Data Sender role"
@@ -259,7 +259,7 @@ function Assign-Roles {
         --query "[0].id" -o tsv 2>$null
 
     if (-not [string]::IsNullOrWhiteSpace($roleExists)) {
-        Write-Host "✓ EventGrid Data Receiver role already assigned"
+        Write-Host "$([char]0x2713) EventGrid Data Receiver role already assigned"
     }
     else {
         az role assignment create `
@@ -268,7 +268,7 @@ function Assign-Roles {
             --scope "$nsId" 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ EventGrid Data Receiver role assigned"
+            Write-Host "$([char]0x2713) EventGrid Data Receiver role assigned"
         }
         else {
             Write-Host "Error: Failed to assign EventGrid Data Receiver role"
@@ -357,17 +357,17 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $nsStatus"
         if ($nsStatus -eq "Succeeded") {
-            Write-Host "  ✓ Namespace is ready"
+            Write-Host "  $([char]0x2713) Namespace is ready"
             $nsSku = az eventgrid namespace show --resource-group $rg --name $namespaceName --query "sku.name" -o tsv 2>$null
             Write-Host "  SKU: $nsSku"
 
             # Check namespace topic
             $topicStatus = az eventgrid namespace topic show --resource-group $rg --namespace-name $namespaceName --name $topicName --query "provisioningState" -o tsv 2>$null
             if (-not [string]::IsNullOrWhiteSpace($topicStatus)) {
-                Write-Host "  ✓ Topic: $topicName ($topicStatus)"
+                Write-Host "  $([char]0x2713) Topic: $topicName ($topicStatus)"
             }
             else {
-                Write-Host "  ⚠ Topic not created: $topicName"
+                Write-Host "  $([char]0x26A0) Topic not created: $topicName"
             }
 
             # Check roles
@@ -381,10 +381,10 @@ function Check-DeploymentStatus {
                 --query "[0].id" -o tsv 2>$null
 
             if (-not [string]::IsNullOrWhiteSpace($senderRole)) {
-                Write-Host "  ✓ Role assigned: $userUpn (EventGrid Data Sender)"
+                Write-Host "  $([char]0x2713) Role assigned: $userUpn (EventGrid Data Sender)"
             }
             else {
-                Write-Host "  ⚠ EventGrid Data Sender role not assigned"
+                Write-Host "  $([char]0x26A0) EventGrid Data Sender role not assigned"
             }
 
             $receiverRole = az role assignment list `
@@ -394,14 +394,14 @@ function Check-DeploymentStatus {
                 --query "[0].id" -o tsv 2>$null
 
             if (-not [string]::IsNullOrWhiteSpace($receiverRole)) {
-                Write-Host "  ✓ Role assigned: $userUpn (EventGrid Data Receiver)"
+                Write-Host "  $([char]0x2713) Role assigned: $userUpn (EventGrid Data Receiver)"
             }
             else {
-                Write-Host "  ⚠ EventGrid Data Receiver role not assigned"
+                Write-Host "  $([char]0x26A0) EventGrid Data Receiver role not assigned"
             }
         }
         else {
-            Write-Host "  ⚠ Namespace is still provisioning. Please wait and try again."
+            Write-Host "  $([char]0x26A0) Namespace is still provisioning. Please wait and try again."
         }
     }
 
@@ -412,10 +412,10 @@ function Check-DeploymentStatus {
     foreach ($sub in @($subFlagged, $subApproved, $subAll)) {
         $subStatus = az eventgrid namespace topic event-subscription show --resource-group $rg --namespace-name $namespaceName --topic-name $topicName --name $sub --query "provisioningState" -o tsv 2>$null
         if (-not [string]::IsNullOrWhiteSpace($subStatus)) {
-            Write-Host "  ✓ $sub ($subStatus)"
+            Write-Host "  $([char]0x2713) $sub ($subStatus)"
         }
         else {
-            Write-Host "  ⚠ ${sub}: Not created"
+            Write-Host "  $([char]0x26A0) ${sub}: Not created"
         }
     }
 }

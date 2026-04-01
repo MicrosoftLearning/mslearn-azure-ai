@@ -31,10 +31,10 @@ function Create-ResourceGroup {
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
         az group create --name $rg --location $location 2>&1 | Out-Null
-        Write-Host "✓ Resource group created: $rg"
+        Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
-        Write-Host "✓ Resource group already exists: $rg"
+        Write-Host "$([char]0x2713) Resource group already exists: $rg"
     }
 }
 
@@ -58,7 +58,7 @@ function Create-PostgresServer {
             --password-auth Disabled 2>&1 | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ PostgreSQL server created successfully"
+            Write-Host "$([char]0x2713) PostgreSQL server created successfully"
 
             # Allow-list the vector extension
             Write-Host "Configuring vector extension..."
@@ -69,7 +69,7 @@ function Create-PostgresServer {
                 --value vector 2>&1 | Out-Null
 
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✓ Vector extension allowed"
+                Write-Host "$([char]0x2713) Vector extension allowed"
             }
 
             Write-Host "  Use option 2 to configure Microsoft Entra administrator."
@@ -80,7 +80,7 @@ function Create-PostgresServer {
         }
     }
     else {
-        Write-Host "✓ PostgreSQL server already exists: $serverName"
+        Write-Host "$([char]0x2713) PostgreSQL server already exists: $serverName"
     }
 }
 
@@ -121,7 +121,7 @@ function Configure-EntraAdmin {
         --object-id "$script:userObjectId" 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ Microsoft Entra administrator configured: $userUpn"
+        Write-Host "$([char]0x2713) Microsoft Entra administrator configured: $userUpn"
     }
     else {
         Write-Host "Error: Failed to configure Entra administrator"
@@ -143,16 +143,16 @@ function Check-DeploymentStatus {
     else {
         Write-Host "  Status: $state"
         if ($state -eq "Ready") {
-            Write-Host "  ✓ PostgreSQL server is ready"
+            Write-Host "  $([char]0x2713) PostgreSQL server is ready"
         }
 
         # Check Entra admin configuration
         $adminName = (az postgres flexible-server microsoft-entra-admin list --resource-group $rg --server-name $serverName --query "[0].principalName" -o tsv 2>$null)
         if (-not [string]::IsNullOrWhiteSpace($adminName)) {
-            Write-Host "  ✓ Entra administrator: $adminName"
+            Write-Host "  $([char]0x2713) Entra administrator: $adminName"
         }
         else {
-            Write-Host "  ⚠ Entra administrator not configured"
+            Write-Host "  $([char]0x26A0) Entra administrator not configured"
         }
     }
 }

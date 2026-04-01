@@ -90,7 +90,7 @@ function Create-ACR {
         $content = $content -replace 'image:.*', "image: $imageUrl"
         Set-Content -Path $_.FullName -Value $content -NoNewline
     }
-    Write-Host "✓ Deployment YAML files updated"
+    Write-Host "$([char]0x2713) Deployment YAML files updated"
 
     return $true
 }
@@ -160,7 +160,7 @@ function Create-AKSCluster {
         $minutes = [math]::Floor($duration.TotalMinutes)
         $seconds = $duration.Seconds
 
-        Write-Host "✓ AKS cluster creation completed: $aksCluster"
+        Write-Host "$([char]0x2713) AKS cluster creation completed: $aksCluster"
         Write-Host "  Deployment time: ${minutes}m ${seconds}s"
     }
     else {
@@ -185,7 +185,7 @@ function Get-AKSCredentials {
         Write-Host "Error: Failed to get AKS credentials."
         return $false
     }
-    Write-Host "✓ AKS credentials configured"
+    Write-Host "$([char]0x2713) AKS credentials configured"
     Write-Host ""
     Write-Host "You can now use kubectl to interact with your AKS cluster."
     Write-Host ""
@@ -218,7 +218,7 @@ function Deploy-ToAKS {
     kubectl rollout status deployment/api-deployment -n aks-troubleshoot --timeout=120s
 
     Write-Host ""
-    Write-Host "✓ Application deployed successfully!"
+    Write-Host "$([char]0x2713) Application deployed successfully!"
     Write-Host ""
     Write-Host "To test the application:"
     Write-Host "  kubectl port-forward service/api-service 8080:80 -n aks-troubleshoot"
@@ -238,7 +238,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrEmpty($acrStatus)) {
         Write-Host "  Status: $acrStatus"
         if ($acrStatus -eq "Succeeded") {
-            Write-Host "  ✓ ACR is ready"
+            Write-Host "  $([char]0x2713) ACR is ready"
         }
     }
     else {
@@ -252,7 +252,7 @@ function Check-DeploymentStatus {
     if (-not [string]::IsNullOrEmpty($aksStatus)) {
         Write-Host "  Status: $aksStatus"
         if ($aksStatus -eq "Succeeded") {
-            Write-Host "  ✓ AKS cluster is ready"
+            Write-Host "  $([char]0x2713) AKS cluster is ready"
         }
     }
     else {
@@ -268,7 +268,7 @@ function Check-DeploymentStatus {
         # Check namespace
         $nsStatus = kubectl get namespace aks-troubleshoot -o jsonpath='{.status.phase}' 2>&1
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty($nsStatus)) {
-            Write-Host "  Namespace: ✓ $nsStatus"
+            Write-Host "  Namespace: $([char]0x2713) $nsStatus"
         } else {
             Write-Host "  Namespace: Not created"
         }
