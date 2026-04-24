@@ -50,7 +50,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -67,7 +67,7 @@ function Create-KeyVault {
         $softDeleted = az keyvault show-deleted --name $kvName --query "name" -o tsv 2>$null
         if (-not [string]::IsNullOrWhiteSpace($softDeleted)) {
             Write-Host "  Recovering soft-deleted Key Vault '$kvName'..."
-            az keyvault recover --name $kvName 2>&1 | Out-Null
+            az keyvault recover --name $kvName 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "$([char]0x2713) Key Vault recovered: $kvName"
             }
@@ -82,7 +82,7 @@ function Create-KeyVault {
                 --name $kvName `
                 --resource-group $rg `
                 --location $location `
-                --enable-rbac-authorization true 2>&1 | Out-Null
+                --enable-rbac-authorization true 2>$null | Out-Null
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "$([char]0x2713) Key Vault created: $kvName"
@@ -143,7 +143,7 @@ function Assign-Role {
         az role assignment create `
             --role "Key Vault Secrets Officer" `
             --assignee "$userObjectId" `
-            --scope "$kvId" 2>&1 | Out-Null
+            --scope "$kvId" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Key Vault Secrets Officer role assigned"
@@ -182,7 +182,7 @@ function Store-Secrets {
         --name "openai-api-key" `
         --value "sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx" `
         --content-type "application/x-api-key" `
-        --tags environment=development service=openai 2>&1 | Out-Null
+        --tags environment=development service=openai 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Secret stored: openai-api-key"
@@ -198,7 +198,7 @@ function Store-Secrets {
         --name "cosmosdb-connection-string" `
         --value "AccountEndpoint=https://mycosmosdb.documents.azure.com:443/;AccountKey=abc123def456ghi789==" `
         --content-type "application/x-connection-string" `
-        --tags environment=development service=cosmosdb 2>&1 | Out-Null
+        --tags environment=development service=cosmosdb 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Secret stored: cosmosdb-connection-string"

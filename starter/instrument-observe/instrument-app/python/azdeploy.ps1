@@ -49,7 +49,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -65,7 +65,7 @@ function Create-ApplicationInsights {
         az monitor app-insights component create `
             --resource-group $rg `
             --app $appinsightsName `
-            --location $location 2>&1 | Out-Null
+            --location $location 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Application Insights created: $appinsightsName"
@@ -119,7 +119,7 @@ function Assign-Role {
         az role assignment create `
             --role "Monitoring Metrics Publisher" `
             --assignee "$userObjectId" `
-            --scope "$appiId" 2>&1 | Out-Null
+            --scope "$appiId" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Monitoring Metrics Publisher role assigned"

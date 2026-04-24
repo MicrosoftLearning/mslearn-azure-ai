@@ -53,7 +53,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -70,7 +70,7 @@ function Create-ServiceBusNamespace {
             --name $namespaceName `
             --resource-group $rg `
             --location $location `
-            --sku Standard 2>&1 | Out-Null
+            --sku Standard 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Service Bus namespace created: $namespaceName"
@@ -113,7 +113,7 @@ function Create-MessagingEntities {
             --namespace-name $namespaceName `
             --resource-group $rg `
             --max-delivery-count 5 `
-            --enable-dead-lettering-on-message-expiration true 2>&1 | Out-Null
+            --enable-dead-lettering-on-message-expiration true 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Queue created: inference-requests"
@@ -133,7 +133,7 @@ function Create-MessagingEntities {
         az servicebus topic create `
             --name inference-results `
             --namespace-name $namespaceName `
-            --resource-group $rg 2>&1 | Out-Null
+            --resource-group $rg 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Topic created: inference-results"
@@ -154,7 +154,7 @@ function Create-MessagingEntities {
             --name notifications `
             --topic-name inference-results `
             --namespace-name $namespaceName `
-            --resource-group $rg 2>&1 | Out-Null
+            --resource-group $rg 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Subscription created: notifications"
@@ -175,7 +175,7 @@ function Create-MessagingEntities {
             --name high-priority `
             --topic-name inference-results `
             --namespace-name $namespaceName `
-            --resource-group $rg 2>&1 | Out-Null
+            --resource-group $rg 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Subscription created: high-priority"
@@ -198,7 +198,7 @@ function Create-MessagingEntities {
             --subscription-name high-priority `
             --topic-name inference-results `
             --namespace-name $namespaceName `
-            --resource-group $rg 2>&1 | Out-Null
+            --resource-group $rg 2>$null | Out-Null
 
         # Create priority filter
         az servicebus topic subscription rule create `
@@ -207,7 +207,7 @@ function Create-MessagingEntities {
             --topic-name inference-results `
             --namespace-name $namespaceName `
             --resource-group $rg `
-            --filter-sql-expression "priority = 'high'" 2>&1 | Out-Null
+            --filter-sql-expression "priority = 'high'" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) SQL filter created: high-priority-filter (priority = 'high')"
@@ -267,7 +267,7 @@ function Assign-Role {
         az role assignment create `
             --role "Azure Service Bus Data Owner" `
             --assignee "$userObjectId" `
-            --scope "$nsId" 2>&1 | Out-Null
+            --scope "$nsId" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Azure Service Bus Data Owner role assigned"

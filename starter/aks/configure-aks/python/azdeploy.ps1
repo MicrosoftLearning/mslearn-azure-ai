@@ -50,7 +50,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "Resource group created: $rg"
     }
     else {
@@ -70,7 +70,7 @@ function Create-ACR {
             --resource-group $rg `
             --name $acrName `
             --sku Basic `
-            --admin-enabled true 2>&1 | Out-Null
+            --admin-enabled true 2>$null | Out-Null
         Write-Host "ACR created: $acrName"
         Write-Host "ACR endpoint: $acrName.azurecr.io"
     }
@@ -100,7 +100,7 @@ function Build-AndPushImage {
         --registry $acrName `
         --image "${apiImageName}:latest" `
         --file api/Dockerfile `
-        api/ 2>&1 | Out-Null
+        api/ 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Image built and pushed: ${acrServer}/${apiImageName}:latest"
@@ -131,7 +131,7 @@ function Create-AKSCluster {
             --enable-managed-identity `
             --network-plugin azure `
             --generate-ssh-keys `
-            --attach-acr $acrName 2>&1 | Out-Null
+            --attach-acr $acrName 2>$null | Out-Null
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to create AKS cluster."
@@ -140,7 +140,7 @@ function Create-AKSCluster {
 
         # Verify cluster is fully provisioned and nodes are Running
         Write-Host "Waiting for cluster to be fully operational..."
-        az aks wait --resource-group $rg --name $aksCluster --updated 2>&1 | Out-Null
+        az aks wait --resource-group $rg --name $aksCluster --updated 2>$null | Out-Null
 
         $endTime = Get-Date
         $duration = $endTime - $startTime
@@ -159,7 +159,7 @@ function Create-AKSCluster {
         az role assignment create `
             --role "Storage Account Contributor" `
             --assignee $kubeletId `
-            --scope "/subscriptions/$subscriptionId/resourceGroups/$nodeRg" 2>&1 | Out-Null
+            --scope "/subscriptions/$subscriptionId/resourceGroups/$nodeRg" 2>$null | Out-Null
 
         Write-Host "$([char]0x2713) Storage permissions configured"
     }
@@ -179,7 +179,7 @@ function Get-AKSCredentials {
     az aks get-credentials `
         --resource-group $rg `
         --name $aksCluster `
-        --overwrite-existing 2>&1 | Out-Null
+        --overwrite-existing 2>$null | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Failed to get AKS credentials."

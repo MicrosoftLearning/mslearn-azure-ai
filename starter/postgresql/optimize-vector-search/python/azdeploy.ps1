@@ -27,7 +27,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -52,7 +52,7 @@ function Create-PostgresServer {
             --version 16 `
             --public-access 0.0.0.0-255.255.255.255 `
             --microsoft-entra-auth Enabled `
-            --password-auth Disabled 2>&1 | Out-Null
+            --password-auth Disabled 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) PostgreSQL server created successfully"
@@ -63,7 +63,7 @@ function Create-PostgresServer {
                 --resource-group $rg `
                 --server-name $serverName `
                 --name azure.extensions `
-                --value vector 2>&1 | Out-Null
+                --value vector 2>$null | Out-Null
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "$([char]0x2713) Vector extension allowed"
@@ -115,7 +115,7 @@ function Configure-EntraAdmin {
         --resource-group $rg `
         --server-name $serverName `
         --display-name "$userUpn" `
-        --object-id "$script:userObjectId" 2>&1 | Out-Null
+        --object-id "$script:userObjectId" 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Microsoft Entra administrator configured: $userUpn"
