@@ -413,8 +413,7 @@ delete_foundry_resource() {
     echo "Deleting Foundry resource..."
     az cognitiveservices account delete \
         --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --yes > /dev/null 2>&1
+        --resource-group "$rg" > /dev/null 2>&1
 
     if [ $? -ne 0 ]; then
         echo "Error: Failed to delete Foundry resource."
