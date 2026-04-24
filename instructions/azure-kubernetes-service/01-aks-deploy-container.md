@@ -99,7 +99,7 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the image has been built and pushed to ACR, enter **5** to launch the **5. Create AKS cluster** option. This creates the AKS resource configured with a managed identity and gives the service permission to pull images from the ACR resource. This operation can take 5-10 minutes to complete.
 
-1. After the AKS resources has been deployed, enter **6** to launch the **6. Check deployment stats** option. This option reports if each of the three resources have been successfully deployed.
+1. After the AKS resources has been deployed, enter **6** to launch the **6. Check deployment status** option. This option reports if each of the three resources have been successfully deployed.
 
     If all of the services return a **successful** message, enter **8** to exit the deployment script.
 
@@ -205,7 +205,7 @@ In this section you use the deployment script to apply the manifests to AKS.
     ./azdeploy.ps1
     ```
 
-1. Enter **7** to launch the **7. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, creates a Kubernetes secret with your Foundry credentials, updates the deployment manifest with your ACR endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **8** to exit the deployment script.
+1. Enter **7** to launch the **7. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, assigns the **Cognitive Services OpenAI User** role to the AKS kubelet managed identity so the API can authenticate to Foundry using Microsoft Entra ID, updates the deployment manifest with your ACR endpoint and Foundry endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **8** to exit the deployment script.
 
 1. Run the following commands in the terminal to verify the deployment. Expect **kubectl get deploy,svc** to show the Deployment **READY** as **1/1** (or your replica count) and the Service **EXTERNAL-IP** to have a public IP (not **\<pending>**). The rollout command should print **deployment "aks-api" successfully rolled out** when the update is complete.
 

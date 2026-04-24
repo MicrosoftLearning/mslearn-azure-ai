@@ -89,6 +89,7 @@ function Provision-FoundryResources {
             --name $foundryResource `
             --resource-group $rg `
             --location $location `
+            --custom-domain $foundryResource `
             --kind AIServices `
             --sku s0 `
             --yes 2>&1
@@ -106,43 +107,50 @@ function Provision-FoundryResources {
         Write-Host "$([char]0x2713) Foundry resource already exists"
     }
 
-    # Retrieve endpoint and key for the resource
+    # Retrieve endpoint for the resource
     Write-Host ""
-    Write-Host "Retrieving Foundry credentials..."
+    Write-Host "Retrieving Foundry endpoint..."
     $endpoint = az cognitiveservices account show `
         --name $foundryResource `
         --resource-group $rg `
         --query properties.endpoint -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
 
-    $key = az cognitiveservices account keys list `
-        --name $foundryResource `
-        --resource-group $rg `
-        --query key1 -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
-
-    if ([string]::IsNullOrEmpty($endpoint) -or [string]::IsNullOrEmpty($key)) {
-        Write-Host "Error: Failed to retrieve endpoint or key."
+    if ([string]::IsNullOrEmpty($endpoint)) {
+        Write-Host "Error: Failed to retrieve endpoint."
         return $false
     }
-    Write-Host "$([char]0x2713) Credentials retrieved successfully"
+    Write-Host "$([char]0x2713) Endpoint retrieved successfully"
 
     # Deploy gpt-5-mini model
     Write-Host ""
-    Write-Host "Deploying gpt-5-mini model (this may take a few minutes)..."
-    az cognitiveservices account deployment create `
+    Write-Host "Checking for existing gpt-5-mini deployment..."
+    $deploymentExists = az cognitiveservices account deployment show `
         --name $foundryResource `
         --resource-group $rg `
         --deployment-name "gpt-5-mini" `
-        --model-name "gpt-5-mini" `
-        --model-version "2025-08-07" `
-        --model-format "OpenAI" `
-        --sku-capacity "1" `
-        --sku-name "Standard" 2>&1 | Out-Null
+        --query "name" -o tsv 2>$null
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to deploy model."
-        return $false
+    if ([string]::IsNullOrEmpty($deploymentExists)) {
+        Write-Host "Deploying gpt-5-mini model (this may take a few minutes)..."
+        az cognitiveservices account deployment create `
+            --name $foundryResource `
+            --resource-group $rg `
+            --deployment-name "gpt-5-mini" `
+            --model-name "gpt-5-mini" `
+            --model-version "2025-08-07" `
+            --model-format "OpenAI" `
+            --sku-capacity "1" `
+            --sku-name "GlobalStandard" 2>&1 | Out-Null
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to deploy model."
+            return $false
+        }
+        Write-Host "$([char]0x2713) Model deployed successfully"
     }
-    Write-Host "$([char]0x2713) Model deployed successfully"
+    else {
+        Write-Host "$([char]0x2713) gpt-5-mini deployment already exists"
+    }
 
     Write-Host ""
     Write-Host "$([char]0x2713) Foundry provisioning complete!"
@@ -284,39 +292,42 @@ function Deploy-ToAKS {
     Write-Host "$([char]0x2713) AKS credentials configured"
     Write-Host ""
 
-    # Get Foundry credentials
-    Write-Host "Retrieving Foundry credentials..."
+    # Get Foundry endpoint
+    Write-Host "Retrieving Foundry endpoint..."
     $endpoint = az cognitiveservices account show --name $foundryResource --resource-group $rg --query "properties.endpoint" -o tsv 2>$null
 
-    $key = az cognitiveservices account keys list --name $foundryResource --resource-group $rg --query "key1" -o tsv 2>$null
-
-    if ([string]::IsNullOrEmpty($endpoint) -or [string]::IsNullOrEmpty($key)) {
-        Write-Host "Error: Could not retrieve Foundry credentials."
+    if ([string]::IsNullOrEmpty($endpoint)) {
+        Write-Host "Error: Could not retrieve Foundry endpoint."
         return $false
     }
-    Write-Host "$([char]0x2713) Foundry credentials retrieved"
+    Write-Host "$([char]0x2713) Foundry endpoint retrieved"
     Write-Host ""
 
-    # Create or update the foundry-credentials secret
-    Write-Host "Creating Foundry credentials secret in AKS..."
-    kubectl delete secret foundry-credentials -n default 2>$null | Out-Null
-    $secretOutput = kubectl create secret generic foundry-credentials `
-        --from-literal=endpoint="$endpoint" `
-        --from-literal=api-key="$key" `
-        -n default 2>&1
+    # Assign Cognitive Services OpenAI User role to AKS kubelet identity
+    Write-Host "Assigning Cognitive Services OpenAI User role to AKS identity..."
+    $kubeletIdentity = az aks show --name $aksCluster --resource-group $rg --query "identityProfile.kubeletidentity.objectId" -o tsv 2>$null
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to create Foundry credentials secret."
-        Write-Host "Details: $secretOutput"
+    $foundryResourceId = az cognitiveservices account show --name $foundryResource --resource-group $rg --query "id" -o tsv 2>$null
+
+    if ([string]::IsNullOrEmpty($kubeletIdentity) -or [string]::IsNullOrEmpty($foundryResourceId)) {
+        Write-Host "Error: Could not retrieve AKS identity or Foundry resource ID."
         return $false
     }
-    Write-Host "$([char]0x2713) Foundry credentials secret created"
+
+    az role assignment create `
+        --assignee-object-id $kubeletIdentity `
+        --assignee-principal-type ServicePrincipal `
+        --role "Cognitive Services OpenAI User" `
+        --scope $foundryResourceId 2>&1 | Out-Null
+
+    Write-Host "$([char]0x2713) Role assigned to AKS kubelet identity"
     Write-Host ""
 
-    # Update the deployment.yaml with the correct ACR endpoint
+    # Update the deployment.yaml with the correct ACR endpoint and Foundry endpoint
     Write-Host "Deploying Kubernetes manifests..."
     $deploymentContent = Get-Content k8s/deployment.yaml -Raw
     $deploymentContent = $deploymentContent -replace "ACR_ENDPOINT", "$acrName.azurecr.io"
+    $deploymentContent = $deploymentContent -replace "FOUNDRY_ENDPOINT", $endpoint
     $deploymentContent | kubectl apply -f - -n default 2>&1 | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
@@ -324,7 +335,7 @@ function Deploy-ToAKS {
         return $false
     }
 
-    Write-Host "$([char]0x2713) Deployment manifest updated with ACR endpoint: $acrName.azurecr.io"
+    Write-Host "$([char]0x2713) Deployment manifest updated with ACR endpoint: $acrName.azurecr.io and Foundry endpoint"
 
     # Apply the service manifest
     kubectl apply -f k8s/service.yaml -n default 2>&1 | Out-Null
