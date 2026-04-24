@@ -60,7 +60,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -77,7 +77,7 @@ function Create-NamespaceAndTopic {
             --name $namespaceName `
             --resource-group $rg `
             --location $location `
-            --sku "{name:standard,capacity:1}" 2>&1 | Out-Null
+            --sku "{name:standard,capacity:1}" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Event Grid namespace created: $namespaceName"
@@ -102,7 +102,7 @@ function Create-NamespaceAndTopic {
             --resource-group $rg `
             --event-retention-in-days 1 `
             --publisher-type Custom `
-            --input-schema CloudEventSchemaV1_0 2>&1 | Out-Null
+            --input-schema CloudEventSchemaV1_0 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Namespace topic created: $topicName"
@@ -146,7 +146,7 @@ function Create-EventSubscriptions {
             --topic-name $topicName `
             --delivery-configuration "{deliveryMode:Queue,queue:{receiveLockDurationInSeconds:60,maxDeliveryCount:10,eventTimeToLive:P1D}}" `
             --event-delivery-schema CloudEventSchemaV1_0 `
-            --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentFlagged']}" 2>&1 | Out-Null
+            --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentFlagged']}" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Subscription created: $subFlagged (ContentFlagged events only)"
@@ -170,7 +170,7 @@ function Create-EventSubscriptions {
             --topic-name $topicName `
             --delivery-configuration "{deliveryMode:Queue,queue:{receiveLockDurationInSeconds:60,maxDeliveryCount:10,eventTimeToLive:P1D}}" `
             --event-delivery-schema CloudEventSchemaV1_0 `
-            --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentApproved']}" 2>&1 | Out-Null
+            --filters-configuration "{includedEventTypes:['com.contoso.ai.ContentApproved']}" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Subscription created: $subApproved (ContentApproved events only)"
@@ -193,7 +193,7 @@ function Create-EventSubscriptions {
             --resource-group $rg `
             --topic-name $topicName `
             --delivery-configuration "{deliveryMode:Queue,queue:{receiveLockDurationInSeconds:60,maxDeliveryCount:10,eventTimeToLive:P1D}}" `
-            --event-delivery-schema CloudEventSchemaV1_0 2>&1 | Out-Null
+            --event-delivery-schema CloudEventSchemaV1_0 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Subscription created: $subAll (all events — audit log)"
@@ -243,7 +243,7 @@ function Assign-Roles {
         az role assignment create `
             --role "EventGrid Data Sender" `
             --assignee "$userObjectId" `
-            --scope "$nsId" 2>&1 | Out-Null
+            --scope "$nsId" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) EventGrid Data Sender role assigned"
@@ -268,7 +268,7 @@ function Assign-Roles {
         az role assignment create `
             --role "EventGrid Data Receiver" `
             --assignee "$userObjectId" `
-            --scope "$nsId" 2>&1 | Out-Null
+            --scope "$nsId" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) EventGrid Data Receiver role assigned"

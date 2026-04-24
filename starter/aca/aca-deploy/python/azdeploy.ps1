@@ -51,7 +51,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -68,7 +68,7 @@ function Create-AcrAndBuildImage {
             --resource-group $rg `
             --name $acrName `
             --sku Basic `
-            --admin-enabled false 2>&1 | Out-Null
+            --admin-enabled false 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) ACR created: $acrName"
@@ -93,7 +93,7 @@ function Create-AcrAndBuildImage {
         --registry $acrName `
         --image $containerImage `
         --file api/Dockerfile `
-        api/ 2>&1 | Out-Null
+        api/ 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Image built and pushed: $acrName.azurecr.io/$containerImage"
@@ -134,7 +134,7 @@ function Create-ContainerAppsEnvironment {
         az containerapp env create `
             --name $acaEnv `
             --resource-group $rg `
-            --location $location 2>&1 | Out-Null
+            --location $location 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Container Apps environment created: $acaEnv"

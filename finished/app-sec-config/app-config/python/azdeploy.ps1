@@ -56,7 +56,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -73,7 +73,7 @@ function Create-AppConfiguration {
             --name $appconfigName `
             --resource-group $rg `
             --location $location `
-            --sku Standard 2>&1 | Out-Null
+            --sku Standard 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) App Configuration store created: $appconfigName"
@@ -100,7 +100,7 @@ function Create-KeyVault {
         $softDeleted = az keyvault show-deleted --name $kvName --query "name" -o tsv 2>$null
         if (-not [string]::IsNullOrWhiteSpace($softDeleted)) {
             Write-Host "  Recovering soft-deleted Key Vault '$kvName'..."
-            az keyvault recover --name $kvName 2>&1 | Out-Null
+            az keyvault recover --name $kvName 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "$([char]0x2713) Key Vault recovered: $kvName"
             }
@@ -115,7 +115,7 @@ function Create-KeyVault {
                 --name $kvName `
                 --resource-group $rg `
                 --location $location `
-                --enable-rbac-authorization true 2>&1 | Out-Null
+                --enable-rbac-authorization true 2>$null | Out-Null
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "$([char]0x2713) Key Vault created: $kvName"
@@ -169,7 +169,7 @@ function Assign-Roles {
         az role assignment create `
             --role "App Configuration Data Owner" `
             --assignee "$userObjectId" `
-            --scope "$acId" 2>&1 | Out-Null
+            --scope "$acId" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) App Configuration Data Owner role assigned"
@@ -203,7 +203,7 @@ function Assign-Roles {
         az role assignment create `
             --role "Key Vault Secrets Officer" `
             --assignee "$userObjectId" `
-            --scope "$kvId" 2>&1 | Out-Null
+            --scope "$kvId" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Key Vault Secrets Officer role assigned"
@@ -253,33 +253,33 @@ function Store-Settings {
 
     # Store default (unlabeled) configuration settings
     az appconfig kv set --name $appconfigName --key "OpenAI:Endpoint" `
-        --value "https://my-openai.openai.azure.com/" --yes 2>&1 | Out-Null
+        --value "https://my-openai.openai.azure.com/" --yes 2>$null | Out-Null
     Write-Host "$([char]0x2713) Setting stored: OpenAI:Endpoint (no label)"
 
     az appconfig kv set --name $appconfigName --key "OpenAI:DeploymentName" `
-        --value "gpt-4o" --yes 2>&1 | Out-Null
+        --value "gpt-4o" --yes 2>$null | Out-Null
     Write-Host "$([char]0x2713) Setting stored: OpenAI:DeploymentName (no label)"
 
     az appconfig kv set --name $appconfigName --key "Pipeline:BatchSize" `
-        --value "10" --yes 2>&1 | Out-Null
+        --value "10" --yes 2>$null | Out-Null
     Write-Host "$([char]0x2713) Setting stored: Pipeline:BatchSize = 10 (no label)"
 
     az appconfig kv set --name $appconfigName --key "Pipeline:RetryCount" `
-        --value "3" --yes 2>&1 | Out-Null
+        --value "3" --yes 2>$null | Out-Null
     Write-Host "$([char]0x2713) Setting stored: Pipeline:RetryCount = 3 (no label)"
 
     # Store Production-labeled overrides
     az appconfig kv set --name $appconfigName --key "Pipeline:BatchSize" `
-        --value "200" --label "Production" --yes 2>&1 | Out-Null
+        --value "200" --label "Production" --yes 2>$null | Out-Null
     Write-Host "$([char]0x2713) Setting stored: Pipeline:BatchSize = 200 (Production)"
 
     az appconfig kv set --name $appconfigName --key "Pipeline:RetryCount" `
-        --value "5" --label "Production" --yes 2>&1 | Out-Null
+        --value "5" --label "Production" --yes 2>$null | Out-Null
     Write-Host "$([char]0x2713) Setting stored: Pipeline:RetryCount = 5 (Production)"
 
     # Store sentinel key for dynamic refresh
     az appconfig kv set --name $appconfigName --key "Sentinel" `
-        --value "1" --yes 2>&1 | Out-Null
+        --value "1" --yes 2>$null | Out-Null
     Write-Host "$([char]0x2713) Setting stored: Sentinel = 1"
 
     # Store secret in Key Vault
@@ -287,7 +287,7 @@ function Store-Settings {
         --vault-name $kvName `
         --name "openai-api-key" `
         --value "sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx" `
-        --content-type "application/x-api-key" 2>&1 | Out-Null
+        --content-type "application/x-api-key" 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Secret stored in Key Vault: openai-api-key"
@@ -304,7 +304,7 @@ function Store-Settings {
         --name $appconfigName `
         --key "OpenAI:ApiKey" `
         --secret-identifier "$secretUri" `
-        --yes 2>&1 | Out-Null
+        --yes 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Key Vault reference created: OpenAI:ApiKey → openai-api-key"

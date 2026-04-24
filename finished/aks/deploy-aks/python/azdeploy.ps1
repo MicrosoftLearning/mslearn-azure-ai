@@ -68,7 +68,7 @@ function Provision-FoundryResources {
     $rgExists = az group exists --name $rg
     if ($rgExists -eq "false") {
         Write-Host "Creating resource group: $rg in $location"
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to create resource group." -ForegroundColor Red
             return $false
@@ -140,7 +140,7 @@ function Provision-FoundryResources {
             --model-version "2025-08-07" `
             --model-format "OpenAI" `
             --sku-capacity "1" `
-            --sku-name "GlobalStandard" 2>&1 | Out-Null
+            --sku-name "GlobalStandard" 2>$null | Out-Null
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to deploy model."
@@ -168,7 +168,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "Resource group created: $rg"
     }
     else {
@@ -188,7 +188,7 @@ function Create-ACR {
             --resource-group $rg `
             --name $acrName `
             --sku Basic `
-            --admin-enabled true 2>&1 | Out-Null
+            --admin-enabled true 2>$null | Out-Null
         Write-Host "ACR created: $acrName"
     }
     else {
@@ -216,7 +216,7 @@ function Build-AndPushImage {
         --registry $acrName `
         --image "${apiImageName}:latest" `
         --file api/Dockerfile `
-        api/ 2>&1 | Out-Null
+        api/ 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Image built and pushed: ${acrServer}/${apiImageName}:latest"
@@ -247,7 +247,7 @@ function Create-AKSCluster {
             --enable-managed-identity `
             --network-plugin azure `
             --generate-ssh-keys `
-            --attach-acr $acrName 2>&1 | Out-Null
+            --attach-acr $acrName 2>$null | Out-Null
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to create AKS cluster."
@@ -256,7 +256,7 @@ function Create-AKSCluster {
 
         # Verify cluster is fully provisioned and nodes are Running
         Write-Host "Waiting for cluster to be fully operational..."
-        az aks wait --resource-group $rg --name $aksCluster --updated 2>&1 | Out-Null
+        az aks wait --resource-group $rg --name $aksCluster --updated 2>$null | Out-Null
 
         $endTime = Get-Date
         $duration = $endTime - $startTime
@@ -283,7 +283,7 @@ function Deploy-ToAKS {
     az aks get-credentials `
         --resource-group $rg `
         --name $aksCluster `
-        --overwrite-existing 2>&1 | Out-Null
+        --overwrite-existing 2>$null | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Failed to get AKS credentials."
@@ -318,7 +318,7 @@ function Deploy-ToAKS {
         --assignee-object-id $kubeletIdentity `
         --assignee-principal-type ServicePrincipal `
         --role "Cognitive Services OpenAI User" `
-        --scope $foundryResourceId 2>&1 | Out-Null
+        --scope $foundryResourceId 2>$null | Out-Null
 
     Write-Host "$([char]0x2713) Role assigned to AKS kubelet identity"
     Write-Host ""
@@ -328,7 +328,7 @@ function Deploy-ToAKS {
     $deploymentContent = Get-Content k8s/deployment.yaml -Raw
     $deploymentContent = $deploymentContent -replace "ACR_ENDPOINT", "$acrName.azurecr.io"
     $deploymentContent = $deploymentContent -replace "FOUNDRY_ENDPOINT", $endpoint
-    $deploymentContent | kubectl apply -f - -n default 2>&1 | Out-Null
+    $deploymentContent | kubectl apply -f - -n default 2>$null | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Failed to apply deployment manifest."
@@ -338,7 +338,7 @@ function Deploy-ToAKS {
     Write-Host "$([char]0x2713) Deployment manifest updated with ACR endpoint: $acrName.azurecr.io and Foundry endpoint"
 
     # Apply the service manifest
-    kubectl apply -f k8s/service.yaml -n default 2>&1 | Out-Null
+    kubectl apply -f k8s/service.yaml -n default 2>$null | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Failed to apply service manifest."

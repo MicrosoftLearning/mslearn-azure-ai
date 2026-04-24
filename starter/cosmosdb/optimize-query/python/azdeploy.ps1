@@ -28,7 +28,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -51,7 +51,7 @@ function Create-CosmosDBAccount {
             --name $accountName `
             --locations regionName=$location `
             --capabilities EnableServerless EnableNoSQLVectorSearch `
-            --default-consistency-level Session 2>&1 | Out-Null
+            --default-consistency-level Session 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Cosmos DB account created with vector search capability"
@@ -72,7 +72,7 @@ function Create-CosmosDBAccount {
         az cosmosdb sql database create `
             --resource-group $rg `
             --account-name $accountName `
-            --name $databaseName 2>&1 | Out-Null
+            --name $databaseName 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Database created: $databaseName"
@@ -134,7 +134,7 @@ function Configure-EntraAccess {
         az role assignment create `
             --assignee $script:userObjectId `
             --scope $accountId `
-            --role "Contributor" 2>&1 | Out-Null
+            --role "Contributor" 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Azure RBAC Contributor role assigned"
@@ -167,7 +167,7 @@ function Configure-EntraAccess {
             --account-name $accountName `
             --role-definition-name "$cosmosRoleName" `
             --principal-id $script:userObjectId `
-            --scope $accountId 2>&1 | Out-Null
+            --scope $accountId 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Cosmos DB Data Contributor role assigned"

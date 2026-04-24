@@ -55,7 +55,7 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>&1 | Out-Null
+        az group create --name $rg --location $location 2>$null | Out-Null
         Write-Host "$([char]0x2713) Resource group created: $rg"
     }
     else {
@@ -73,7 +73,7 @@ function Create-AcrAndBuildImage {
             --resource-group $rg `
             --name $acrName `
             --sku Basic `
-            --admin-enabled false 2>&1 | Out-Null
+            --admin-enabled false 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) ACR created: $acrName"
@@ -98,7 +98,7 @@ function Create-AcrAndBuildImage {
         --registry $acrName `
         --image $containerImage `
         --file api/Dockerfile `
-        api/ 2>&1 | Out-Null
+        api/ 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Image built and pushed: $acrName.azurecr.io/$containerImage"
@@ -118,7 +118,7 @@ function Create-ContainerAppsEnvironment {
         az containerapp env create `
             --name $acaEnv `
             --resource-group $rg `
-            --location $location 2>&1 | Out-Null
+            --location $location 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Container Apps environment created: $acaEnv"
@@ -194,7 +194,7 @@ function Deploy-ContainerAppAndConfigureSecrets {
             --target-port 8000 `
             --env-vars MODEL_NAME=gpt-4o-mini `
             --registry-server "$acrName.azurecr.io" `
-            --registry-identity system 2>&1 | Out-Null
+            --registry-identity system 2>$null | Out-Null
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "$([char]0x2713) Container App created: $containerAppName"
@@ -213,7 +213,7 @@ function Deploy-ContainerAppAndConfigureSecrets {
     az containerapp secret set `
         --name $containerAppName `
         --resource-group $rg `
-        --secrets embeddings-api-key=demo-key-12345 2>&1 | Out-Null
+        --secrets embeddings-api-key=demo-key-12345 2>$null | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Failed to set secrets on Container App"
@@ -225,7 +225,7 @@ function Deploy-ContainerAppAndConfigureSecrets {
     az containerapp update `
         --name $containerAppName `
         --resource-group $rg `
-        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key 2>&1 | Out-Null
+        --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key 2>$null | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Container App updated with secret reference"
