@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service  # Service: exposes pods on a network and provides load balancing
+metadata:
+  name: aks-api-service  # Unique name for the service
+  labels:
+    app: aks-api # Matches deployment and pod labels
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "false"  # Use public load balancer
+spec:  # Service specification
+  type: LoadBalancer  # Exposes service externally
+  selector:  # Selects which pods to route traffic to based on labels
+    app: aks-api
+    version: v1
+  ports:  # Port mappings between service and pods
+  - name: http
+    port: 80  # Service port exposed externally
+    targetPort: http  # Pod container port to forward traffic to
+    protocol: TCP
+  sessionAffinity: None  # Client requests not pinned to specific pods

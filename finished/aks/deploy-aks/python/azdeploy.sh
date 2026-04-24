@@ -38,7 +38,7 @@ show_menu() {
     echo "ACR Name: $acr_name"
     echo "AKS Cluster: $aks_cluster"
     echo "====================================================================="
-    echo "1. Provision gpt-4o-mini model in Microsoft Foundry"
+    echo "1. Provision gpt-5-mini model in Microsoft Foundry"
     echo "2. Delete/Purge Foundry deployment"
     echo "3. Create Azure Container Registry (ACR)"
     echo "4. Build and push API image to ACR"
@@ -49,9 +49,9 @@ show_menu() {
     echo "====================================================================="
 }
 
-# Function to provision Microsoft Foundry project and deploy gpt-4o-mini model using Azure CLI
+# Function to provision Microsoft Foundry project and deploy gpt-5-mini model using Azure CLI
 provision_foundry_resources() {
-    echo "Provisioning Microsoft Foundry project with gpt-4o-mini model..."
+    echo "Provisioning Microsoft Foundry project with gpt-5-mini model..."
     echo ""
 
     # Check if we're authenticated with Azure
@@ -97,6 +97,7 @@ provision_foundry_resources() {
             --name "$foundry_resource" \
             --resource-group "$rg" \
             --location "$location" \
+            --custom-domain "$foundry_resource" \
             --kind AIServices \
             --sku s0 \
             --yes > /dev/null 2>&1
@@ -110,43 +111,49 @@ provision_foundry_resources() {
         echo "✓ Foundry resource already exists"
     fi
 
-    # Retrieve endpoint and key for the resource
+    # Retrieve endpoint for the resource
     echo ""
-    echo "Retrieving Foundry credentials..."
+    echo "Retrieving Foundry endpoint..."
     local endpoint=$(az cognitiveservices account show \
         --name "$foundry_resource" \
         --resource-group "$rg" \
         --query properties.endpoint -o tsv)
 
-    local key=$(az cognitiveservices account keys list \
-        --name "$foundry_resource" \
-        --resource-group "$rg" \
-        --query key1 -o tsv)
-
-    if [ -z "$endpoint" ] || [ -z "$key" ]; then
-        echo "Error: Failed to retrieve endpoint or key."
+    if [ -z "$endpoint" ]; then
+        echo "Error: Failed to retrieve endpoint."
         return 1
     fi
-    echo "✓ Credentials retrieved successfully"
+    echo "✓ Endpoint retrieved successfully"
 
-    # Deploy gpt-4o-mini model
+    # Deploy gpt-5-mini model
     echo ""
-    echo "Deploying gpt-4o-mini model (this may take a few minutes)..."
-    az cognitiveservices account deployment create \
+    echo "Checking for existing gpt-5-mini deployment..."
+    local deployment_exists=$(az cognitiveservices account deployment show \
         --name "$foundry_resource" \
         --resource-group "$rg" \
-        --deployment-name "gpt-4o-mini" \
-        --model-name "gpt-4o-mini" \
-        --model-version "2024-07-18" \
-        --model-format "OpenAI" \
-        --sku-capacity "1" \
-        --sku-name "Standard" > /dev/null 2>&1
+        --deployment-name "gpt-5-mini" \
+        --query "name" -o tsv 2>/dev/null)
 
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to deploy model."
-        return 1
+    if [ -z "$deployment_exists" ]; then
+        echo "Deploying gpt-5-mini model (this may take a few minutes)..."
+        az cognitiveservices account deployment create \
+            --name "$foundry_resource" \
+            --resource-group "$rg" \
+            --deployment-name "gpt-5-mini" \
+            --model-name "gpt-5-mini" \
+            --model-version "2025-08-07" \
+            --model-format "OpenAI" \
+            --sku-capacity "1" \
+            --sku-name "GlobalStandard" > /dev/null 2>&1
+
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to deploy model."
+            return 1
+        fi
+        echo "✓ Model deployed successfully"
+    else
+        echo "✓ gpt-5-mini deployment already exists"
     fi
-    echo "✓ Model deployed successfully"
 
     echo ""
     echo "✓ Foundry provisioning complete!"
@@ -275,51 +282,58 @@ deploy_to_aks() {
     echo "✓ AKS credentials configured"
     echo ""
 
-    # Get Foundry credentials
-    echo "Retrieving Foundry credentials..."
+    # Get Foundry endpoint
+    echo "Retrieving Foundry endpoint..."
     local endpoint=$(az cognitiveservices account show \
         --name "$foundry_resource" \
         --resource-group "$rg" \
         --query "properties.endpoint" -o tsv 2>/dev/null)
 
-    local key=$(az cognitiveservices account keys list \
+    if [ -z "$endpoint" ]; then
+        echo "Error: Could not retrieve Foundry endpoint."
+        return 1
+    fi
+    echo "✓ Foundry endpoint retrieved"
+    echo ""
+
+    # Assign Cognitive Services OpenAI User role to AKS kubelet identity
+    echo "Assigning Cognitive Services OpenAI User role to AKS identity..."
+    local kubelet_identity=$(az aks show \
+        --name "$aks_cluster" \
+        --resource-group "$rg" \
+        --query "identityProfile.kubeletidentity.objectId" -o tsv 2>/dev/null)
+
+    local foundry_resource_id=$(az cognitiveservices account show \
         --name "$foundry_resource" \
         --resource-group "$rg" \
-        --query "key1" -o tsv 2>/dev/null)
+        --query "id" -o tsv 2>/dev/null)
 
-    if [ -z "$endpoint" ] || [ -z "$key" ]; then
-        echo "Error: Could not retrieve Foundry credentials."
+    if [ -z "$kubelet_identity" ] || [ -z "$foundry_resource_id" ]; then
+        echo "Error: Could not retrieve AKS identity or Foundry resource ID."
         return 1
     fi
-    echo "✓ Foundry credentials retrieved"
+
+    az role assignment create \
+        --assignee-object-id "$kubelet_identity" \
+        --assignee-principal-type ServicePrincipal \
+        --role "Cognitive Services OpenAI User" \
+        --scope "$foundry_resource_id" > /dev/null 2>&1
+
+    echo "✓ Role assigned to AKS kubelet identity"
     echo ""
 
-    # Create or update the foundry-credentials secret
-    echo "Creating Foundry credentials secret in AKS..."
-    kubectl delete secret foundry-credentials -n default > /dev/null 2>&1
-    local secret_output=$(kubectl create secret generic foundry-credentials \
-        --from-literal=endpoint="$endpoint" \
-        --from-literal=api-key="$key" \
-        -n default 2>&1)
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to create Foundry credentials secret."
-        echo "Details: $secret_output"
-        return 1
-    fi
-    echo "✓ Foundry credentials secret created"
-    echo ""
-
-    # Update the deployment.yaml with the correct ACR endpoint
+    # Update the deployment.yaml with the correct ACR endpoint and Foundry endpoint
     echo "Deploying Kubernetes manifests..."
-    sed "s|ACR_ENDPOINT|${acr_name}.azurecr.io|g" k8s/deployment.yaml | kubectl apply -f - -n default 2>&1 > /dev/null
+    sed -e "s|ACR_ENDPOINT|${acr_name}.azurecr.io|g" \
+        -e "s|FOUNDRY_ENDPOINT|${endpoint}|g" \
+        k8s/deployment.yaml | kubectl apply -f - -n default 2>&1 > /dev/null
 
     if [ $? -ne 0 ]; then
         echo "Error: Failed to apply deployment manifest."
         return 1
     fi
 
-    echo "✓ Deployment manifest updated with ACR endpoint: ${acr_name}.azurecr.io"
+    echo "✓ Deployment manifest updated with ACR endpoint: ${acr_name}.azurecr.io and Foundry endpoint"
 
     # Apply the service manifest
     kubectl apply -f k8s/service.yaml -n default 2>&1 > /dev/null
@@ -430,11 +444,11 @@ check_deployment_status() {
     echo ""
 
     # Check Foundry model deployment
-    echo "Foundry Model Deployment (gpt-4o-mini):"
+    echo "Foundry Model Deployment (gpt-5-mini):"
     foundry_deployment_status=$(az cognitiveservices account deployment show \
         --name "$foundry_resource" \
         --resource-group "$rg" \
-        --deployment-name "gpt-4o-mini" \
+        --deployment-name "gpt-5-mini" \
         --query "properties.provisioningState" -o tsv 2>/dev/null)
 
     if [ ! -z "$foundry_deployment_status" ]; then

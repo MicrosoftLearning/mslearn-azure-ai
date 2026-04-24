@@ -1,7 +1,7 @@
 """
 FastAPI application for AKS deployment with Foundry model integration.
 
-This API acts as a gateway between clients and the gpt-4o-mini model hosted in Microsoft Foundry.
+This API acts as a gateway between clients and the gpt-5-mini model hosted in Microsoft Foundry.
 
 Endpoints:
 - GET /healthz - Liveness probe
@@ -18,6 +18,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 import httpx
 from dotenv import load_dotenv
+from openai import AzureOpenAI
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 # Load environment variables
 load_dotenv()
@@ -29,15 +31,32 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="AKS Foundry Gateway API",
-    description="Gateway API for gpt-4o-mini inference via Microsoft Foundry",
+    description="Gateway API for gpt-5-mini inference via Microsoft Foundry",
     version="1.0.0"
 )
 
-# Load Foundry credentials from environment
+# Load Foundry configuration from environment
 FOUNDRY_ENDPOINT = os.getenv("OPENAI_API_ENDPOINT")
-FOUNDRY_KEY = os.getenv("OPENAI_API_KEY")
 FOUNDRY_DEPLOYMENT = os.getenv("OPENAI_DEPLOYMENT_NAME")
 FOUNDRY_API_VERSION = os.getenv("OPENAI_API_VERSION")
+
+# Initialize Entra ID credential and Azure OpenAI client
+token_provider = get_bearer_token_provider(
+    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+)
+
+def get_openai_client() -> AzureOpenAI:
+    """
+    Create an AzureOpenAI client authenticated via Entra ID.
+
+    Returns:
+        AzureOpenAI: Configured client instance
+    """
+    return AzureOpenAI(
+        api_version=FOUNDRY_API_VERSION,
+        azure_endpoint=FOUNDRY_ENDPOINT,
+        azure_ad_token_provider=token_provider,
+    )
 
 def validate_configuration() -> bool:
     """
@@ -48,9 +67,6 @@ def validate_configuration() -> bool:
     """
     if not FOUNDRY_ENDPOINT:
         logger.error("OPENAI_API_ENDPOINT environment variable not set")
-        return False
-    if not FOUNDRY_KEY:
-        logger.error("OPENAI_API_KEY environment variable not set")
         return False
     logger.info(f"Configuration validated. Endpoint: {FOUNDRY_ENDPOINT}")
     return True
@@ -97,7 +113,7 @@ async def synchronous_inference(request: Request):
 
     Expected request body:
     {
-        "deployment": "gpt-4o-mini",
+        "deployment": "gpt-5-mini",
         "inputs": {
             "prompt": "Your prompt here",
             ...
@@ -145,7 +161,7 @@ async def streaming_inference(request: Request):
 
     Expected request body:
     {
-        "deployment": "gpt-4o-mini",
+        "deployment": "gpt-5-mini",
         "inputs": {...},
         "parameters": {...},
         "user": "anon|contoso:alice"
@@ -171,31 +187,22 @@ async def streaming_inference(request: Request):
 
     async def event_generator():
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                headers = prepare_foundry_headers()
-                payload = {
-                    "model": FOUNDRY_DEPLOYMENT,
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": parameters.get("temperature", 0.7),
-                    "max_tokens": parameters.get("max_tokens", 1024),
-                    "top_p": parameters.get("top_p", 1.0),
-                    "stream": True
-                }
-
-                url = f"{FOUNDRY_ENDPOINT}/openai/deployments/{FOUNDRY_DEPLOYMENT}/chat/completions?api-version={FOUNDRY_API_VERSION}"
-
-                async with client.stream("POST", url, json=payload, headers=headers) as response:
-                    if response.status_code >= 400:
-                        logger.error(f"Foundry streaming error: {response.status_code}")
-                        yield f"data: {json.dumps({'error': 'Foundry streaming failed'})}\n\n"
-                        return
-
-                    async for line in response.aiter_lines():
-                        if line.strip():
-                            # Pass through Foundry SSE format as-is
-                            yield line + "\n"
+            client = get_openai_client()
+            response = client.chat.completions.create(
+                model=FOUNDRY_DEPLOYMENT,
+                messages=[{"role": "user", "content": prompt}],
+                max_completion_tokens=parameters.get("max_tokens", 16384),
+                stream=True,
+            )
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    data = {
+                        "choices": [{
+                            "delta": {"content": chunk.choices[0].delta.content}
+                        }]
+                    }
+                    yield f"data: {json.dumps(data)}\n\n"
+            yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Streaming inference failed: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -208,7 +215,7 @@ async def call_foundry_inference(
     stream: bool = False
 ) -> dict:
     """
-    Call the Foundry inference endpoint.
+    Call the Foundry inference endpoint using the Azure OpenAI SDK.
 
     Args:
         prompt: The input prompt for the model
@@ -224,49 +231,18 @@ async def call_foundry_inference(
     if not parameters:
         parameters = {}
 
-    headers = prepare_foundry_headers()
-
-    # Prepare the request payload for Azure OpenAI API
-    payload = {
-        "model": FOUNDRY_DEPLOYMENT,
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": parameters.get("temperature", 0.7),
-        "max_tokens": parameters.get("max_tokens", 1024),
-        "top_p": parameters.get("top_p", 1.0),
-        "stream": stream
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            url = f"{FOUNDRY_ENDPOINT}/openai/deployments/{FOUNDRY_DEPLOYMENT}/chat/completions?api-version={FOUNDRY_API_VERSION}"
-
-            response = await client.post(url, json=payload, headers=headers)
-
-            if response.status_code >= 400:
-                logger.error(f"Foundry API error: {response.status_code} - {response.text}")
-                raise HTTPException(status_code=503, detail=f"Foundry error: {response.status_code}")
-
-            if stream:
-                return response.aiter_lines()
-            else:
-                return response.json()
-    except httpx.RequestError as e:
-        logger.error(f"Request to Foundry failed: {e}")
-        raise HTTPException(status_code=503, detail="Failed to reach Foundry endpoint")
-
-def prepare_foundry_headers() -> dict:
-    """
-    Prepare request headers for Foundry API calls.
-
-    Returns:
-        dict: Headers including authorization and content-type
-    """
-    return {
-        "api-key": FOUNDRY_KEY,
-        "Content-Type": "application/json"
-    }
+        client = get_openai_client()
+        response = client.chat.completions.create(
+            model=FOUNDRY_DEPLOYMENT,
+            messages=[{"role": "user", "content": prompt}],
+            max_completion_tokens=parameters.get("max_tokens", 16384),
+            stream=False,
+        )
+        return response.model_dump()
+    except Exception as e:
+        logger.error(f"Foundry API error: {e}")
+        raise HTTPException(status_code=503, detail=f"Foundry error: {e}")
 
 if __name__ == "__main__":
     import uvicorn

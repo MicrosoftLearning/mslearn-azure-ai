@@ -31,19 +31,11 @@ spec:  # Desired state specification for the deployment
 
         env:  # Environment variables passed to the container
         - name: OPENAI_API_ENDPOINT
-          valueFrom:  # Retrieve value from secret
-            secretKeyRef:
-              name: foundry-credentials
-              key: endpoint
-        - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: foundry-credentials
-              key: api-key
-        - name: OPENAI_DEPLOYMENT_NAME # Value not pulled from secrets
-          value: "gpt-4o-mini"
+          value: "FOUNDRY_ENDPOINT"
+        - name: OPENAI_DEPLOYMENT_NAME
+          value: "gpt-5-mini"
         - name: OPENAI_API_VERSION
-          value: "2024-10-21"
+          value: "2024-12-01-preview"
 
         # BEGIN: Liveness Probe Configuration
         livenessProbe:  # Detects if container is alive or needs restart
