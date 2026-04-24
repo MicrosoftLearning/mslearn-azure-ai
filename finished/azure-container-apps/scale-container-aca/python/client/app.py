@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import aiohttp
@@ -19,29 +19,8 @@ from flask import Flask, jsonify, render_template, request
 # Suppress Flask/Werkzeug request logging (the constant "GET /api/..." lines)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-LAB_DIR = Path(__file__).resolve().parents[1]
-ENV_FILE = LAB_DIR / ".env"
-
-
-def _load_dotenv_exports(path: Path) -> Dict[str, str]:
-    if not path.exists():
-        return {}
-
-    values: Dict[str, str] = {}
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[len("export ") :].strip()
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            values[key] = value
-    return values
+# Expected environment variable names (loaded via 'source .env' before running)
+_ENV_KEYS = ("RESOURCE_GROUP", "CONTAINER_APP_NAME", "CONTAINER_APP_URL")
 
 
 def _az_json(args: list[str]) -> Any:
@@ -169,17 +148,15 @@ runner = LoadRunner()
 
 @app.get("/")
 def index():
-    env = _load_dotenv_exports(ENV_FILE)
+    resource_group = os.environ.get("RESOURCE_GROUP", "")
+    container_app_name = os.environ.get("CONTAINER_APP_NAME", "")
 
-    resource_group = env.get("RESOURCE_GROUP", "")
-    container_app_name = env.get("CONTAINER_APP_NAME", "")
-
-    base_url = env.get("CONTAINER_APP_URL", "").rstrip("/")
+    base_url = os.environ.get("CONTAINER_APP_URL", "").rstrip("/")
     default_target = f"{base_url}/agent/process" if base_url else ""
 
     return render_template(
         "index.html",
-        envFound=ENV_FILE.exists(),
+        envFound=bool(resource_group),
         resourceGroup=resource_group,
         containerAppName=container_app_name,
         containerAppUrl=base_url,
@@ -189,14 +166,13 @@ def index():
 
 @app.get("/api/env")
 def get_env():
-    return jsonify(_load_dotenv_exports(ENV_FILE))
+    return jsonify({k: os.environ[k] for k in _ENV_KEYS if k in os.environ})
 
 
 @app.get("/api/revisions")
 def revisions():
-    env = _load_dotenv_exports(ENV_FILE)
-    rg = request.args.get("resourceGroup") or env.get("RESOURCE_GROUP")
-    name = request.args.get("containerAppName") or env.get("CONTAINER_APP_NAME")
+    rg = request.args.get("resourceGroup") or os.environ.get("RESOURCE_GROUP")
+    name = request.args.get("containerAppName") or os.environ.get("CONTAINER_APP_NAME")
 
     if not rg or not name:
         return jsonify({"error": "Missing RESOURCE_GROUP or CONTAINER_APP_NAME"}), 400
@@ -210,9 +186,8 @@ def revisions():
 
 @app.get("/api/replicas")
 def replicas():
-    env = _load_dotenv_exports(ENV_FILE)
-    rg = request.args.get("resourceGroup") or env.get("RESOURCE_GROUP")
-    name = request.args.get("containerAppName") or env.get("CONTAINER_APP_NAME")
+    rg = request.args.get("resourceGroup") or os.environ.get("RESOURCE_GROUP")
+    name = request.args.get("containerAppName") or os.environ.get("CONTAINER_APP_NAME")
 
     if not rg or not name:
         return jsonify({"error": "Missing RESOURCE_GROUP or CONTAINER_APP_NAME"}), 400
