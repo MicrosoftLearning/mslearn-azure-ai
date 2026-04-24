@@ -37,7 +37,7 @@ function Show-Menu {
     Write-Host "ACR Name: $acrName"
     Write-Host "AKS Cluster: $aksCluster"
     Write-Host "====================================================================="
-    Write-Host "1. Provision gpt-4o-mini model in Microsoft Foundry"
+    Write-Host "1. Provision gpt-5-mini model in Microsoft Foundry"
     Write-Host "2. Delete/Purge Foundry deployment"
     Write-Host "3. Create Azure Container Registry (ACR)"
     Write-Host "4. Build and push API image to ACR"
@@ -48,9 +48,9 @@ function Show-Menu {
     Write-Host "====================================================================="
 }
 
-# Function to provision Microsoft Foundry project and deploy gpt-4o-mini model using Azure CLI
+# Function to provision Microsoft Foundry project and deploy gpt-5-mini model using Azure CLI
 function Provision-FoundryResources {
-    Write-Host "Provisioning Microsoft Foundry project with gpt-4o-mini model..."
+    Write-Host "Provisioning Microsoft Foundry project with gpt-5-mini model..."
     Write-Host ""
 
     # Check if we're authenticated with Azure
@@ -122,15 +122,15 @@ function Provision-FoundryResources {
     }
     Write-Host "$([char]0x2713) Credentials retrieved successfully"
 
-    # Deploy gpt-4o-mini model
+    # Deploy gpt-5-mini model
     Write-Host ""
-    Write-Host "Deploying gpt-4o-mini model (this may take a few minutes)..."
+    Write-Host "Deploying gpt-5-mini model (this may take a few minutes)..."
     az cognitiveservices account deployment create `
         --name $foundryResource `
         --resource-group $rg `
-        --deployment-name "gpt-4o-mini" `
-        --model-name "gpt-4o-mini" `
-        --model-version "2024-07-18" `
+        --deployment-name "gpt-5-mini" `
+        --model-name "gpt-5-mini" `
+        --model-version "2025-08-07" `
         --model-format "OpenAI" `
         --sku-capacity "1" `
         --sku-name "Standard" 2>&1 | Out-Null
@@ -433,8 +433,8 @@ function Check-DeploymentStatus {
     Write-Host ""
 
     # Check Foundry model deployment
-    Write-Host "Foundry Model Deployment (gpt-4o-mini):"
-    $foundryDeploymentStatus = az cognitiveservices account deployment show --name $foundryResource --resource-group $rg --deployment-name "gpt-4o-mini" --query "properties.provisioningState" -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
+    Write-Host "Foundry Model Deployment (gpt-5-mini):"
+    $foundryDeploymentStatus = az cognitiveservices account deployment show --name $foundryResource --resource-group $rg --deployment-name "gpt-5-mini" --query "properties.provisioningState" -o tsv 2>&1 | Where-Object { $_ -notmatch 'ERROR' } | Select-Object -First 1
 
     if (-not [string]::IsNullOrEmpty($foundryDeploymentStatus)) {
         Write-Host "  Status: $foundryDeploymentStatus"

@@ -41,7 +41,7 @@ spec:  # Desired state specification for the deployment
               name: foundry-credentials
               key: api-key
         - name: OPENAI_DEPLOYMENT_NAME # Value not pulled from secrets
-          value: "gpt-4o-mini"
+          value: "gpt-5-mini"
         - name: OPENAI_API_VERSION
           value: "2024-10-21"
 

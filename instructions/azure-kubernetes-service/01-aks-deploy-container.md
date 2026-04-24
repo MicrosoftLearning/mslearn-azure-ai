@@ -89,7 +89,7 @@ In this section you download the starter files for the console app and use a scr
 
 With the deployment script running, follow these steps to create the needed resources in Azure.
 
-1. Enter **1** to launch the **1. Provision gpt-4o-mini model in Microsoft Foundry** option. This option creates the resource group if it doesn't already exist, creates the resource in MIcrosoft Foundry, and deploys the **gpt-4o-mini** model to the resource.
+1. Enter **1** to launch the **1. Provision gpt-5-mini model in Microsoft Foundry** option. This option creates the resource group if it doesn't already exist, creates the resource in MIcrosoft Foundry, and deploys the **gpt-5-mini** model to the resource.
 
     > **Important:** If there are errors during the model deployment, enter **2** to launch the **2. Delete/Purge Foundry deployment** option. This will delete the deployment and purge the resource name. Exit the menu, and change the region in the deployment script to one of the other recommended regions. Then restart the deployment script and run the model provisioning option again.
 
@@ -286,7 +286,7 @@ If you encounter issues while completing this exercise, try the following troubl
 
 **Verify Azure resource deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
-- Confirm that the Microsoft Foundry resource shows a **Provisioning State** of **Succeeded** and the **gpt-4o-mini** model is deployed.
+- Confirm that the Microsoft Foundry resource shows a **Provisioning State** of **Succeeded** and the **gpt-5-mini** model is deployed.
 - Verify the Azure Container Registry (ACR) exists and contains the **aks-api** image.
 - Check that the AKS cluster is in a **Succeeded** state and the nodes are running.
 

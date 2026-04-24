@@ -38,7 +38,7 @@ show_menu() {
     echo "ACR Name: $acr_name"
     echo "AKS Cluster: $aks_cluster"
     echo "====================================================================="
-    echo "1. Provision gpt-4o-mini model in Microsoft Foundry"
+    echo "1. Provision gpt-5-mini model in Microsoft Foundry"
     echo "2. Delete/Purge Foundry deployment"
     echo "3. Create Azure Container Registry (ACR)"
     echo "4. Build and push API image to ACR"
@@ -49,9 +49,9 @@ show_menu() {
     echo "====================================================================="
 }
 
-# Function to provision Microsoft Foundry project and deploy gpt-4o-mini model using Azure CLI
+# Function to provision Microsoft Foundry project and deploy gpt-5-mini model using Azure CLI
 provision_foundry_resources() {
-    echo "Provisioning Microsoft Foundry project with gpt-4o-mini model..."
+    echo "Provisioning Microsoft Foundry project with gpt-5-mini model..."
     echo ""
 
     # Check if we're authenticated with Azure
@@ -129,15 +129,15 @@ provision_foundry_resources() {
     fi
     echo "✓ Credentials retrieved successfully"
 
-    # Deploy gpt-4o-mini model
+    # Deploy gpt-5-mini model
     echo ""
-    echo "Deploying gpt-4o-mini model (this may take a few minutes)..."
+    echo "Deploying gpt-5-mini model (this may take a few minutes)..."
     az cognitiveservices account deployment create \
         --name "$foundry_resource" \
         --resource-group "$rg" \
-        --deployment-name "gpt-4o-mini" \
-        --model-name "gpt-4o-mini" \
-        --model-version "2024-07-18" \
+        --deployment-name "gpt-5-mini" \
+        --model-name "gpt-5-mini" \
+        --model-version "2025-08-07" \
         --model-format "OpenAI" \
         --sku-capacity "1" \
         --sku-name "Standard" > /dev/null 2>&1
@@ -430,11 +430,11 @@ check_deployment_status() {
     echo ""
 
     # Check Foundry model deployment
-    echo "Foundry Model Deployment (gpt-4o-mini):"
+    echo "Foundry Model Deployment (gpt-5-mini):"
     foundry_deployment_status=$(az cognitiveservices account deployment show \
         --name "$foundry_resource" \
         --resource-group "$rg" \
-        --deployment-name "gpt-4o-mini" \
+        --deployment-name "gpt-5-mini" \
         --query "properties.provisioningState" -o tsv 2>/dev/null)
 
     if [ ! -z "$foundry_deployment_status" ]; then

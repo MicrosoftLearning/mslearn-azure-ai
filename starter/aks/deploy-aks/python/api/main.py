@@ -1,7 +1,7 @@
 """
 FastAPI application for AKS deployment with Foundry model integration.
 
-This API acts as a gateway between clients and the gpt-4o-mini model hosted in Microsoft Foundry.
+This API acts as a gateway between clients and the gpt-5-mini model hosted in Microsoft Foundry.
 
 Endpoints:
 - GET /healthz - Liveness probe
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="AKS Foundry Gateway API",
-    description="Gateway API for gpt-4o-mini inference via Microsoft Foundry",
+    description="Gateway API for gpt-5-mini inference via Microsoft Foundry",
     version="1.0.0"
 )
 
@@ -97,7 +97,7 @@ async def synchronous_inference(request: Request):
 
     Expected request body:
     {
-        "deployment": "gpt-4o-mini",
+        "deployment": "gpt-5-mini",
         "inputs": {
             "prompt": "Your prompt here",
             ...
@@ -145,7 +145,7 @@ async def streaming_inference(request: Request):
 
     Expected request body:
     {
-        "deployment": "gpt-4o-mini",
+        "deployment": "gpt-5-mini",
         "inputs": {...},
         "parameters": {...},
         "user": "anon|contoso:alice"
