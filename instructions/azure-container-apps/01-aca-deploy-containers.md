@@ -180,8 +180,14 @@ In this section you deploy the API as a container app with external ingress. Bec
 
 1. Run the following command to list the revisions to confirm a new revision was created.
 
+    **Bash**
     ```azurecli
     az containerapp revision list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP -o table
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az containerapp revision list -n $env:CONTAINER_APP_NAME -g $env:RESOURCE_GROUP -o table
     ```
 
     The revision name ends with a suffix like `--0000002`, indicating this is the second revision. Container Apps creates a new revision whenever you change environment variables or secrets, which restarts the app with the updated configuration. Old inactive revisions may be pruned over time.
@@ -251,8 +257,14 @@ You should validate that the app starts and that ingress works. You also use log
 
 1. Run the following command to review logs for startup and runtime signals. This command shows recent console output only. For historical logs and advanced troubleshooting, logs persist in the Log Analytics workspace associated with your Container Apps environment.
 
+    **Bash**
     ```azurecli
     az containerapp logs show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP
+    ```
+
+    **PowerShell**
+    ```azurecli
+    az containerapp logs show -n $env:CONTAINER_APP_NAME -g $env:RESOURCE_GROUP
     ```
 
     Look for **gunicorn** startup messages showing workers spawned and listening on port 8000. You should also see HTTP request logs from your curl commands (GET /health, POST /process, etc.).
