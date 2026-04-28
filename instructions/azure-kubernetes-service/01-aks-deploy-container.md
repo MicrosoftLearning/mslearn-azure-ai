@@ -66,9 +66,10 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
-1. Run the following commands to ensure your subscription has the necessary resource provider to install AKS and ACR.
+1. Run the following commands to ensure your subscription has the necessary resource providers to install AKS, ACR, and the Foundry AI model.
 
     ```
+    az provider register --namespace Microsoft.CognitiveServices
     az provider register --namespace Microsoft.ContainerService
     az provider register --namespace Microsoft.ContainerRegistry
     ```
