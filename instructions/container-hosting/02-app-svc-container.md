@@ -68,10 +68,11 @@ In this section you download the project starter files and use a script to deplo
     az login
     ```
 
-1. Run the following command to ensure your subscription has the necessary resource provider to install Azure Container Registry (ACR).
+1. Run the following commands to ensure your subscription has the necessary resource providers for Azure Container Registry (ACR) and Azure App Service.
 
     ```
     az provider register --namespace Microsoft.ContainerRegistry
+    az provider register --namespace Microsoft.Web
     ```
 
 ### Create resources in Azure
