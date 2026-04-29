@@ -63,6 +63,12 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
+1. Run the following command to ensure your subscription has the necessary resource provider for Azure Managed Redis.
+
+    ```
+    az provider register --namespace Microsoft.Cache
+    ```
+
 1. Run the following command to install the **redisenterprise** extension for Azure CLI.
 
     ```
