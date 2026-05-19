@@ -203,7 +203,7 @@ In this section you use the **az acr run** command to execute a command inside y
     ```powershell
     az acr run `
         --registry $env:ACR_NAME `
-        --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(\"Application loaded successfully\")'" `
+        --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(`"Application loaded successfully`")'" `
         /dev/null
     ```
 
