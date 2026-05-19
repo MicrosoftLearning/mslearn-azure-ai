@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -22,9 +23,13 @@ logging.getLogger("werkzeug").setLevel(logging.WARNING)
 # Expected environment variable names (loaded via 'source .env' before running)
 _ENV_KEYS = ("RESOURCE_GROUP", "CONTAINER_APP_NAME", "CONTAINER_APP_URL")
 
+# Resolve the full path to the Azure CLI executable so subprocess can find
+# az.cmd on Windows without needing shell=True (avoids command-injection risk).
+_AZ = shutil.which("az") or "az"
+
 
 def _az_json(args: list[str]) -> Any:
-    completed = subprocess.run(args, capture_output=True, text=True)
+    completed = subprocess.run([_AZ] + args[1:], capture_output=True, text=True)
     if completed.returncode != 0:
         raise RuntimeError((completed.stderr or completed.stdout or "").strip() or "Azure CLI command failed")
     return json.loads(completed.stdout or "null")
