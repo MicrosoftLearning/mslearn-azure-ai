@@ -203,9 +203,15 @@ In this section you use the **az acr run** command to execute a command inside y
     ```powershell
     az acr run `
         --registry $env:ACR_NAME `
-        --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(`"Application loaded successfully`")'" `
+        --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app; print(\"Application loaded successfully\")'" `
         /dev/null
     ```
+
+    >**Note:** If the previous command fails in PowerShell, run the simpler version below instead. It drops the **print** statement to avoid embedded quote issues. A successful run ends with **Run ID: xxx was successful**.
+    >
+    >```powershell
+    >az acr run --registry $env:ACR_NAME --cmd "$env:ACR_NAME.azurecr.io/inference-api:v1.0.0 python -c 'from app import app'" /dev/null
+    >```
 
     The output includes Docker pull progress as it downloads the image. Look for **Application loaded successfully** near the end of the output. This confirms the container runs correctly and the Flask application imports without errors.
 
