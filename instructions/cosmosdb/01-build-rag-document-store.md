@@ -440,12 +440,11 @@ In this section you practice writing SQL queries against the Cosmos DB container
 
 1. Select **Execute Query** and review the results.
 
-1. Enter the following query in the **SQL Query** field to count chunks by document. This helps understand the distribution of content across source documents.
+1. Enter the following query in the **SQL Query** field to view the documents stored in the container along with their category and source metadata. This helps understand what content is available for RAG retrieval.
 
     ```sql
-    SELECT c.documentId, COUNT(1) as chunkCount
+    SELECT DISTINCT c.documentId, c.metadata.category, c.metadata.source
     FROM c
-    GROUP BY c.documentId
     ```
 
 1. Select **Execute Query** and review the results.
