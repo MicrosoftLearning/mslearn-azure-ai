@@ -16,28 +16,40 @@ CONTAINER_FLAT = "vectors-flat"
 CONTAINER_QUANTIZED = "vectors-quantized"
 CONTAINER_DISKANN = "vectors-diskann"
 
+# Cached singletons reused across all threads so we don't re-auth or rebuild
+# the connection pool on every operation (the parallel bulk loader can fan
+# out to ~30 concurrent threads).
+_credential = None
+_client = None
+_database = None
+_containers = {}
+
 
 def get_database():
     """Get a reference to the Cosmos DB database using Entra ID authentication."""
-    endpoint = os.environ.get("COSMOS_ENDPOINT")
-    database_name = os.environ.get("COSMOS_DATABASE")
+    global _credential, _client, _database
 
-    if not endpoint or not database_name:
-        raise ValueError(
-            "COSMOS_ENDPOINT and COSMOS_DATABASE environment variables must be set"
-        )
+    if _database is None:
+        endpoint = os.environ.get("COSMOS_ENDPOINT")
+        database_name = os.environ.get("COSMOS_DATABASE")
 
-    credential = DefaultAzureCredential()
-    client = CosmosClient(endpoint, credential=credential)
-    database = client.get_database_client(database_name)
+        if not endpoint or not database_name:
+            raise ValueError(
+                "COSMOS_ENDPOINT and COSMOS_DATABASE environment variables must be set"
+            )
 
-    return database
+        _credential = DefaultAzureCredential()
+        _client = CosmosClient(endpoint, credential=_credential)
+        _database = _client.get_database_client(database_name)
+
+    return _database
 
 
 def get_container(container_name: str):
     """Get a reference to a specific Cosmos DB container."""
-    database = get_database()
-    return database.get_container_client(container_name)
+    if container_name not in _containers:
+        _containers[container_name] = get_database().get_container_client(container_name)
+    return _containers[container_name]
 
 
 def get_all_containers():

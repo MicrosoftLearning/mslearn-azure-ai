@@ -121,9 +121,14 @@ function Create-Containers {
         return
     }
 
-    # Create container with vector embedding policy and indexing policy (DiskANN)
-    $indexingPolicy = "{`"indexingMode`":`"consistent`",`"automatic`":true,`"includedPaths`":[{`"path`":`"/*`"}],`"excludedPaths`":[{`"path`":`"/embedding/*`"}],`"vectorIndexes`":[{`"path`":`"/embedding`",`"type`":`"diskANN`"}]}"
-    $vectorPolicy = "{`"vectorEmbeddings`":[{`"path`":`"/embedding`",`"dataType`":`"float32`",`"distanceFunction`":`"cosine`",`"dimensions`":256}]}"
+    # Create container with vector embedding policy and indexing policy (DiskANN).
+    # Write JSON policies to temp files and pass via @file to avoid PowerShell quoting issues.
+    # See https://github.com/Azure/azure-cli/blob/dev/doc/quoting-issues-with-powershell.md
+    $indexingPolicyFile = Join-Path ([System.IO.Path]::GetTempPath()) "cosmos-indexing-policy.json"
+    $vectorPolicyFile = Join-Path ([System.IO.Path]::GetTempPath()) "cosmos-vector-policy.json"
+
+    '{"indexingMode":"consistent","automatic":true,"includedPaths":[{"path":"/*"}],"excludedPaths":[{"path":"/embedding/*"}],"vectorIndexes":[{"path":"/embedding","type":"diskANN"}]}' | Set-Content -Path $indexingPolicyFile -Encoding utf8
+    '{"vectorEmbeddings":[{"path":"/embedding","dataType":"float32","distanceFunction":"cosine","dimensions":256}]}' | Set-Content -Path $vectorPolicyFile -Encoding utf8
 
     az cosmosdb sql container create `
         --resource-group $rg `
@@ -131,8 +136,10 @@ function Create-Containers {
         --database-name $databaseName `
         --name $containerName `
         --partition-key-path "/documentId" `
-        --idx $indexingPolicy `
-        --vector-embeddings $vectorPolicy 2>$null | Out-Null
+        --idx "@$indexingPolicyFile" `
+        --vector-embeddings "@$vectorPolicyFile" 2>$null | Out-Null
+
+    Remove-Item -Path $indexingPolicyFile, $vectorPolicyFile -ErrorAction SilentlyContinue
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$([char]0x2713) Container created: $containerName"

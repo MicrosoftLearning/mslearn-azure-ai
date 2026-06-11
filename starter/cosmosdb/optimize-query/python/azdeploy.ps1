@@ -108,7 +108,12 @@ function Create-Containers {
         return
     }
 
-    $vectorPolicy = "{`"vectorEmbeddings`":[{`"path`":`"/embedding`",`"dataType`":`"float32`",`"distanceFunction`":`"cosine`",`"dimensions`":256}]}"
+    # Write JSON policies to temp files and pass via @file to avoid PowerShell quoting issues.
+    # See https://github.com/Azure/azure-cli/blob/dev/doc/quoting-issues-with-powershell.md
+    $vectorPolicyFile = Join-Path ([System.IO.Path]::GetTempPath()) "cosmos-vector-policy.json"
+    $indexingPolicyFile = Join-Path ([System.IO.Path]::GetTempPath()) "cosmos-indexing-policy.json"
+    '{"vectorEmbeddings":[{"path":"/embedding","dataType":"float32","distanceFunction":"cosine","dimensions":256}]}' | Set-Content -Path $vectorPolicyFile -Encoding utf8
+
     $created = 0
 
     # Define containers: name and index type
@@ -125,7 +130,7 @@ function Create-Containers {
         }
         else {
             Write-Host "Creating container '$($container.Name)' with $($container.Type) vector index..."
-            $indexingPolicy = "{`"indexingMode`":`"consistent`",`"automatic`":true,`"includedPaths`":[{`"path`":`"/*`"}],`"excludedPaths`":[{`"path`":`"/embedding/*`"}],`"vectorIndexes`":[{`"path`":`"/embedding`",`"type`":`"$($container.Type)`"}]}"
+            "{`"indexingMode`":`"consistent`",`"automatic`":true,`"includedPaths`":[{`"path`":`"/*`"}],`"excludedPaths`":[{`"path`":`"/embedding/*`"}],`"vectorIndexes`":[{`"path`":`"/embedding`",`"type`":`"$($container.Type)`"}]}" | Set-Content -Path $indexingPolicyFile -Encoding utf8
 
             az cosmosdb sql container create `
                 --resource-group $rg `
@@ -133,8 +138,8 @@ function Create-Containers {
                 --database-name $databaseName `
                 --name $container.Name `
                 --partition-key-path "/documentId" `
-                --idx $indexingPolicy `
-                --vector-embeddings $vectorPolicy 2>$null | Out-Null
+                --idx "@$indexingPolicyFile" `
+                --vector-embeddings "@$vectorPolicyFile" 2>$null | Out-Null
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "$([char]0x2713) Container created: $($container.Name) ($($container.Description))"
@@ -142,10 +147,13 @@ function Create-Containers {
             }
             else {
                 Write-Host "Error: Failed to create container $($container.Name)"
+                Remove-Item -Path $vectorPolicyFile, $indexingPolicyFile -ErrorAction SilentlyContinue
                 return
             }
         }
     }
+
+    Remove-Item -Path $vectorPolicyFile, $indexingPolicyFile -ErrorAction SilentlyContinue
 
     if ($created -gt 0) {
         Write-Host ""
