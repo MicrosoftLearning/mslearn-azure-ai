@@ -91,9 +91,9 @@ In this section you run the deployment script to deploy the Cosmos DB account.
 
 ## Complete the RAG document functions
 
-In this section you complete the *rag_functions.py* file by adding functions that an AI application can call to store and retrieve document chunks. These functions serve as the application's interface to the document store. The *test_workflow.py* script, which you run later in this exercise, imports these functions to demonstrate how an AI application would use them.
+In this section you complete the *rag_functions.py* file by adding functions that an AI application can call to store and retrieve document chunks. These functions serve as the application's interface to the document store. The app you run later in this exercise imports these functions to demonstrate how an AI application would use them.
 
-1. Open the *rag-backend/rag_functions.py* file in VS Code.
+1. Open the *client/rag_functions.py* file in VS Code.
 
 1. Search for the **BEGIN STORE DOCUMENT CHUNK FUNCTION** comment and add the following code directly after the comment. This function stores a document chunk with its metadata, using upsert to handle both inserts and updates.
 
