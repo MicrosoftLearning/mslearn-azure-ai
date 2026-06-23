@@ -89,6 +89,12 @@ In this section you download the starter files for the console app and use a scr
     ./azdeploy.ps1
     ```
 
+    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
+
+    ```powershell
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    ```
+
 ### Deploy resources to Azure
 
 With the deployment script running, follow these steps to create the needed resources in Azure.
