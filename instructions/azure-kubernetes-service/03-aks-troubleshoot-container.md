@@ -64,11 +64,14 @@ In this section you download the starter files for the console app and use a scr
     az login
     ```
 
-1. Run the following commands to ensure your subscription has the necessary resource provider to install AKS and ACR.
+1. Run the following commands to ensure your subscription has the necessary resource providers to install AKS and ACR. The **Microsoft.Compute**, **Microsoft.Network**, and **Microsoft.Storage** providers are dependencies of AKS that Azure usually registers automatically, but explicitly registering them avoids occasional cluster creation failures on new subscriptions.
 
     ```
     az provider register --namespace Microsoft.ContainerService
     az provider register --namespace Microsoft.ContainerRegistry
+    az provider register --namespace Microsoft.Compute
+    az provider register --namespace Microsoft.Network
+    az provider register --namespace Microsoft.Storage
     ```
 
 1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.

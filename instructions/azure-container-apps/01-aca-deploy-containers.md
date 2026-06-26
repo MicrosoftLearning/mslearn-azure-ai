@@ -76,6 +76,7 @@ In this section you download the project starter files and use a script to deplo
     ```azurecli
     az provider register --namespace Microsoft.App
     az provider register --namespace Microsoft.OperationalInsights
+    az provider register --namespace Microsoft.ContainerRegistry
     ```
 
 ### Create resources in Azure
