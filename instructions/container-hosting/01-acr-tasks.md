@@ -82,6 +82,12 @@ In this section you download the project starter files and use a script to deplo
     ./azdeploy.ps1
     ```
 
+    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
+
+    ```powershell
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    ```
+
 1. Run the appropriate command to load the environment variables into your terminal session.
 
     **Bash**
