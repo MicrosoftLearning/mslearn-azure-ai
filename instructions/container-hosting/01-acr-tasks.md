@@ -303,14 +303,14 @@ In this section you review the ACR task run history and lock an image to protect
     ```bash
     az acr repository show \
         --name $ACR_NAME \
-        --image inference-api:v1.0.0 \
+        --image inference-api:v1.0.0
     ```
 
     **PowerShell**
     ```powershell
     az acr repository show `
         --name $env:ACR_NAME `
-        --image inference-api:v1.0.0 `
+        --image inference-api:v1.0.0
     ```
 
     The **writeEnabled** field shows **False**, indicating the image is protected.
