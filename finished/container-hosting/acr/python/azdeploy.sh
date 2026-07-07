@@ -12,6 +12,9 @@ location="eastus"       # Azure region for the resources
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
 # ============================================================================
 
+# Disable Git Bash forward-slash path conversion (Windows only; no-op elsewhere).
+export MSYS_NO_PATHCONV=1
+
 # Generate consistent hash from Azure user object ID (based on az login account)
 user_object_id=$(az ad signed-in-user show --query "id" -o tsv 2>/dev/null)
 if [ -z "$user_object_id" ]; then
