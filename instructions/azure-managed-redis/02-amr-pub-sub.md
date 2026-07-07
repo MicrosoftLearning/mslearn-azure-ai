@@ -168,13 +168,13 @@ In this section, you add code to establish a connection to Azure Managed Redis u
             r.ping()  # Verify Redis connectivity
             return r
 
-        except redis.ConnectionError as e:
-            print(f"[x] Connection error: {e}")
-            print("Check if Redis host and port are correct, and ensure network connectivity")
-            sys.exit(1)
         except redis.AuthenticationError as e:
             print(f"[x] Authentication error: {e}")
             print("Make sure the access key is correct")
+            sys.exit(1)
+        except redis.ConnectionError as e:
+            print(f"[x] Connection error: {e}")
+            print("Check if Redis host and port are correct, and ensure network connectivity")
             sys.exit(1)
         except Exception as e:
             print(f"[x] Unexpected error: {e}")

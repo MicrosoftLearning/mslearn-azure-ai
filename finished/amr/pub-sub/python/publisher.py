@@ -16,11 +16,11 @@ def clear_screen():
 
 def connect_to_redis() -> redis.Redis:
     """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
-    
+
     try:
         redis_host = os.getenv("REDIS_HOST")
         redis_key = os.getenv("REDIS_KEY")
-        
+
         r = redis.Redis(
             host=redis_host,
             port=10000,
@@ -30,18 +30,18 @@ def connect_to_redis() -> redis.Redis:
             socket_timeout=30,
             socket_connect_timeout=30,
         )
-        
+
         # Test connection
         r.ping()  # Verify Redis connectivity
         return r
-        
-    except redis.ConnectionError as e:
-        print(f"[x] Connection error: {e}")
-        print("Check if Redis host and port are correct, and ensure network connectivity")
-        sys.exit(1)
+
     except redis.AuthenticationError as e:
         print(f"[x] Authentication error: {e}")
         print("Make sure the access key is correct")
+        sys.exit(1)
+    except redis.ConnectionError as e:
+        print(f"[x] Connection error: {e}")
+        print("Check if Redis host and port are correct, and ensure network connectivity")
         sys.exit(1)
     except Exception as e:
         print(f"[x] Unexpected error: {e}")
@@ -57,7 +57,7 @@ def publish_order_created(r: redis.Redis) -> None:
     print("=" * 60)
     print("Publishing: Order Created Event")
     print("=" * 60)
-    
+
     order_data = {
         "event": "order_created",
         "order_id": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -65,18 +65,18 @@ def publish_order_created(r: redis.Redis) -> None:
         "total": 129.99,
         "timestamp": datetime.now().isoformat()
     }
-    
+
     message = json.dumps(order_data)
     channel = "orders:created"
-    
+
     # Publish message and get subscriber count
     subscribers = r.publish(channel, message)  # Send message to channel, returns number of subscribers that received it
-    
+
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
     print(f"\n[i] Message content:")
     print(json.dumps(order_data, indent=2))
-    
+
     input("\n[+] Press Enter to continue...")
 
 # END PUBLISH MESSAGE CODE SECTION
@@ -87,7 +87,7 @@ def publish_order_shipped(r: redis.Redis) -> None:
     print("=" * 60)
     print("Publishing: Order Shipped Event")
     print("=" * 60)
-    
+
     order_data = {
         "event": "order_shipped",
         "order_id": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -95,17 +95,17 @@ def publish_order_shipped(r: redis.Redis) -> None:
         "carrier": "FastShip",
         "timestamp": datetime.now().isoformat()
     }
-    
+
     message = json.dumps(order_data)
     channel = "orders:shipped"
-    
+
     subscribers = r.publish(channel, message)  # Send message to channel, returns subscriber count
-    
+
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
     print(f"\n[i] Message content:")
     print(json.dumps(order_data, indent=2))
-    
+
     input("\n[+] Press Enter to continue...")
 
 def publish_inventory_alert(r: redis.Redis) -> None:
@@ -114,7 +114,7 @@ def publish_inventory_alert(r: redis.Redis) -> None:
     print("=" * 60)
     print("Publishing: Inventory Alert")
     print("=" * 60)
-    
+
     alert_data = {
         "event": "inventory_low",
         "product_id": "PROD-12345",
@@ -123,17 +123,17 @@ def publish_inventory_alert(r: redis.Redis) -> None:
         "threshold": 10,
         "timestamp": datetime.now().isoformat()
     }
-    
+
     message = json.dumps(alert_data)
     channel = "inventory:alerts"
-    
+
     subscribers = r.publish(channel, message)  # Publish to inventory channel
-    
+
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
     print(f"\n[i] Message content:")
     print(json.dumps(alert_data, indent=2))
-    
+
     input("\n[+] Press Enter to continue...")
 
 def publish_notification(r: redis.Redis) -> None:
@@ -142,7 +142,7 @@ def publish_notification(r: redis.Redis) -> None:
     print("=" * 60)
     print("Publishing: Customer Notification")
     print("=" * 60)
-    
+
     notification_data = {
         "event": "customer_notification",
         "notification_id": f"NOT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -151,17 +151,17 @@ def publish_notification(r: redis.Redis) -> None:
         "message": "Flash sale: 20% off on selected items!",
         "timestamp": datetime.now().isoformat()
     }
-    
+
     message = json.dumps(notification_data)
     channel = "notifications"
-    
+
     subscribers = r.publish(channel, message)  # Broadcast notification to all subscribers
-    
+
     print(f"\n[>] Published to channel: '{channel}'")
     print(f"[#] Active subscribers: {subscribers}")
     print(f"\n[i] Message content:")
     print(json.dumps(notification_data, indent=2))
-    
+
     input("\n[+] Press Enter to continue...")
 
 # BEGIN BROADCAST CODE SECTION
@@ -172,30 +172,30 @@ def broadcast_to_all(r: redis.Redis) -> None:
     print("=" * 60)
     print("Broadcasting: System Announcement")
     print("=" * 60)
-    
+
     announcement = {
         "event": "system_announcement",
         "message": "System maintenance scheduled for 2 AM",
         "priority": "high",
         "timestamp": datetime.now().isoformat()
     }
-    
+
     channels = ["orders:created", "orders:shipped", "inventory:alerts", "notifications"]
     message = json.dumps(announcement)
-    
+
     print(f"\n[>] Broadcasting to {len(channels)} channels...")
     print(f"Channels: {', '.join(channels)}\n")
-    
+
     total_subscribers = 0
     for channel in channels:
         count = r.publish(channel, message)  # Send same message to multiple channels
         total_subscribers += count
         print(f"  - {channel}: {count} subscriber(s)")
-    
+
     print(f"\n[#] Total subscribers reached: {total_subscribers}")
     print(f"\n[i] Message content:")
     print(json.dumps(announcement, indent=2))
-    
+
     input("\n[+] Press Enter to continue...")
 
 # END BROADCAST CODE SECTION
@@ -220,17 +220,17 @@ def main() -> None:
     clear_screen()
     print("\n[*] Initializing Redis Publisher...\n")
     r = connect_to_redis()
-    
+
     clear_screen()
     print("[+] Connected to Redis")
     print("\n[i] TIP: Start the subscriber.py in another terminal to see messages!")
     input("\nPress Enter to continue...")
-    
+
     try:
         while True:
             show_menu()
             choice = input("\nSelect an option (1-6): ").strip()
-            
+
             if choice == "1":
                 publish_order_created(r)
             elif choice == "2":
@@ -248,7 +248,7 @@ def main() -> None:
             else:
                 print("\n[x] Invalid option. Please select 1-6.")
                 input("\nPress Enter to continue...")
-        
+
     except KeyboardInterrupt:
         clear_screen()
         print("\n\n[*] Publisher interrupted by user")
