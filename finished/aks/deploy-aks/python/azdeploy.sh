@@ -42,12 +42,12 @@ show_menu() {
     echo "AKS Cluster: $aks_cluster"
     echo "====================================================================="
     echo "1. Provision gpt-5-mini model in Microsoft Foundry"
-    echo "2. Delete/Purge Foundry deployment"
-    echo "3. Create Azure Container Registry (ACR)"
-    echo "4. Build and push API image to ACR"
-    echo "5. Create AKS cluster"
-    echo "6. Check deployment status"
-    echo "7. Deploy to AKS"
+    echo "2. Create Azure Container Registry (ACR)"
+    echo "3. Build and push API image to ACR"
+    echo "4. Create AKS cluster"
+    echo "5. Check deployment status"
+    echo "6. Deploy to AKS"
+    echo "7. Delete/Purge Foundry deployment"
     echo "8. Exit"
     echo "====================================================================="
 }
@@ -325,7 +325,7 @@ deploy_to_aks() {
         --scope "$foundry_resource_id" > /dev/null 2>&1
 
     if [ $? -ne 0 ]; then
-        echo "Error: Failed to assign Cognitive Services OpenAI User role. Re-run option 7 to try again."
+        echo "Error: Failed to assign Cognitive Services OpenAI User role. Re-run option 6 to try again."
         return 1
     fi
     echo "✓ Role assigned to AKS kubelet identity (may take 1-2 minutes to propagate)"
@@ -506,39 +506,39 @@ while true; do
             ;;
         2)
             echo ""
-            delete_foundry_resource
-            echo ""
-            read -p "Press Enter to continue..."
-            ;;
-        3)
-            echo ""
             create_resource_group
             echo ""
             create_acr
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        4)
+        3)
             echo ""
             build_and_push_image
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        5)
+        4)
             echo ""
             create_aks_cluster
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        6)
+        5)
             echo ""
             check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
-        7)
+        6)
             echo ""
             deploy_to_aks
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        7)
+            echo ""
+            delete_foundry_resource
             echo ""
             read -p "Press Enter to continue..."
             ;;
