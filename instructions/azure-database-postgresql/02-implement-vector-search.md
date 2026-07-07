@@ -143,7 +143,7 @@ In this section you complete the *app.py* file by adding route handlers that int
         return redirect(url_for("index"))
     ```
 
-1. Search for the **BEGIN SEARCH SECTION** comment and add the following code directly after the comment. This route retrieves the embedding for a selected product and finds similar products using cosine distance.
+1. Search for the **BEGIN SEARCH SECTION** comment and add the following code directly after the comment. This route retrieves the selected product's details and embedding, finds similar products using cosine distance, and passes both the selected product and the results to the template for display.
 
     ```python
     @app.route("/search", methods=["POST"])
@@ -158,13 +158,22 @@ In this section you complete the *app.py* file by adding route handlers that int
         try:
             with get_connection() as conn:
                 with conn.cursor() as cur:
-                    # Get the embedding for the selected product
-                    cur.execute("SELECT embedding FROM products WHERE id = %s", (product_id,))
+                    # Get the selected product details and embedding
+                    cur.execute("""
+                        SELECT id, name, category, description, price, embedding
+                        FROM products WHERE id = %s
+                    """, (product_id,))
                     row = cur.fetchone()
 
                     if not row:
                         flash("Product not found", "error")
                         return redirect(url_for("index"))
+
+                    searched_product = {
+                        "id": row[0], "name": row[1], "category": row[2],
+                        "description": row[3], "price": row[4]
+                    }
+                    embedding = row[5]
 
                     # Find similar products using cosine distance
                     # The <=> operator is pgvector's cosine distance operator
@@ -175,7 +184,7 @@ In this section you complete the *app.py* file by adding route handlers that int
                         WHERE id != %s
                         ORDER BY distance
                         LIMIT 5
-                    """, (row[0], product_id))
+                    """, (embedding, product_id))
 
                     results = [
                         {"id": r[0], "name": r[1], "category": r[2], "description": r[3], "price": r[4], "distance": r[5]}
@@ -184,7 +193,7 @@ In this section you complete the *app.py* file by adding route handlers that int
 
             products = get_products()
             new_products = get_new_products()
-            return render_template("index.html", products=products, new_products=new_products, results=results)
+            return render_template("index.html", products=products, new_products=new_products, results=results, searched_product=searched_product)
 
         except Exception as e:
             flash(f"Error searching: {str(e)}", "error")
