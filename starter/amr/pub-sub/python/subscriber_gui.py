@@ -108,7 +108,7 @@ class SubscriberGUI:
         dialog.title("Subscribe to Channel")
         dialog.geometry("400x250")
         
-        tk.Label(dialog, text="Available channels:", font=(self.default_font, "bold")).pack(pady=10)
+        tk.Label(dialog, text="Available channels:", font=self.default_bold).pack(pady=10)
         channels_text = "  - orders:created\n  - orders:shipped\n  - inventory:alerts\n  - notifications"
         tk.Label(dialog, text=channels_text, justify=tk.LEFT).pack()
         
@@ -135,7 +135,7 @@ class SubscriberGUI:
         dialog.title("Subscribe with Pattern")
         dialog.geometry("400x250")
         
-        tk.Label(dialog, text="Pattern examples:", font=(self.default_font, "bold")).pack(pady=10)
+        tk.Label(dialog, text="Pattern examples:", font=self.default_bold).pack(pady=10)
         patterns_text = "  - orders:*       (matches orders:created, orders:shipped, etc.)\n  - inventory:*    (matches all inventory channels)\n  - *              (matches all channels)"
         tk.Label(dialog, text=patterns_text, justify=tk.LEFT).pack()
         
