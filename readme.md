@@ -1,6 +1,6 @@
 # Microsoft Lab Exercises
 <!-- Change the title above as appropriate -->
-[GitHub pages for the exercises](https://microsoftlearning.github.io/mslearn-azure-developer/)
+[GitHub pages for the exercises](https://microsoftlearning.github.io/mslearn-azure-ai/)
 
 This repo contains exercises and supporting files for Microsoft skilling content.
 
