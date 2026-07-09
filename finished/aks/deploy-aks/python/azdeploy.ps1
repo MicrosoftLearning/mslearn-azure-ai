@@ -41,12 +41,12 @@ function Show-Menu {
     Write-Host "AKS Cluster: $aksCluster"
     Write-Host "====================================================================="
     Write-Host "1. Provision gpt-5-mini model in Microsoft Foundry"
-    Write-Host "2. Delete/Purge Foundry deployment"
-    Write-Host "3. Create Azure Container Registry (ACR)"
-    Write-Host "4. Build and push API image to ACR"
-    Write-Host "5. Create AKS cluster"
-    Write-Host "6. Check deployment status"
-    Write-Host "7. Deploy to AKS"
+    Write-Host "2. Create Azure Container Registry (ACR)"
+    Write-Host "3. Build and push API image to ACR"
+    Write-Host "4. Create AKS cluster"
+    Write-Host "5. Check deployment status"
+    Write-Host "6. Deploy to AKS"
+    Write-Host "7. Delete/Purge Foundry deployment"
     Write-Host "8. Exit"
     Write-Host "====================================================================="
 }
@@ -323,7 +323,7 @@ function Deploy-ToAKS {
         --scope $foundryResourceId 2>$null | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to assign Cognitive Services OpenAI User role. Re-run option 7 to try again."
+        Write-Host "Error: Failed to assign Cognitive Services OpenAI User role. Re-run option 6 to try again."
         return $false
     }
     Write-Host "$([char]0x2713) Role assigned to AKS kubelet identity (may take 1-2 minutes to propagate)"
@@ -508,39 +508,39 @@ while ($true) {
         }
         "2" {
             Write-Host ""
-            Delete-FoundryResource | Out-Null
-            Write-Host ""
-            Read-Host "Press Enter to continue"
-        }
-        "3" {
-            Write-Host ""
             Create-ResourceGroup | Out-Null
             Write-Host ""
             Create-ACR | Out-Null
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
-        "4" {
+        "3" {
             Write-Host ""
             Build-AndPushImage | Out-Null
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
-        "5" {
+        "4" {
             Write-Host ""
             Create-AKSCluster | Out-Null
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
-        "6" {
+        "5" {
             Write-Host ""
             Check-DeploymentStatus | Out-Null
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
-        "7" {
+        "6" {
             Write-Host ""
             Deploy-ToAKS | Out-Null
+            Write-Host ""
+            Read-Host "Press Enter to continue"
+        }
+        "7" {
+            Write-Host ""
+            Delete-FoundryResource | Out-Null
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
