@@ -17,7 +17,7 @@ The Model Context Protocol (MCP) is an open standard that defines how AI agents 
 
 In this exercise, you create an Azure Functions project with the MCP extension, define tool trigger functions for document processing, configure the MCP server settings, and test the server locally by connecting to it from GitHub Copilot in agent mode.
 
->**Note:** This exercise uses the Azure Functions MCP extension, which is actively evolving. Visit the [Azure Functions MCP extension documentation](/azure/azure-functions/functions-bindings-mcp-trigger) for the most up-to-date setup instructions, API surface, and configuration options.
+>**Note:** This exercise uses the Azure Functions MCP extension, which is actively evolving. Visit the [Azure Functions MCP extension documentation](/azure/azure-functions/functions-bindings-mcp) for the most up-to-date setup instructions, API surface, and configuration options.
 
 Tasks performed in this exercise:
 
@@ -250,7 +250,7 @@ Natural language prompts are more likely to answer a prompt directly without inv
 
 ## Next steps
 
-In a production scenario, you would deploy the function app to Azure using the Flex Consumption plan, authenticate MCP client connections with the **mcp_extension** system key, and replace the placeholder logic in each tool function with calls to Azure AI services using **DefaultAzureCredential** and the function app's managed identity. For more details, see the [Azure Functions MCP extension documentation](/azure/azure-functions/functions-bindings-mcp-trigger).
+In a production scenario, you would deploy the function app to Azure using the Flex Consumption plan, authenticate MCP client connections with the **mcp_extension** system key, and replace the placeholder logic in each tool function with calls to Azure AI services using **DefaultAzureCredential** and the function app's managed identity. For more details, see the [Azure Functions MCP extension documentation](/azure/azure-functions/functions-bindings-mcp).
 
 ## Troubleshooting
 
