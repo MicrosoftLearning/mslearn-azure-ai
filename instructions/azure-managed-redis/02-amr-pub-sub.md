@@ -272,30 +272,30 @@ The method iterates over **pubsub.listen()**, which blocks and yields messages a
 1. Locate the **# BEGIN MESSAGE LISTENER CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-        def listen_messages(self) -> None:
-            """Background thread that reads messages from subscribed channels."""
-            self.listener_active = True
-            try:
-                # listen() blocks and yields messages as they are published.
-                for message in self.pubsub.listen():
-                    if not self.listening:
-                        break
+    def listen_messages(self) -> None:
+        """Background thread that reads messages from subscribed channels."""
+        self.listener_active = True
+        try:
+            # listen() blocks and yields messages as they are published.
+            for message in self.pubsub.listen():
+                if not self.listening:
+                    break
 
-                    # Handle both direct channel messages and pattern messages.
-                    if message["type"] in ("message", "pmessage"):
-                        self._add_message(format_message(message))
+                # Handle both direct channel messages and pattern messages.
+                if message["type"] in ("message", "pmessage"):
+                    self._add_message(format_message(message))
 
-            except Exception as e:
-                if self.listening:
-                    self._add_message({
-                        "timestamp": datetime.now().strftime("%H:%M:%S"),
-                        "channel": "system",
-                        "pattern": None,
-                        "event": "listener_error",
-                        "details": {"error": str(e)},
-                    })
-            finally:
-                self.listener_active = False
+        except Exception as e:
+            if self.listening:
+                self._add_message({
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
+                    "channel": "system",
+                    "pattern": None,
+                    "event": "listener_error",
+                    "details": {"error": str(e)},
+                })
+        finally:
+            self.listener_active = False
     ```
 
 1. Save your changes and take a few minutes to review the code.
@@ -309,17 +309,17 @@ The **subscribe_to_channel()** method calls **subscribe()** to register interest
 1. Locate the **# BEGIN SUBSCRIBE CHANNEL/PATTERN CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
-        def subscribe_to_channel(self, channel: str) -> str:
-            """Subscribe to a specific channel using subscribe()."""
-            self.pubsub.subscribe(channel)  # Register interest in the channel.
-            self.restart_listener()
-            return f"Subscribed to channel: {channel}"
+    def subscribe_to_channel(self, channel: str) -> str:
+        """Subscribe to a specific channel using subscribe()."""
+        self.pubsub.subscribe(channel)  # Register interest in the channel.
+        self.restart_listener()
+        return f"Subscribed to channel: {channel}"
 
-        def subscribe_to_pattern(self, pattern: str) -> str:
-            """Subscribe using a pattern with psubscribe() (e.g. 'orders:*')."""
-            self.pubsub.psubscribe(pattern)  # Register interest in matching channels.
-            self.restart_listener()
-            return f"Subscribed to pattern: {pattern}"
+    def subscribe_to_pattern(self, pattern: str) -> str:
+        """Subscribe using a pattern with psubscribe() (e.g. 'orders:*')."""
+        self.pubsub.psubscribe(pattern)  # Register interest in matching channels.
+        self.restart_listener()
+        return f"Subscribed to pattern: {pattern}"
     ```
 
 1. Save your changes and take a few minutes to review the code.
@@ -406,19 +406,19 @@ In this section, you run the completed Flask application to publish and subscrib
 
 1. Open a browser and navigate to `http://localhost:5000` to access the app.
 
-1. In the **Subscriptions** area of the left panel, enter **orders:created** in the channel box and select **Subscribe**. A success message confirms the subscription, and the **Active Subscriptions** list updates to include the channel. You must subscribe to a channel before you can receive its messages.
+1. In the **Subscriptions** area of the left panel, select the channel box to open the drop-down list, choose **notifications**, and select **Subscribe**. A success message confirms the subscription, and the **Active subscriptions** list updates to include the channel. You must subscribe to a channel before you can receive its messages.
 
-1. In the **Publish Events** area, select **Order Created**. The right panel shows the publish result, including the channel and the number of subscribers reached. Within a second or two, the message appears in the **Received Messages** list because the background listener delivered it to your subscription.
+1. In the **Publish Events** area, select **Notification**. The right panel shows the publish result, including the channel and the number of subscribers reached. Within a second or two, the message appears in the **Received Messages** list because the background listener delivered it to your subscription.
 
-1. Select **Order Shipped**. The publish result shows the message was sent to the **orders:shipped** channel, but it does not appear in **Received Messages** because you only subscribed to **orders:created**.
+1. Select **Inventory Alert**. The publish result shows the message was sent to the **inventory:alerts** channel, but it does not appear in **Received Messages** because you only subscribed to **notifications**.
 
-1. In the **Subscriptions** area, enter **orders:*** in the pattern box and select **Subscribe to Pattern**. This subscribes to every channel that begins with **orders:**.
+1. In the **Subscriptions** area, enter **orders:\*** in the pattern box and select **Subscribe to Pattern**. This subscribes to every channel that begins with **orders:**, and the pattern appears in the **Active subscriptions** list alongside **notifications**.
 
-1. Select **Order Shipped** again. This time the message appears in **Received Messages** because the **orders:*** pattern matches the **orders:shipped** channel.
+1. Select **Order Created**, then select **Order Shipped**. Both messages appear in the **Received Messages** list because the **orders:*** pattern matches both the **orders:created** and **orders:shipped** channels.
 
-1. Select **Inventory Alert** and **Notification** to publish to the other channels, then select **Broadcast to All** to send a single announcement to every channel. Watch the **Received Messages** list update live for each message that matches your current subscriptions.
+1. Select **Broadcast to All** to send a single announcement to every channel. Watch the **Received Messages** list update live for each message that matches your current subscriptions.
 
-1. Select **Unsubscribe All** to clear your subscriptions, then publish another event to confirm that no new messages arrive while you have no active subscriptions.
+1. Select **Unsubscribe from All** to clear your subscriptions, then select **Broadcast to All** again. Confirm that no new messages arrive in **Received Messages** because you no longer have any active subscriptions.
 
 ## Clean up resources
 
