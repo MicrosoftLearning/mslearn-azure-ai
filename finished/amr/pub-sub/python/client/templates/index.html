@@ -186,6 +186,19 @@
             try {
                 const res = await fetch("/messages?since=" + lastIndex);
                 const data = await res.json();
+
+                // When the server buffer is cleared (e.g. after unsubscribing),
+                // its index counter resets. Detect that and clear the display
+                // so stale messages don't linger.
+                if (data.last_index < lastIndex) {
+                    lastIndex = 0;
+                    hasMessages = false;
+                    messagesEl.innerHTML =
+                        '<div class="empty-state">' +
+                        "Subscribe to a channel, then publish a message to see it here." +
+                        "</div>";
+                }
+
                 lastIndex = data.last_index;
                 renderSubscriptions(data.subscriptions || {});
                 (data.messages || []).forEach(appendMessage);

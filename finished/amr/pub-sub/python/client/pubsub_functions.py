@@ -213,6 +213,17 @@ class PubSubManager:
             new_messages = [m for m in self._messages if m["index"] > since]
             return new_messages, self._counter
 
+    def clear_messages(self) -> None:
+        """Empty the received-message buffer and reset the index counter.
+
+        Resetting the counter to zero signals the web page to clear its
+        displayed history, so stale messages don't linger after the set of
+        active subscriptions changes.
+        """
+        with self._lock:
+            self._messages.clear()
+            self._counter = 0
+
     # BEGIN MESSAGE LISTENER CODE SECTION
     def listen_messages(self) -> None:
         """Background thread that reads messages from subscribed channels."""
@@ -242,9 +253,16 @@ class PubSubManager:
 
     def restart_listener(self, clear_subs: bool = False) -> None:
         """Restart the listener thread after a subscription change."""
-        # Capture the current subscriptions so they can be restored.
-        channels = list(self.pubsub.channels.keys()) if self.pubsub.channels else []
-        patterns = list(self.pubsub.patterns.keys()) if self.pubsub.patterns else []
+        # Capture the current subscriptions so they can be restored on the new
+        # connection. redis-py removes a channel from pubsub.channels only after
+        # it reads the UNSUBSCRIBE confirmation off the socket. Because we tear
+        # down and recreate the pubsub here, that confirmation is never read, so
+        # a just-unsubscribed channel would still appear in pubsub.channels and
+        # get resubscribed. Exclude anything that is pending unsubscribe.
+        pending_channels = self.pubsub.pending_unsubscribe_channels
+        pending_patterns = self.pubsub.pending_unsubscribe_patterns
+        channels = [c for c in (self.pubsub.channels or {}) if c not in pending_channels]
+        patterns = [p for p in (self.pubsub.patterns or {}) if p not in pending_patterns]
 
         if clear_subs:
             channels = []
@@ -295,6 +313,7 @@ class PubSubManager:
         """Unsubscribe from a single channel."""
         self.pubsub.unsubscribe(channel)
         self.restart_listener()
+        self.clear_messages()
         return f"Unsubscribed from channel: {channel}"
 
     def unsubscribe_all(self) -> str:
@@ -302,6 +321,7 @@ class PubSubManager:
         self.pubsub.unsubscribe()
         self.pubsub.punsubscribe()
         self.restart_listener(clear_subs=True)
+        self.clear_messages()
         return "Unsubscribed from all channels and patterns"
 
     def get_subscriptions(self) -> dict:

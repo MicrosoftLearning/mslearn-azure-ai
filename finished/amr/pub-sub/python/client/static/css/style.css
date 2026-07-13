@@ -87,6 +87,7 @@ h3 .subtitle {
 .button-group form {
     flex: 1;
     min-width: 140px;
+    display: flex;
 }
 
 .button-group button {

@@ -146,7 +146,7 @@ function Create-DatabaseAndConfigureAccess {
     # Grant the signed-in user access to the database using Microsoft Entra ID.
     # This assigns the built-in "default" access policy to the user's object ID
     # so the app can authenticate with DefaultAzureCredential instead of a key.
-    $assignment_name = "amr-access-$user_hash"
+    $assignment_name = "useraccess"
     $assignment_state = az redisenterprise database access-policy-assignment show `
         --resource-group $rg `
         --cluster-name $cache_name `
