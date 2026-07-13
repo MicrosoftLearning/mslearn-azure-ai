@@ -24,12 +24,30 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 cache_name="amr-exercise-${user_hash}"
 
+# Run a command quietly, but surface its output if it fails. This keeps the
+# console clean on success while still reporting the error details when a
+# command fails, instead of silently discarding them.
+# Usage: run_quiet "Description of the step" <command> [args...]
+run_quiet() {
+    local description="$1"
+    shift
+    local output
+    if ! output=$("$@" 2>&1); then
+        echo "Error: ${description} failed."
+        if [ -n "$output" ]; then
+            echo "$output"
+        fi
+        return 1
+    fi
+    return 0
+}
+
 # Function to create resource group if it doesn't exist
 create_resource_group() {
     echo "Checking resource group '$rg'..."
     local exists=$(az group exists --name $rg)
     if [ "$exists" = "false" ]; then
-        az group create --name $rg --location $location > /dev/null 2>&1
+        run_quiet "Create resource group" az group create --name $rg --location $location || return 1
         echo "Resource group created: $rg"
     else
         echo "Resource group already exists: $rg"
@@ -50,14 +68,14 @@ create_redis_resource() {
 
     echo "Creating Azure Managed Redis resource '$cache_name'..."
 
-    az redisenterprise create \
+    run_quiet "Create Azure Managed Redis resource" az redisenterprise create \
         --resource-group $rg \
         --name $cache_name \
         --location $location \
         --sku "Balanced_B0" \
         --public-network-access "Enabled" \
         --no-database \
-        --no-wait
+        --no-wait || return 1
 
     echo "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."
     echo "You can check the deployment status from the menu later in the exercise."
@@ -86,8 +104,9 @@ check_deployment_status() {
     fi
 }
 
-# Function to create database and retrieve endpoint and access key
-create_database_and_get_key() {
+# Function to create the database, grant the current user Microsoft Entra ID
+# access, and write the .env file with the Redis endpoint
+create_database_and_configure_access() {
 
     # Check if cluster is provisioned
     local cluster_state=$(az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>/dev/null)
@@ -100,50 +119,58 @@ create_database_and_get_key() {
     # Check if database already exists
     local db_state=$(az redisenterprise database show --resource-group $rg --cluster-name $cache_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ -n "$db_state" ]; then
-        echo "Database already exists (State: $db_state). Enabling access key auth..."
-        az redisenterprise database update \
-            --resource-group $rg \
-            --cluster-name $cache_name \
-            --access-keys-auth "Enabled" \
-            > /dev/null 2>&1
+        echo "Database already exists (State: $db_state)."
     else
-        echo "Creating database with access key authentication enabled..."
-        az redisenterprise database create \
+        echo "Creating database..."
+        run_quiet "Create database" az redisenterprise database create \
             --resource-group $rg \
             --cluster-name $cache_name \
             --client-protocol "Encrypted" \
             --clustering-policy "NoCluster" \
             --eviction-policy "AllKeysLRU" \
-            --port 10000 \
-            --access-keys-auth "Enabled" \
-            > /dev/null 2>&1
-
-        if [ $? -ne 0 ]; then
-            echo "Error: Failed to create database."
-            return 1
-        fi
+            --port 10000 || return 1
     fi
 
-    echo "Retrieving endpoint and access key..."
+    # Grant the signed-in user access to the database using Microsoft Entra ID.
+    # This assigns the built-in "default" access policy to the user's object ID
+    # so the app can authenticate with DefaultAzureCredential instead of a key.
+    local assignment_name="amr-access-${user_hash}"
+    local assignment_state=$(az redisenterprise database access-policy-assignment show \
+        --resource-group $rg \
+        --cluster-name $cache_name \
+        --database-name default \
+        --access-policy-assignment-name $assignment_name \
+        --query "provisioningState" -o tsv 2>/dev/null)
+
+    if [ -n "$assignment_state" ]; then
+        echo "Microsoft Entra access is already assigned for the current user."
+    else
+        echo "Assigning Microsoft Entra access for the current user..."
+        run_quiet "Assign access policy" az redisenterprise database access-policy-assignment create \
+            --resource-group $rg \
+            --cluster-name $cache_name \
+            --database-name default \
+            --access-policy-assignment-name $assignment_name \
+            --access-policy-name default \
+            --object-id $user_object_id || return 1
+    fi
+
+    echo "Retrieving endpoint..."
 
     # Get the endpoint (hostname)
     local hostname=$(az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>/dev/null)
 
-    # Get the primary access key
-    local primaryKey=$(az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>/dev/null)
-
-    # Check if values are empty
-    if [ -z "$hostname" ] || [ -z "$primaryKey" ]; then
+    # Check if the value is empty
+    if [ -z "$hostname" ]; then
         echo ""
-        echo "Error: Unable to retrieve endpoint or access key."
+        echo "Error: Unable to retrieve the endpoint."
         echo "Please check the deployment status to ensure the resource is fully provisioned."
         return 1
     fi
 
     # Write .env file
     cat > .env << EOF
-REDIS_HOST=$hostname
-REDIS_KEY=$primaryKey
+export REDIS_HOST="$hostname"
 EOF
 
     clear
@@ -151,9 +178,9 @@ EOF
     echo "Redis Connection Information"
     echo "==========================================================="
     echo "Endpoint: $hostname"
-    echo "Primary Key: $primaryKey"
+    echo "Authentication: Microsoft Entra ID (current user)"
     echo ""
-    echo "Values have been saved to .env file"
+    echo "The endpoint has been saved to the .env file"
 }
 
 # Display menu
@@ -168,7 +195,7 @@ show_menu() {
     echo "====================================================================="
     echo "1. Create Azure Managed Redis resource"
     echo "2. Check deployment status"
-    echo "3. Create database and retrieve endpoint and access key"
+    echo "3. Create database and configure access"
     echo "4. Exit"
     echo "====================================================================="
 }
@@ -193,7 +220,7 @@ while true; do
             ;;
         3)
             echo ""
-            create_database_and_get_key
+            create_database_and_configure_access
             echo ""
             read -p "Press Enter to continue..."
             ;;

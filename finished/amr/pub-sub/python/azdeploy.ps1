@@ -24,12 +24,32 @@ $hashBytes = $sha1.ComputeHash($bytes)
 $user_hash = [System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower()
 $cache_name = "amr-exercise-$user_hash"
 
+# Run a command quietly, but surface its output if it fails. This keeps the
+# console clean on success while still reporting the error details when a
+# command fails, instead of silently discarding them.
+# Usage: Invoke-Quiet "Description of the step" { az ... }
+function Invoke-Quiet {
+    param(
+        [string]$Description,
+        [scriptblock]$Command
+    )
+    $output = & $Command 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: $Description failed."
+        if ($output) {
+            Write-Host ($output | Out-String)
+        }
+        return $false
+    }
+    return $true
+}
+
 # Function to create resource group if it doesn't exist
 function Create-ResourceGroup {
     Write-Host "Checking resource group '$rg'..."
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>$null | Out-Null
+        if (-not (Invoke-Quiet "Create resource group" { az group create --name $rg --location $location })) { return }
         Write-Host "Resource group created: $rg"
     } else {
         Write-Host "Resource group already exists: $rg"
@@ -50,14 +70,17 @@ function Create-RedisResource {
 
     Write-Host "Creating Azure Managed Redis resource '$cache_name'..."
 
-    az redisenterprise create `
-        --resource-group $rg `
-        --name $cache_name `
-        --location $location `
-        --sku "Balanced_B0" `
-        --public-network-access "Enabled" `
-        --no-database `
-        --no-wait
+    $created = Invoke-Quiet "Create Azure Managed Redis resource" {
+        az redisenterprise create `
+            --resource-group $rg `
+            --name $cache_name `
+            --location $location `
+            --sku "Balanced_B0" `
+            --public-network-access "Enabled" `
+            --no-database `
+            --no-wait
+    }
+    if (-not $created) { return }
 
     Write-Host "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."
     Write-Host "You can check the deployment status from the menu later in the exercise."
@@ -86,8 +109,9 @@ function Check-DeploymentStatus {
     }
 }
 
-# Function to create database and retrieve endpoint and access key
-function Create-DatabaseAndGetKey {
+# Function to create the database, grant the current user Microsoft Entra ID
+# access, and write the .env file with the Redis endpoint
+function Create-DatabaseAndConfigureAccess {
 
     # Check if cluster is provisioned
     $cluster_state = az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>$null
@@ -101,60 +125,72 @@ function Create-DatabaseAndGetKey {
     # Check if database already exists
     $db_state = az redisenterprise database show --resource-group $rg --cluster-name $cache_name --query "provisioningState" -o tsv 2>$null
     if (-not [string]::IsNullOrWhiteSpace($db_state)) {
-        Write-Host "Database already exists (State: $db_state). Enabling access key auth..."
-        az redisenterprise database update `
-            --resource-group $rg `
-            --cluster-name $cache_name `
-            --access-keys-auth "Enabled" `
-            2>$null | Out-Null
+        Write-Host "Database already exists (State: $db_state)."
     } else {
-        Write-Host "Creating database with access key authentication enabled..."
-        az redisenterprise database create `
-            --resource-group $rg `
-            --cluster-name $cache_name `
-            --client-protocol "Encrypted" `
-            --clustering-policy "NoCluster" `
-            --eviction-policy "AllKeysLRU" `
-            --port 10000 `
-            --access-keys-auth "Enabled" `
-            2>$null | Out-Null
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to create database."
-            return
+        Write-Host "Creating database..."
+        $created = Invoke-Quiet "Create database" {
+            az redisenterprise database create `
+                --resource-group $rg `
+                --cluster-name $cache_name `
+                --client-protocol "Encrypted" `
+                --clustering-policy "NoCluster" `
+                --eviction-policy "AllKeysLRU" `
+                --port 10000
         }
+        if (-not $created) { return }
     }
 
-    Write-Host "Retrieving endpoint and access key..."
+    # Grant the signed-in user access to the database using Microsoft Entra ID.
+    # This assigns the built-in "default" access policy to the user's object ID
+    # so the app can authenticate with DefaultAzureCredential instead of a key.
+    $assignment_name = "amr-access-$user_hash"
+    $assignment_state = az redisenterprise database access-policy-assignment show `
+        --resource-group $rg `
+        --cluster-name $cache_name `
+        --database-name default `
+        --access-policy-assignment-name $assignment_name `
+        --query "provisioningState" -o tsv 2>$null
+
+    if (-not [string]::IsNullOrWhiteSpace($assignment_state)) {
+        Write-Host "Microsoft Entra access is already assigned for the current user."
+    } else {
+        Write-Host "Assigning Microsoft Entra access for the current user..."
+        $assigned = Invoke-Quiet "Assign access policy" {
+            az redisenterprise database access-policy-assignment create `
+                --resource-group $rg `
+                --cluster-name $cache_name `
+                --database-name default `
+                --access-policy-assignment-name $assignment_name `
+                --access-policy-name default `
+                --object-id $user_object_id
+        }
+        if (-not $assigned) { return }
+    }
+
+    Write-Host "Retrieving endpoint..."
 
     # Get the endpoint (hostname)
     $hostname = az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>$null
 
-    # Get the primary access key
-    $primaryKey = az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>$null
-
-    # Check if values are empty
-    if ([string]::IsNullOrWhiteSpace($hostname) -or [string]::IsNullOrWhiteSpace($primaryKey)) {
+    # Check if the value is empty
+    if ([string]::IsNullOrWhiteSpace($hostname)) {
         Write-Host ""
-        Write-Host "Error: Unable to retrieve endpoint or access key."
+        Write-Host "Error: Unable to retrieve the endpoint."
         Write-Host "Please check the deployment status to ensure the resource is fully provisioned."
         return
     }
 
-    # Write .env file
-    @"
-REDIS_HOST=$hostname
-REDIS_KEY=$primaryKey
-"@ | Set-Content ".env" -NoNewline
+    # Write .env.ps1 file
+    "`$env:REDIS_HOST = `"$hostname`"" | Set-Content ".env.ps1"
 
     Clear-Host
     Write-Host ""
     Write-Host "Redis Connection Information"
     Write-Host "==========================================================="
     Write-Host "Endpoint: $hostname"
-    Write-Host "Primary Key: $primaryKey"
+    Write-Host "Authentication: Microsoft Entra ID (current user)"
     Write-Host ""
-    Write-Host "Values have been saved to .env file"
+    Write-Host "The endpoint has been saved to the .env.ps1 file"
 }
 
 # Display menu
@@ -169,7 +205,7 @@ function Show-Menu {
     Write-Host "====================================================================="
     Write-Host "1. Create Azure Managed Redis resource"
     Write-Host "2. Check deployment status"
-    Write-Host "3. Create database and retrieve endpoint and access key"
+    Write-Host "3. Create database and configure access"
     Write-Host "4. Exit"
     Write-Host "====================================================================="
 }
@@ -194,7 +230,7 @@ do {
         }
         "3" {
             Write-Host ""
-            Create-DatabaseAndGetKey
+            Create-DatabaseAndConfigureAccess
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }

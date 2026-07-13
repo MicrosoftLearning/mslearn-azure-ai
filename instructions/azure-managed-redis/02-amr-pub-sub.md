@@ -2,7 +2,7 @@
 lab:
   topic: Azure Managed Redis
   title: Publish and subscribe to events in Azure Managed Redis
-  description: Learn how to build publisher and subscriber applications that implement pub/sub patterns in Azure Managed Redis using the redis-py Python library.
+  description: Learn how to build a Flask web app that implements pub/sub messaging patterns in Azure Managed Redis using the redis-py Python library and Microsoft Entra ID.
   level: 300
   duration: 30
   islab: true
@@ -13,14 +13,16 @@ lab:
 
 # Publish and subscribe to events in Azure Managed Redis
 
-In this exercise, you create an Azure Managed Redis resource and complete the code for a console-based publisher and a subscriber app. The publisher app sends event messages to Redis channels, while the subscriber app listens for those messages using a graphical interface built with **tkinter**. You implement core pub/sub patterns including direct channel subscriptions, wildcard pattern matching, message formatting, and background message listening.
+Azure Managed Redis provides a fully managed, in-memory data store that includes a lightweight publish/subscribe (pub/sub) messaging system. With pub/sub, publishers send messages to named channels without needing to know who receives them, and subscribers receive messages from the channels or patterns they're interested in. This decoupled, one-to-many pattern is useful for real-time scenarios such as event notifications, live dashboards, and fan-out messaging between services.
+
+In this exercise, you deploy an Azure Managed Redis resource and complete a Python Flask web app that publishes and subscribes to Redis channels from a single page. You add code to connect to Redis with Microsoft Entra ID, publish event messages, broadcast to every channel, format received messages, listen for messages on a background thread, and subscribe to channels and patterns. You then run the app and watch messages arrive live as you publish them.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
 - Create an Azure Managed Redis resource
-- Add code to complete both the publisher and subscriber apps
-- Run the publisher and subscriber apps to send and receive messages
+- Add code to the starter files to complete the app
+- Run the app to publish and subscribe to messages
 
 This exercise takes approximately **30** minutes to complete.
 
@@ -32,11 +34,11 @@ To complete the exercise, you need:
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
-- The Azure CLI **redisenterprise** extension. You can install it by running the **az extension add --name redisenterprise** command.
+- The Azure CLI **redisenterprise** extension, version 2.75.0 or greater. A later step installs or upgrades the extension for you.
 
 ## Download project starter files and deploy Azure Managed Redis
 
-In this section you download the starter files for the console app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the starter files for the app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete, so you start the deployment first and add code to the app while it provisions.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -48,7 +50,7 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -69,10 +71,10 @@ In this section you download the starter files for the console app and use a scr
     az provider register --namespace Microsoft.Cache
     ```
 
-1. Run the following command to install the **redisenterprise** extension for Azure CLI.
+1. Run the following command to install or upgrade the **redisenterprise** extension for Azure CLI. Version 2.75.0 or greater is required to configure Microsoft Entra ID access on the database.
 
     ```
-    az extension add --name redisenterprise
+    az extension add --upgrade --name redisenterprise
     ```
 
 1. Run the appropriate command in the terminal to launch the script.
@@ -97,18 +99,278 @@ In this section you download the starter files for the console app and use a scr
 
     This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
 
-1. After the following messages appear in the console, select **Enter** to return to the menu and then select **4** to exit the script. You run the script again later to check on the deployment status and also to create the *.env* file for the project.
+1. After the following messages appear in the console, select **Enter** to return to the menu and then select **4** to exit the script. You run the script again later to check on the deployment status and create the database and *.env* file for the project.
 
     *The Azure Managed Redis resource is being created and takes 5-10 minutes to complete.*
 
     *You can check the deployment status from the menu later in the exercise.*
 
+## Complete the app
+
+In this section you add code to the *pubsub_functions.py* file to complete the pub/sub functions. The Flask app in *app.py* calls these functions to publish messages, manage subscriptions, and stream received messages to the browser. You don't need to edit *app.py*. You run the app later in the exercise.
+
+1. Open the *client/pubsub_functions.py* file to begin adding code.
+
+>**Note:** The code blocks you add to the application should align with the comment for that section of the code.
+
+### Add code to connect to Azure Managed Redis
+
+In this section you add code to create a Redis client that authenticates with Microsoft Entra ID. Using Entra ID means the app never handles an access key.
+
+The **get_client()** function reads the Redis endpoint from the **REDIS_HOST** environment variable and calls **create_from_default_azure_credential()** to build a credential provider. The provider uses **DefaultAzureCredential** to acquire a Microsoft Entra token and refreshes it automatically in the background, so the long-lived listener connection stays authenticated. The client connects over TLS on port 10000 and decodes responses to strings.
+
+1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def get_client() -> redis.Redis:
+        """Create a Redis client for Azure Managed Redis using Microsoft Entra ID."""
+        redis_host = os.environ.get("REDIS_HOST")
+
+        if not redis_host:
+            raise ValueError("REDIS_HOST environment variable must be set")
+
+        # create_from_default_azure_credential uses DefaultAzureCredential to
+        # acquire a Microsoft Entra token for Redis. The credential provider
+        # refreshes the token automatically in the background so long-lived
+        # connections (like the pub/sub listener) stay authenticated.
+        credential_provider = create_from_default_azure_credential(
+            ("https://redis.azure.com/.default",),
+        )
+
+        return redis.Redis(
+            host=redis_host,
+            port=10000,
+            ssl=True,
+            decode_responses=True,
+            credential_provider=credential_provider,
+            socket_timeout=30,
+            socket_connect_timeout=30,
+        )
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to publish an event
+
+In this section you add code to publish an order created event. This demonstrates the core publish operation that sends a message to a single channel.
+
+The **publish_order_created()** function builds a dictionary describing the event, serializes it to JSON, and calls **publish()** on the **orders:created** channel. The **publish()** method returns the number of subscribers that received the message, which the app displays so you can confirm the message was delivered.
+
+1. Locate the **# BEGIN PUBLISH MESSAGE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def publish_order_created(r: redis.Redis) -> dict:
+        """Publish an order created event to the 'orders:created' channel."""
+        order_data = {
+            "event": "order_created",
+            "order_id": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "customer": "Jane Doe",
+            "total": 129.99,
+            "timestamp": datetime.now().isoformat(),
+        }
+        channel = "orders:created"
+
+        # publish() sends the message to every subscriber of the channel and
+        # returns the number of subscribers that received it.
+        subscribers = r.publish(channel, json.dumps(order_data))
+
+        return {"channel": channel, "subscribers": subscribers, "message": order_data}
+    ```
+
+    > **Note:** The starter file already includes the **publish_order_shipped()**, **publish_inventory_alert()**, and **publish_notification()** functions so you have several event types to work with. Take a moment to review them.
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to broadcast to all channels
+
+In this section you add code to broadcast a single message to every channel. Broadcasting is useful for system-wide announcements that all subscribers should receive regardless of the channel they subscribed to.
+
+The **broadcast_to_all()** function loops over **AVAILABLE_CHANNELS** and calls **publish()** for each one with the same message. It totals the subscriber counts across all channels so the app can report how many subscribers were reached.
+
+1. Locate the **# BEGIN BROADCAST CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def broadcast_to_all(r: redis.Redis) -> dict:
+        """Broadcast the same message to every channel using publish() in a loop."""
+        announcement = {
+            "event": "system_announcement",
+            "message": "System maintenance scheduled for 2 AM",
+            "priority": "high",
+            "timestamp": datetime.now().isoformat(),
+        }
+        message = json.dumps(announcement)
+
+        results = []
+        total_subscribers = 0
+        for channel in AVAILABLE_CHANNELS:
+            # Send the same message to multiple channels for multi-channel delivery.
+            count = r.publish(channel, message)
+            total_subscribers += count
+            results.append({"channel": channel, "subscribers": count})
+
+        return {
+            "channels": results,
+            "total_subscribers": total_subscribers,
+            "message": announcement,
+        }
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to format received messages
+
+In this section you add code to format incoming messages for display. The background listener calls this function for every message it receives so the web page can show a clean summary.
+
+The **format_message()** function reads the channel, pattern, and data from the raw pub/sub message. It parses the JSON payload and extracts the event type along with a set of known fields such as **order_id** and **customer**. If the payload isn't valid JSON, it returns the raw value instead so nothing is lost.
+
+1. Locate the **# BEGIN MESSAGE FORMATTING CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def format_message(message: dict) -> dict:
+        """Parse a pub/sub message and extract relevant fields for display."""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        channel = message.get("channel", "unknown")
+        pattern = message.get("pattern")
+
+        try:
+            data = json.loads(message["data"])
+        except (json.JSONDecodeError, TypeError):
+            # Non-JSON payloads are returned as-is under a "raw" key.
+            return {
+                "timestamp": timestamp,
+                "channel": channel,
+                "pattern": pattern,
+                "event": None,
+                "details": {"raw": message.get("data")},
+            }
+
+        # Pull out the fields that the demo events include so the UI can
+        # display a clean summary of each message.
+        field_names = [
+            "order_id", "customer", "total", "tracking_number",
+            "product_name", "current_stock", "message",
+        ]
+        details = {name: data[name] for name in field_names if name in data}
+
+        return {
+            "timestamp": timestamp,
+            "channel": channel,
+            "pattern": pattern,
+            "event": data.get("event", "unknown"),
+            "details": details,
+        }
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to listen for messages
+
+In this section you add code to the **listen_messages()** method of the **PubSubManager** class. This method runs on a background thread so the app can receive messages continuously while still responding to web requests.
+
+The method iterates over **pubsub.listen()**, which blocks and yields messages as they're published. It handles both **message** (direct channel) and **pmessage** (pattern) types, formats each one with **format_message()**, and adds it to a thread-safe buffer that the web page polls. Errors are captured and surfaced as a system message so failures are visible in the UI.
+
+1. Locate the **# BEGIN MESSAGE LISTENER CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+        def listen_messages(self) -> None:
+            """Background thread that reads messages from subscribed channels."""
+            self.listener_active = True
+            try:
+                # listen() blocks and yields messages as they are published.
+                for message in self.pubsub.listen():
+                    if not self.listening:
+                        break
+
+                    # Handle both direct channel messages and pattern messages.
+                    if message["type"] in ("message", "pmessage"):
+                        self._add_message(format_message(message))
+
+            except Exception as e:
+                if self.listening:
+                    self._add_message({
+                        "timestamp": datetime.now().strftime("%H:%M:%S"),
+                        "channel": "system",
+                        "pattern": None,
+                        "event": "listener_error",
+                        "details": {"error": str(e)},
+                    })
+            finally:
+                self.listener_active = False
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to subscribe to channels and patterns
+
+In this section you add code to the **subscribe_to_channel()** and **subscribe_to_pattern()** methods. These are the two main subscription strategies in Redis pub/sub: direct channel subscriptions for a specific event and pattern subscriptions for wildcard matching.
+
+The **subscribe_to_channel()** method calls **subscribe()** to register interest in a single channel, while **subscribe_to_pattern()** calls **psubscribe()** to match multiple channels with a pattern such as **orders:***. After each subscription change, the code restarts the listener so it begins receiving messages on the new channels.
+
+1. Locate the **# BEGIN SUBSCRIBE CHANNEL/PATTERN CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+        def subscribe_to_channel(self, channel: str) -> str:
+            """Subscribe to a specific channel using subscribe()."""
+            self.pubsub.subscribe(channel)  # Register interest in the channel.
+            self.restart_listener()
+            return f"Subscribed to channel: {channel}"
+
+        def subscribe_to_pattern(self, pattern: str) -> str:
+            """Subscribe using a pattern with psubscribe() (e.g. 'orders:*')."""
+            self.pubsub.psubscribe(pattern)  # Register interest in matching channels.
+            self.restart_listener()
+            return f"Subscribed to pattern: {pattern}"
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+## Verify resource deployment
+
+In this section you run the deployment script again to confirm the Azure Managed Redis deployment finished, then create the database, configure Microsoft Entra ID access, and generate the *.env* file with the endpoint.
+
+1. Run the appropriate command in the terminal to start the deployment script. If you closed the previous terminal, select **Terminal > New Terminal** in the menu to open a new one.
+
+    **Bash**
+    ```bash
+    bash azdeploy.sh
+    ```
+
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
+    ```
+
+1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status returns **Succeeded**, proceed to the next step. If not, wait a few minutes and try the option again.
+
+1. After the deployment is complete, enter **3** to run the **3. Create database and configure access** option. This creates the database with Microsoft Entra ID authentication, assigns a data access policy to your account so the app can connect using your identity, and creates the *.env* file with the **REDIS_HOST** endpoint.
+
+1. Enter **4** to exit the deployment script.
+
+1. Run the appropriate command to load the environment variables into your terminal session from the file created in the previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
 
 ## Configure the Python environment
 
-In this section, you create the Python environment and install the dependencies.
+In this section, you navigate to the client app directory, create the Python environment, and install the dependencies.
 
-1. Run the following command in the VS Code terminal to create the Python environment.
+1. Run the following command in the VS Code terminal to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
+1. Run the following command to create the Python environment.
 
     ```
     python -m venv .venv
@@ -132,379 +394,31 @@ In this section, you create the Python environment and install the dependencies.
     pip install -r requirements.txt
     ```
 
-## Complete the publisher app
+## Run the app
 
-In this section you add code to the *publisher.py* script to complete the console app. You run the app later in the exercise after you complete the *subscriber.py* script and create the *.env* file.
+In this section, you run the completed Flask application to publish and subscribe to messages from a single web page. The left panel publishes events and manages subscriptions, and the right panel shows the result of the last publish and a live stream of received messages.
 
-1. Open the *publisher.py* file to begin adding code.
-
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
-### Add the client connection
-
-In this section, you add code to establish a connection to Azure Managed Redis using the redis-py library. The code retrieves connection credentials from environment variables and creates a Redis client instance configured for secure SSL communication.
-
-1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def connect_to_redis() -> redis.Redis:
-        """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
-
-        try:
-            redis_host = os.getenv("REDIS_HOST")
-            redis_key = os.getenv("REDIS_KEY")
-
-            r = redis.Redis(
-                host=redis_host,
-                port=10000,
-                ssl=True,
-                decode_responses=True,
-                password=redis_key,
-                socket_timeout=30,
-                socket_connect_timeout=30,
-            )
-
-            # Test connection
-            r.ping()  # Verify Redis connectivity
-            return r
-
-        except redis.AuthenticationError as e:
-            print(f"[x] Authentication error: {e}")
-            print("Make sure the access key is correct")
-            sys.exit(1)
-        except redis.ConnectionError as e:
-            print(f"[x] Connection error: {e}")
-            print("Check if Redis host and port are correct, and ensure network connectivity")
-            sys.exit(1)
-        except Exception as e:
-            print(f"[x] Unexpected error: {e}")
-            sys.exit(1)
-    ```
-
-1. Save your changes.
-
-### Add the publish message code
-
-In this section, you add code to publish event messages to specific Redis channels using the **publish()** method. The publisher sends JSON-formatted messages containing event data such as order information. Each call to **publish()** returns the number of active subscribers that received the message, allowing you to verify the message was delivered. This is the core of the pub/sub pattern where the publisher doesn't need to know about individual subscribers.
-
-1. Locate the **# BEGIN PUBLISH MESSAGE CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def publish_order_created(r: redis.Redis) -> None:
-        """Publish an order created event using r.publish() to the 'orders:created' channel"""
-        clear_screen()
-        print("=" * 60)
-        print("Publishing: Order Created Event")
-        print("=" * 60)
-
-        order_data = {
-            "event": "order_created",
-            "order_id": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "customer": "Jane Doe",
-            "total": 129.99,
-            "timestamp": datetime.now().isoformat()
-        }
-
-        message = json.dumps(order_data)
-        channel = "orders:created"
-
-        # Publish message and get subscriber count
-        subscribers = r.publish(channel, message)  # Send message to channel, returns number of subscribers that received it
-
-        print(f"\n[>] Published to channel: '{channel}'")
-        print(f"[#] Active subscribers: {subscribers}")
-        print(f"\n[i] Message content:")
-        print(json.dumps(order_data, indent=2))
-
-        input("\n[+] Press Enter to continue...")
-    ```
-
-1. Save your changes.
-
-### Add the broadcast message code
-
-In this section, you add code to broadcast the same message to multiple channels simultaneously using a loop with **publish()**. Broadcasting is useful for system-wide announcements or events that need to reach subscribers across different channels. This demonstrates the one-to-many messaging capability of pub/sub, where a single message can efficiently reach all interested subscribers across multiple channels in real-time.
-
-1. Locate the **# BEGIN BROADCAST CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def broadcast_to_all(r: redis.Redis) -> None:
-        """Broadcast a message to all channels using r.publish() in a loop for multi-channel delivery"""
-        clear_screen()
-        print("=" * 60)
-        print("Broadcasting: System Announcement")
-        print("=" * 60)
-
-        announcement = {
-            "event": "system_announcement",
-            "message": "System maintenance scheduled for 2 AM",
-            "priority": "high",
-            "timestamp": datetime.now().isoformat()
-        }
-
-        channels = ["orders:created", "orders:shipped", "inventory:alerts", "notifications"]
-        message = json.dumps(announcement)
-
-        print(f"\n[>] Broadcasting to {len(channels)} channels...")
-        print(f"Channels: {', '.join(channels)}\n")
-
-        total_subscribers = 0
-        for channel in channels:
-            count = r.publish(channel, message)  # Send same message to multiple channels
-            total_subscribers += count
-            print(f"  - {channel}: {count} subscriber(s)")
-
-        print(f"\n[#] Total subscribers reached: {total_subscribers}")
-        print(f"\n[i] Message content:")
-        print(json.dumps(announcement, indent=2))
-
-        input("\n[+] Press Enter to continue...")
-    ```
-
-1. Save your changes.
-
-### Review the code
-
-Take a few minutes to review all of the code in the application.
-
-## Complete the subscriber app
-
-In this section you add code to the *subscriber.py* script to complete the app. You run the app later in the exercise, after you confirm the Azure Managed Redis resource is fully deployed and create the **env** file.
-
-1. Open the *subscriber.py* file to begin adding code.
-
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
-### Add message formatting code
-
-In this section, you add code to format incoming pub/sub messages for display in the subscriber application. The **format_message_gui()** function parses JSON payloads from published messages and extracts relevant fields based on the event type. This function handles both standard channel messages and pattern-matched messages, providing a consistent and readable display format to understand what data is being transmitted through the pub/sub system.
-
-1. Locate the **# BEGIN MESSAGE FORMATTING CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def format_message_gui(message_data: dict) -> str:
-        """Format message data for GUI display, parsing JSON payload and extracting relevant fields"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        channel = message_data.get('channel', 'unknown')
-
-        try:
-            data = json.loads(message_data['data'])
-            event_type = data.get('event', 'unknown')
-
-            formatted = f"[{timestamp}] Message on '{channel}'\n"
-            formatted += f"{'─' * 50}\n"
-            formatted += f"Event: {event_type}\n"
-
-            # Display relevant fields based on event type
-            if 'order_id' in data:
-                formatted += f"Order ID: {data['order_id']}\n"
-            if 'customer' in data:
-                formatted += f"Customer: {data['customer']}\n"
-            if 'total' in data:
-                formatted += f"Total: ${data['total']}\n"
-            if 'tracking_number' in data:
-                formatted += f"Tracking: {data['tracking_number']}\n"
-            if 'product_name' in data:
-                formatted += f"Product: {data['product_name']}\n"
-            if 'current_stock' in data:
-                formatted += f"Stock Level: {data['current_stock']}\n"
-            if 'message' in data:
-                formatted += f"Message: {data['message']}\n"
-
-            formatted += f"{'─' * 50}\n"
-            return formatted
-
-        except json.JSONDecodeError:
-            return f"[{timestamp}] {channel}: {message_data['data']}\n"
-    ```
-
-1. Save your changes
-
-### Add the message listener code
-
-In this section, you add code for the background listener thread that continuously monitors subscribed channels for incoming messages. The **listen_messages()** method uses the blocking **pubsub.listen()** iterator to receive messages as they are published. This demonstrates how subscribers passively wait for messages and handle different message types (direct channel messages vs. pattern-matched messages). The listener runs in a background thread to avoid blocking the main application while still receiving real-time message updates.
-
-1. Locate the **# BEGIN MESSAGE LISTENER CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def listen_messages(self):
-        """Background thread to listen for messages using pubsub.listen() blocking iterator"""
-        self.listener_active = True
-
-        try:
-            for message in self.pubsub.listen():  # Listen for published messages (blocking)
-                if not self.listening:
-                    break
-
-                if message['type'] == 'message':
-                    formatted = format_message_gui(message)
-                    self.message_queue.put(formatted)
-
-                elif message['type'] == 'pmessage':
-                    # Pattern-based subscription
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    pattern = message['pattern']
-                    channel = message['channel']
-                    try:
-                        data = json.loads(message['data'])
-                        event_type = data.get('event', 'unknown')
-                        msg = f"[{timestamp}] Pattern '{pattern}' matched '{channel}'\n"
-                        msg += f"{'-' * 50}\n"
-                        msg += f"Event: {event_type}\n"
-                        msg += f"Full message: {json.dumps(data, indent=2)}\n"
-                        msg += f"{'-' * 50}\n"
-                        self.message_queue.put(msg)
-                    except json.JSONDecodeError:
-                        self.message_queue.put(f"[{timestamp}] Pattern '{pattern}': {message['data']}\n")
-
-        except Exception as e:
-            if self.listening:
-                self.message_queue.put(f"[x] Listener error: {e}\n")
-        finally:
-            self.listener_active = False
-    ```
-
-1. Save your changes.
-
-### Add code to subscribe to channels
-
-In this section, you add code to handle channel and pattern subscriptions. The **subscribe_to_channel()** method registers interest in a specific channel using **pubsub.subscribe()**, while **subscribe_to_pattern()** uses **pubsub.psubscribe()** for wildcard pattern matching (e.g., "orders:*"). These functions demonstrate the two main subscription strategies in Redis pub/sub: direct channel subscriptions for specific events and pattern-based subscriptions for flexibility. After subscribing, the listener is restarted to begin receiving messages on the new channels.
-
-1. Locate the **# BEGIN SUBSCRIBE CHANNEL/PATTERN CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def subscribe_to_channel(self, channel: str) -> str:
-        """Subscribe to a specific channel using pubsub.subscribe() for direct messaging"""
-        try:
-            self.pubsub.subscribe(channel)  # Subscribe to channel
-            self.restart_listener()
-            return f"[+] Subscribed to channel: '{channel}'"
-        except Exception as e:
-            return f"[x] Error subscribing: {e}"
-
-    def subscribe_to_pattern(self, pattern: str) -> str:
-        """Subscribe using a pattern with pubsub.psubscribe() for wildcard channel matching (e.g., 'orders:*')"""
-        try:
-            self.pubsub.psubscribe(pattern)  # Subscribe to pattern (e.g., 'orders:*')
-            self.restart_listener()
-            return f"[+] Subscribed to pattern: '{pattern}'"
-        except Exception as e:
-            return f"[x] Error subscribing: {e}"
-    ```
-
-1. Save your changes.
-
-### Review the code
-
-Take a few minutes to review all of the code in the application.
-
-## Verify resource deployment
-
-In this section you run the deployment script again to verify if the Azure Managed Redis deployment is completed, and create the *.env* file with the endpoint and access key values.
-
-1. Run the appropriate command in the terminal to start the deployment script. If you closed the previous terminal, select **Terminal > New Terminal** in the menu to open a new one.
-
-    **Bash**
-    ```bash
-    bash azdeploy.sh
-    ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-    ```
-
-1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status **Successful** returned proceed to the next step. If not, then wait a few minutes and try the option again.
-
-1. After the deployment is complete, enter **3** to run the **3. Create database and retrieve endpoint and access key** option. This creates the database, enables access key authentication, and retrieves the endpoint and access key. It then creates the *.env* file with those values.
-
-1. Review the *.env* file to verify the values are present, then enter **4** to exit the deployment script.
-
-## Run the apps
-
-In this section, you run the completed applications to send and receive messages. Both apps need to run at the same time, so you need to open two terminals. Both apps are menu-driven, and the *subscriber.py* app uses **tkinter** to create a GUI so you can more easily view messages and manage subscriptions.
-
-### Open two terminals
-
-You need to ensure the Python environment is running in both terminals. Refer to the commands from earlier in the exercise to activate the environment if needed.
-
-1. If you don't have a terminal open, select **Terminal > New Terminal** in the VS Code menu bar. Verify you are in the root folder of the project, and activate the Python environment if needed. This terminal is named **Terminal 1** in the rest of the exercise.
-
-1. Open a second terminal by selecting **Ctrl + Shift + P** to bring up the VS Code commands and enter **Terminal: New Terminal Window**. This will open a terminal in a new window that you can reposition. Verify you are in the root folder of the project, and activate the Python environment if needed. This terminal is named **Terminal 2** in the rest of the exercise.
-
-### Launch the apps
-
-1. Run the following command in **Terminal 2** to start the publisher app. After the app connects to Redis, press **Enter** to display the menu. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
+1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment and load the environment variables, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
 
     ```
-    python publisher.py
+    python app.py
     ```
 
-1. Run the following command in **Terminal 1** to start the subscriber app. The app will launch a new window with a GUI created with **tkinter**. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
+1. Open a browser and navigate to `http://localhost:5000` to access the app.
 
-    ```
-    python subscriber.py
-    ```
+1. In the **Subscriptions** area of the left panel, enter **orders:created** in the channel box and select **Subscribe**. A success message confirms the subscription, and the **Active Subscriptions** list updates to include the channel. You must subscribe to a channel before you can receive its messages.
 
-1. Position both of the applications so they run side-by-side.
+1. In the **Publish Events** area, select **Order Created**. The right panel shows the publish result, including the channel and the number of subscribers reached. Within a second or two, the message appears in the **Received Messages** list because the background listener delivered it to your subscription.
 
-    ![Screenshot of the apps running side-by-side](./media/apps-side-by-side.png)
+1. Select **Order Shipped**. The publish result shows the message was sent to the **orders:shipped** channel, but it does not appear in **Received Messages** because you only subscribed to **orders:created**.
 
-### Send and receive messages
+1. In the **Subscriptions** area, enter **orders:*** in the pattern box and select **Subscribe to Pattern**. This subscribes to every channel that begins with **orders:**.
 
-You need to first subscribe to a channel before you can receive messages.
+1. Select **Order Shipped** again. This time the message appears in **Received Messages** because the **orders:*** pattern matches the **orders:shipped** channel.
 
-1. In the subscriber app, select **Subscribe to Channel**. Enter **orders:created** in the channel name input box and select **Subscribe**.
+1. Select **Inventory Alert** and **Notification** to publish to the other channels, then select **Broadcast to All** to send a single announcement to every channel. Watch the **Received Messages** list update live for each message that matches your current subscriptions.
 
-    You should see a *Subscribed to channel: 'orders:created'* message  in the **Received Messages** area. Next you publish a message.
-
-1. In the publisher app, enter **1** to publish an order created event. You should see an event was published successfully to the channel.
-
-    ```
-    [>] Published to channel: 'orders:created'
-    [#] Active subscribers: 1
-
-    [i] Message content:
-    {
-      "event": "order_created",
-      "order_id": "ORD-20251120123114",
-      "customer": "Jane Doe",
-      "total": 129.99,
-      "timestamp": "2025-11-20T12:31:14.906797"
-    }
-    ```
-
-    The message should appear in the **Received Messages** section of the subscriber app.
-
-    ```
-    [12:31:14] Message on 'orders:created'
-    ──────────────────────────────────────────────────
-    Event: order_created
-    Order ID: ORD-20251120123114
-    Customer: Jane Doe
-    Total: $129.99
-    ──────────────────────────────────────────────────
-    ```
-
-1. In the publisher app, enter **2** to publish an **Order Shipped** event. The event will be sent, but it will not appear in the subscriber app because you only subscribed to the **orders:created** channel.
-
-### Experiment with other subscription/publishing options
-
-Take some time to experiment subscribing and publishing messages to different channels. Following is a table with details on each of the subscriber options:
-
-| Subscriber Option | Description |
-|--|--|
-| Subscribe to Channel | Subscribes to a single channel. The channel options are listed in the dialog box. |
-| Subscribe with Pattern | Subscribe to multiple channels. For example, subscribing with the **orders:*** pattern subscribes to all **orders** channels. |
-| Unsubscribe from Channel | Unsubscribe from a single channel. Note: you can't unsubscribe using a pattern using this option. |
-| Unsubscribe All | Unsubscribe from all channels, including pattern subscriptions. |
-| View Active Subscriptions | Lists all of the subscribed channels, including pattern subscriptions. |
+1. Select **Unsubscribe All** to clear your subscriptions, then publish another event to confirm that no new messages arrive while you have no active subscriptions.
 
 ## Clean up resources
 
@@ -525,18 +439,28 @@ If you encounter issues while completing this exercise, try the following troubl
 **Verify Azure Managed Redis resource deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
 - Confirm that the Azure Managed Redis resource shows a **Provisioning State** of **Succeeded**.
-- Check that the resource has **Public network access** enabled and **Access keys authentication** set to **Enabled**.
+- Run the deployment script's **Check deployment status** option and confirm the cluster and database are ready before creating the database and configuring access.
+
+**Check authentication and access**
+- Confirm you are logged in to Azure CLI by running **az account show**.
+- Ensure the deployment script's **Create database and configure access** option completed successfully so your account has a data access policy on the database.
+- If the app reports an authentication error, wait a moment and try again, as the access policy assignment can take a short time to take effect.
 
 **Check code completeness and indentation**
-- Ensure all code blocks were added to the correct sections and between the appropriate BEGIN/END comment markers.
-- Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
+- Ensure all code blocks were added to the correct sections in *pubsub_functions.py* between the appropriate BEGIN/END comment markers.
+- Verify that Python indentation is consistent (use spaces, not tabs). The **listen_messages()**, **subscribe_to_channel()**, and **subscribe_to_pattern()** methods are inside the **PubSubManager** class, so their code must be indented one level.
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project folder and contains valid **REDIS_HOST** and **REDIS_KEY** values.
-- Ensure the *.env* file is in the root of the project.
+- Check that the *.env* file exists in the project root and contains the **REDIS_HOST** value.
+- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
+- If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
+
+**No messages appearing?**
+- Confirm you subscribed to the channel you're publishing to. Messages only arrive on channels or patterns you're subscribed to.
+- Check the **Active Subscriptions** list in the browser to verify your current subscriptions.
+- Confirm the app is still running in the terminal and the page shows the message stream updating.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the app.
 - Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
-
