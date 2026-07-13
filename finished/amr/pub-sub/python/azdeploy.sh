@@ -24,20 +24,24 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 cache_name="amr-exercise-${user_hash}"
 
-# Run a command quietly, but surface its output if it fails. This keeps the
-# console clean on success while still reporting the error details when a
-# command fails, instead of silently discarding them.
+# Run a command quietly, but surface its exit code and output if it fails. This
+# keeps the console clean on success while still reporting the error details
+# when a command fails, instead of silently discarding them. Use for action
+# commands (create/update/delete), not for commands whose output you need to
+# capture.
 # Usage: run_quiet "Description of the step" <command> [args...]
 run_quiet() {
     local description="$1"
     shift
-    local output
-    if ! output=$("$@" 2>&1); then
-        echo "Error: ${description} failed."
+    local output rc
+    output=$("$@" 2>&1)
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "Error: ${description} failed (exit code ${rc})."
         if [ -n "$output" ]; then
             echo "$output"
         fi
-        return 1
+        return $rc
     fi
     return 0
 }

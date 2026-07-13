@@ -24,9 +24,11 @@ $hashBytes = $sha1.ComputeHash($bytes)
 $user_hash = [System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower()
 $cache_name = "amr-exercise-$user_hash"
 
-# Run a command quietly, but surface its output if it fails. This keeps the
-# console clean on success while still reporting the error details when a
-# command fails, instead of silently discarding them.
+# Run a command quietly, but surface its exit code and output if it fails. This
+# keeps the console clean on success while still reporting the error details
+# when a command fails, instead of silently discarding them. Use for action
+# commands (create/update/delete), not for commands whose output you need to
+# capture.
 # Usage: Invoke-Quiet "Description of the step" { az ... }
 function Invoke-Quiet {
     param(
@@ -34,8 +36,9 @@ function Invoke-Quiet {
         [scriptblock]$Command
     )
     $output = & $Command 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: $Description failed."
+    $rc = $LASTEXITCODE
+    if ($rc -ne 0) {
+        Write-Host "Error: $Description failed (exit code $rc)."
         if ($output) {
             Write-Host ($output | Out-String)
         }
