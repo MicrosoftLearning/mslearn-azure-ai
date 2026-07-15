@@ -384,11 +384,15 @@ These queries help you investigate issues that occurred in the past, even after 
 
 ## Clean up resources
 
-Cleaning up avoids ongoing cost. Delete the resource group, which deletes the Container Apps environment, container app, and registry.
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-```bash
-az group delete --name $RESOURCE_GROUP --no-wait --yes
-```
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
+
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
+
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
 
 ## Troubleshooting
 
