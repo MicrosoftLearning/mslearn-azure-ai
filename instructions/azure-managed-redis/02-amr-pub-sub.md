@@ -13,8 +13,6 @@ lab:
 
 # Publish and subscribe to events in Azure Managed Redis
 
-Azure Managed Redis provides a fully managed, in-memory data store that includes a lightweight publish/subscribe (pub/sub) messaging system. With pub/sub, publishers send messages to named channels without needing to know who receives them, and subscribers receive messages from the channels or patterns they're interested in. This decoupled, one-to-many pattern is useful for real-time scenarios such as event notifications, live dashboards, and fan-out messaging between services.
-
 In this exercise, you deploy an Azure Managed Redis resource and complete a Python Flask web app that publishes and subscribes to Redis channels from a single page. You add code to connect to Redis with Microsoft Entra ID, publish event messages, broadcast to every channel, format received messages, listen for messages on a background thread, and subscribe to channels and patterns. You then run the app and watch messages arrive live as you publish them.
 
 Tasks performed in this exercise:
