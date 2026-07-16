@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Publish and Subscribe - Azure Managed Redis</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Publish and Subscribe - Azure Managed Redis</h1>
+
+        <div class="left-panel">
+            <!-- Publish -->
+            <section class="section section-publish" aria-labelledby="publish-heading">
+                <h2 id="publish-heading">Publish Events</h2>
+                <p>Publish an event message to a Redis channel. Each publish reports how many subscribers received the message.</p>
+                <div class="button-group">
+                    <form action="/publish/order-created" method="post">
+                        <button type="submit" class="btn-primary">Order Created</button>
+                    </form>
+                    <form action="/publish/order-shipped" method="post">
+                        <button type="submit" class="btn-primary">Order Shipped</button>
+                    </form>
+                    <form action="/publish/inventory-alert" method="post">
+                        <button type="submit" class="btn-warning">Inventory Alert</button>
+                    </form>
+                    <form action="/publish/notification" method="post">
+                        <button type="submit" class="btn-success">Notification</button>
+                    </form>
+                    <form action="/publish/broadcast" method="post">
+                        <button type="submit" class="btn-secondary">Broadcast to All</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Subscribe -->
+            <section class="section section-subscribe" aria-labelledby="subscribe-heading">
+                <h2 id="subscribe-heading">Subscriptions</h2>
+                <p>Subscribe to a specific channel, or use a pattern such as <code>orders:*</code> to match multiple channels.</p>
+
+                <form action="/subscribe" method="post" class="inline-form">
+                    <label for="channel" class="sr-only">Channel name</label>
+                    <input type="text" id="channel" name="channel" list="channel-list"
+                           placeholder="channel name (e.g. orders:created)">
+                    <datalist id="channel-list">
+                        {% for c in channels %}<option value="{{ c }}">{% endfor %}
+                    </datalist>
+                    <button type="submit" class="btn-primary">Subscribe</button>
+                </form>
+
+                <form action="/subscribe-pattern" method="post" class="inline-form">
+                    <label for="pattern" class="sr-only">Pattern</label>
+                    <input type="text" id="pattern" name="pattern" placeholder="pattern (e.g. orders:*)">
+                    <button type="submit" class="btn-primary">Subscribe to Pattern</button>
+                </form>
+
+                <form action="/unsubscribe" method="post" class="inline-form">
+                    <label for="unsub-channel" class="sr-only">Channel to unsubscribe</label>
+                    <input type="text" id="unsub-channel" name="channel" placeholder="channel to unsubscribe">
+                    <button type="submit" class="btn-secondary">Unsubscribe</button>
+                </form>
+
+                <form action="/unsubscribe-all" method="post">
+                    <button type="submit" class="btn-secondary">Unsubscribe from All</button>
+                </form>
+
+                <h3>Active subscriptions <span id="listener-status" class="tag"></span></h3>
+                <div id="subscriptions" class="subscriptions">
+                    <span class="empty-state">No active subscriptions.</span>
+                </div>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <!-- Activity / Results -->
+            <section class="section section-results" aria-labelledby="results-heading">
+                <h2 id="results-heading">Activity</h2>
+
+                <!-- Flash Messages -->
+                {% with flashed = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in flashed %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                <!-- Publish Result -->
+                {% if publish_result is defined and publish_result %}
+                    <h3>Published Message</h3>
+                    <div class="message-card card-completed">
+                        {% if publish_result.channels is defined %}
+                            <div class="message-header">
+                                <span class="message-id">broadcast</span>
+                                <span class="tag tag-success">{{ publish_result.total_subscribers }} subscriber(s)</span>
+                            </div>
+                            <div class="message-detail"><strong>Channels:</strong>
+                                {% for c in publish_result.channels %}
+                                    <span class="tag tag-valid">{{ c.channel }} ({{ c.subscribers }})</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="message-header">
+                                <span class="message-id">{{ publish_result.channel }}</span>
+                                <span class="tag tag-success">{{ publish_result.subscribers }} subscriber(s)</span>
+                            </div>
+                        {% endif %}
+                        <div class="message-detail"><strong>Message:</strong>
+                            <code>{{ publish_result.message | tojson }}</code>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Received Messages (updated live by polling) -->
+                <h3>Received Messages</h3>
+                <div id="messages" class="results-container" role="region"
+                     aria-live="polite" aria-label="Received messages">
+                    <div class="empty-state">
+                        Subscribe to a channel, then publish a message to see it here.
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        let lastIndex = 0;
+        let hasMessages = false;
+        const messagesEl = document.getElementById("messages");
+        const subsEl = document.getElementById("subscriptions");
+        const statusEl = document.getElementById("listener-status");
+
+        function escapeHtml(value) {
+            const div = document.createElement("div");
+            div.textContent = value == null ? "" : String(value);
+            return div.innerHTML;
+        }
+
+        function renderSubscriptions(subs) {
+            statusEl.textContent = subs.listening ? "listening" : "idle";
+            statusEl.className = "tag " + (subs.listening ? "tag-success" : "tag-error");
+
+            const parts = [];
+            (subs.channels || []).forEach(function (c) {
+                parts.push('<span class="tag tag-valid">' + escapeHtml(c) + "</span>");
+            });
+            (subs.patterns || []).forEach(function (p) {
+                parts.push('<span class="tag tag-valid">' + escapeHtml(p) + " (pattern)</span>");
+            });
+            subsEl.innerHTML = parts.length
+                ? parts.join(" ")
+                : '<span class="empty-state">No active subscriptions.</span>';
+        }
+
+        function appendMessage(m) {
+            if (!hasMessages) {
+                messagesEl.innerHTML = "";
+                hasMessages = true;
+            }
+            const card = document.createElement("div");
+            card.className = "message-card card-completed";
+
+            const source = m.pattern
+                ? escapeHtml(m.channel) + " (via " + escapeHtml(m.pattern) + ")"
+                : escapeHtml(m.channel);
+
+            let details = "";
+            const entries = Object.entries(m.details || {});
+            entries.forEach(function (pair) {
+                details +=
+                    '<div class="message-detail"><strong>' +
+                    escapeHtml(pair[0]) + ":</strong> " + escapeHtml(pair[1]) + "</div>";
+            });
+
+            card.innerHTML =
+                '<div class="message-header"><span class="message-id">' + source + "</span>" +
+                '<span class="tag tag-valid">' + escapeHtml(m.event || "message") + "</span></div>" +
+                '<div class="message-detail"><strong>Time:</strong> ' + escapeHtml(m.timestamp) + "</div>" +
+                details;
+
+            messagesEl.prepend(card);
+        }
+
+        async function poll() {
+            try {
+                const res = await fetch("/messages?since=" + lastIndex);
+                const data = await res.json();
+
+                // When the server buffer is cleared (e.g. after unsubscribing),
+                // its index counter resets. Detect that and clear the display
+                // so stale messages don't linger.
+                if (data.last_index < lastIndex) {
+                    lastIndex = 0;
+                    hasMessages = false;
+                    messagesEl.innerHTML =
+                        '<div class="empty-state">' +
+                        "Subscribe to a channel, then publish a message to see it here." +
+                        "</div>";
+                }
+
+                lastIndex = data.last_index;
+                renderSubscriptions(data.subscriptions || {});
+                (data.messages || []).forEach(appendMessage);
+            } catch (e) {
+                // Ignore transient polling errors.
+            }
+        }
+
+        poll();
+        setInterval(poll, 1500);
+    </script>
+</body>
+</html>

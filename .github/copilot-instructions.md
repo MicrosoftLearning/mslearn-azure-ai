@@ -99,22 +99,34 @@ When updating deployment scripts for new exercises:
    - Status check logic for the new services
 
 3. **Follow established conventions**:
-   - Use `> /dev/null 2>&1` for output suppression (not `--output none`)
-   - Check if resources exist before creating them
-   - Use checkmarks (✓) for success and warnings (⚠) for incomplete states
+   - Check if resources exist before creating them (query **provisioningState** and branch on it)
    - Use "Error: ..." prefix for error messages
-   - Use `local` for function-scoped variables
+   - Use `local` for function-scoped variables (Bash)
    - Generate unique resource names using Azure user object ID hash
    - Include Azure auth check at script startup
+   - Do **not** use icon or emoji characters (e.g. ✓, ⚠) in output. They render inconsistently in PowerShell and across terminals. Use plain text status words instead (for example, "created successfully", "still provisioning", "Not created").
+   - Keep Bash and PowerShell output messages identical so both scripts behave the same.
 
-4. **Reference scripts** - Use existing scripts in the repository as templates. Good examples:
-   - *finished/azure-container-apps/scale-container-aca/python/azdeploy.sh*
+4. **Suppress noise but surface real errors**:
+   - Add `--only-show-errors` to Azure CLI action commands (create/update/delete). This hides breaking-change WARNINGs while still printing ERRORs on failure.
+   - Redirect probe/query commands (show/list used for existence checks) with `2>/dev/null` (Bash) or `2>$null` (PowerShell) so a "not found" doesn't print a stack trace.
+   - In PowerShell, wrap action commands in the `Invoke-Quiet` helper, which stays quiet on success and prints the exit code and captured output only on failure.
 
-5. **When asked to update a copied script**:
+5. **Handle create failures and retries robustly** (the gold standard for this is *finished/amr/pub-sub/python/azdeploy.sh* and *azdeploy.ps1*):
+   - Make resource creation **block** until it reaches a terminal state (omit `--no-wait` for the create) so the script can detect success or failure inline.
+   - Before creating, inspect the existing **provisioningState**: `Succeeded` → already exists, return; `Failed`/`Canceled` → delete the stale resource, then poll until it is fully gone before recreating (a delete can report success before Azure finishes removing the resource, which otherwise causes a name conflict); empty/null → create; anything else → still provisioning, return.
+   - On a create failure, print clear, actionable guidance (for example, capacity/region issues and how to change the region and retry).
+
+6. **Reference scripts** - Use existing scripts in the repository as templates. The gold-standard examples (best error handling, blocking create, retry-safe delete, warning suppression, Bash/PowerShell parity) are:
+   - *finished/amr/pub-sub/python/azdeploy.sh*
+   - *finished/amr/pub-sub/python/azdeploy.ps1*
+
+7. **When asked to update a copied script**:
    - First review the source script to understand existing patterns
    - Only modify service-specific logic (create, configure, status check functions)
    - Keep the menu loop structure, resource group function, and env file patterns intact
    - Update variable names and menu text to match the new exercise
+   - Clear the screen (`clear` / `Clear-Host`) after a valid menu selection so long-running output stays readable
 
 ### Azure CLI Commands
 
@@ -138,7 +150,7 @@ Before answering questions about Azure CLI commands, generating CLI commands, or
 
 ### Exercise Markdown Structure
 
-Every exercise markdown file must follow this exact structure. Use *finished/app-sec-config/key-vault/python/01-aks-retrieve-secrets.md* as the canonical reference.
+Every exercise markdown file must follow this exact structure. The gold-standard reference is *instructions/azure-managed-redis/02-amr-pub-sub.md* (best deployment/error-handling walkthrough and Flask app integration); *finished/app-sec-config/key-vault/python/01-aks-retrieve-secrets.md* is also a valid reference.
 
 1. **YAML frontmatter** — Required at the top of the file:
    ```yaml
@@ -178,7 +190,7 @@ Every exercise markdown file must follow this exact structure. Use *finished/app
 
 ### Client App Patterns
 
-All exercises that include a Python client app follow the same project structure. Use *finished/app-sec-config/key-vault/python/client/* as the canonical reference.
+All exercises that include a Python client app follow the same project structure. The gold-standard reference is *finished/amr/pub-sub/python/client/* (it demonstrates the Flask approach correctly: a complete pre-written *app.py* the student never edits, a `<topic>_functions.py` module with clean BEGIN/END markers, and a two-panel template). *finished/app-sec-config/key-vault/python/client/* is also a valid reference.
 
 **Directory structure:**
 ```
