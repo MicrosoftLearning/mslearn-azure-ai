@@ -6,7 +6,7 @@
 # location="<your-azure-region>"   # Azure region for the resources
 
 rg="rg-exercises" # Resource Group name
-location="westus2" # Azure region for the resources
+location="australiaeast" # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -76,7 +76,8 @@ create_redis_resource() {
             run_quiet "Delete failed Azure Managed Redis resource" az redisenterprise delete \
                 --resource-group $rg \
                 --name $cache_name \
-                --yes || return 1
+                --yes \
+                --only-show-errors || return 1
             echo "Failed resource deleted."
             echo ""
             ;;
@@ -99,10 +100,11 @@ create_redis_resource() {
         --location $location \
         --sku "Balanced_B0" \
         --public-network-access "Enabled" \
-        --no-database; then
+        --no-database \
+        --only-show-errors; then
         echo ""
-        echo "⚠ The deployment failed. This is most often caused by a temporary"
-        echo "  lack of capacity for this SKU in the '$location' region."
+        echo "The deployment failed. This is most often caused by a temporary"
+        echo "lack of capacity for this SKU in the '$location' region."
         echo ""
         echo "To resolve this:"
         echo "  1. Choose option 4 to exit the script."
@@ -114,7 +116,7 @@ create_redis_resource() {
     fi
 
     echo ""
-    echo "✓ Azure Managed Redis resource created successfully: $cache_name"
+    echo "Azure Managed Redis resource created successfully: $cache_name"
 }
 
 # Function to check deployment status
@@ -164,7 +166,8 @@ create_database_and_configure_access() {
             --client-protocol "Encrypted" \
             --clustering-policy "NoCluster" \
             --eviction-policy "AllKeysLRU" \
-            --port 10000 || return 1
+            --port 10000 \
+            --only-show-errors || return 1
     fi
 
     # Grant the signed-in user access to the database using Microsoft Entra ID.
@@ -188,7 +191,8 @@ create_database_and_configure_access() {
             --database-name default \
             --access-policy-assignment-name $assignment_name \
             --access-policy-name default \
-            --object-id $user_object_id || return 1
+            --object-id $user_object_id \
+            --only-show-errors || return 1
     fi
 
     echo "Retrieving endpoint..."

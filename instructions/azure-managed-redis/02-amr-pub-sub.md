@@ -99,7 +99,7 @@ In this section you download the starter files for the app and use a script to i
 
     When the deployment succeeds, a confirmation message like the following appears and the menu returns:
 
-    *✓ Azure Managed Redis resource created successfully: amr-exercise-\<hash>*
+    *Azure Managed Redis resource created successfully: amr-exercise-\<hash>*
 
     > **Note:** If the deployment fails, it's most often due to a temporary lack of capacity for the SKU in your chosen region. Follow the on-screen guidance to exit the script, change the **location** variable near the top of the script to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose option 1. The failed resource is deleted automatically before the next attempt.
 
@@ -338,9 +338,9 @@ In this section you return to the running deployment script to confirm the Azure
     ./azdeploy.ps1
     ```
 
-1. (Optional) Enter **3** to run the **3. Check deployment status** option as a last-minute check. If the cluster status returns **Succeeded**, proceed to the next step.
-
 1. Enter **2** to run the **2. Create database and configure access** option. This creates the database with Microsoft Entra ID authentication, assigns a data access policy to your account so the app can connect using your identity, and creates the *.env* file with the **REDIS_HOST** endpoint.
+
+1. (Optional) Enter **3** to run the **3. Check deployment status** option as a last-minute check.
 
 1. Enter **4** to exit the deployment script.
 

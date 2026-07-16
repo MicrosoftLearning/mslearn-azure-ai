@@ -78,7 +78,8 @@ function Create-RedisResource {
                 az redisenterprise delete `
                     --resource-group $rg `
                     --name $cache_name `
-                    --yes
+                    --yes `
+                    --only-show-errors
             }
             if (-not $deleted) { return }
             Write-Host "Failed resource deleted."
@@ -107,12 +108,13 @@ function Create-RedisResource {
             --location $location `
             --sku "Balanced_B0" `
             --public-network-access "Enabled" `
-            --no-database
+            --no-database `
+            --only-show-errors
     }
     if (-not $created) {
         Write-Host ""
-        Write-Host "⚠ The deployment failed. This is most often caused by a temporary"
-        Write-Host "  lack of capacity for this SKU in the '$location' region."
+        Write-Host "The deployment failed. This is most often caused by a temporary"
+        Write-Host "lack of capacity for this SKU in the '$location' region."
         Write-Host ""
         Write-Host "To resolve this:"
         Write-Host "  1. Choose option 4 to exit the script."
@@ -124,7 +126,7 @@ function Create-RedisResource {
     }
 
     Write-Host ""
-    Write-Host "✓ Azure Managed Redis resource created successfully: $cache_name"
+    Write-Host "Azure Managed Redis resource created successfully: $cache_name"
 }
 
 # Function to check deployment status
@@ -176,7 +178,8 @@ function Create-DatabaseAndConfigureAccess {
                 --client-protocol "Encrypted" `
                 --clustering-policy "NoCluster" `
                 --eviction-policy "AllKeysLRU" `
-                --port 10000
+                --port 10000 `
+                --only-show-errors
         }
         if (-not $created) { return }
     }
@@ -203,7 +206,8 @@ function Create-DatabaseAndConfigureAccess {
                 --database-name default `
                 --access-policy-assignment-name $assignment_name `
                 --access-policy-name default `
-                --object-id $user_object_id
+                --object-id $user_object_id `
+                --only-show-errors
         }
         if (-not $assigned) { return }
     }
