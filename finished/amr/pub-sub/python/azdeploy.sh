@@ -78,6 +78,19 @@ create_redis_resource() {
                 --name $cache_name \
                 --yes \
                 --only-show-errors || return 1
+            # The delete can report success before the resource is fully removed
+            # from Azure. Wait until it no longer exists, otherwise the next create
+            # can fail with a name conflict.
+            local waited=0
+            while [ -n "$(az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>/dev/null)" ]; do
+                if [ $waited -ge 300 ]; then
+                    echo "Error: Timed out waiting for the failed resource to finish deleting."
+                    echo "Please wait a few minutes, then run option 1 again."
+                    return 1
+                fi
+                sleep 10
+                waited=$((waited + 10))
+            done
             echo "Failed resource deleted."
             echo ""
             ;;
@@ -247,18 +260,21 @@ while true; do
 
     case $choice in
         1)
+            clear
             echo ""
             create_redis_resource
             echo ""
             read -p "Press Enter to continue..."
             ;;
         2)
+            clear
             echo ""
             create_database_and_configure_access
             echo ""
             read -p "Press Enter to continue..."
             ;;
         3)
+            clear
             echo ""
             check_deployment_status
             echo ""

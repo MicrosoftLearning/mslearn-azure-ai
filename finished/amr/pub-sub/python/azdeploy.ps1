@@ -82,6 +82,19 @@ function Create-RedisResource {
                     --only-show-errors
             }
             if (-not $deleted) { return }
+            # The delete can report success before the resource is fully removed
+            # from Azure. Wait until it no longer exists, otherwise the next create
+            # can fail with a name conflict.
+            $waited = 0
+            while (-not [string]::IsNullOrWhiteSpace((az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>$null))) {
+                if ($waited -ge 300) {
+                    Write-Host "Error: Timed out waiting for the failed resource to finish deleting."
+                    Write-Host "Please wait a few minutes, then run option 1 again."
+                    return
+                }
+                Start-Sleep -Seconds 10
+                $waited += 10
+            }
             Write-Host "Failed resource deleted."
             Write-Host ""
         }
@@ -262,18 +275,21 @@ do {
 
     switch ($choice) {
         "1" {
+            Clear-Host
             Write-Host ""
             Create-RedisResource
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }
         "2" {
+            Clear-Host
             Write-Host ""
             Create-DatabaseAndConfigureAccess
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }
         "3" {
+            Clear-Host
             Write-Host ""
             Check-DeploymentStatus
             Write-Host ""
