@@ -64,14 +64,41 @@ function Create-RedisResource {
     Create-ResourceGroup
     Write-Host ""
 
-    # Check if the cluster already exists
+    # Check the current state of the cluster before deciding what to do.
     $cluster_state = az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($cluster_state)) {
-        Write-Host "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
-        return
+    switch ($cluster_state) {
+        "Succeeded" {
+            Write-Host "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
+            return
+        }
+        { $_ -eq "Failed" -or $_ -eq "Canceled" } {
+            Write-Host "A previous deployment of '$cache_name' is in a $cluster_state state."
+            Write-Host "Deleting the failed resource before trying again..."
+            $deleted = Invoke-Quiet "Delete failed Azure Managed Redis resource" {
+                az redisenterprise delete `
+                    --resource-group $rg `
+                    --name $cache_name `
+                    --yes
+            }
+            if (-not $deleted) { return }
+            Write-Host "Failed resource deleted."
+            Write-Host ""
+        }
+        "" {
+            # No existing cluster; continue to create it below.
+        }
+        $null {
+            # No existing cluster; continue to create it below.
+        }
+        default {
+            Write-Host "Azure Managed Redis resource '$cache_name' is still provisioning (State: $cluster_state)."
+            Write-Host "Please wait for it to finish, then check the deployment status from the menu."
+            return
+        }
     }
 
-    Write-Host "Creating Azure Managed Redis resource '$cache_name'..."
+    Write-Host "Creating Azure Managed Redis resource '$cache_name' in '$location'..."
+    Write-Host "This takes 5-10 minutes to complete. Please wait..."
 
     $created = Invoke-Quiet "Create Azure Managed Redis resource" {
         az redisenterprise create `
@@ -80,13 +107,24 @@ function Create-RedisResource {
             --location $location `
             --sku "Balanced_B0" `
             --public-network-access "Enabled" `
-            --no-database `
-            --no-wait
+            --no-database
     }
-    if (-not $created) { return }
+    if (-not $created) {
+        Write-Host ""
+        Write-Host "⚠ The deployment failed. This is most often caused by a temporary"
+        Write-Host "  lack of capacity for this SKU in the '$location' region."
+        Write-Host ""
+        Write-Host "To resolve this:"
+        Write-Host "  1. Choose option 4 to exit the script."
+        Write-Host "  2. Near the top of this script, change the 'location' variable to a"
+        Write-Host "     different region, such as eastus2, australiaeast, or canadacentral."
+        Write-Host "  3. Run the script again and choose option 1. The failed resource is"
+        Write-Host "     deleted automatically before the next attempt."
+        return
+    }
 
-    Write-Host "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."
-    Write-Host "You can check the deployment status from the menu later in the exercise."
+    Write-Host ""
+    Write-Host "✓ Azure Managed Redis resource created successfully: $cache_name"
 }
 
 # Function to check deployment status
@@ -121,7 +159,7 @@ function Create-DatabaseAndConfigureAccess {
     if ($cluster_state -ne "Succeeded") {
         $state_display = if ([string]::IsNullOrWhiteSpace($cluster_state)) { "Not created" } else { $cluster_state }
         Write-Host "Error: Cluster is not ready (State: $state_display)."
-        Write-Host "Please check the deployment status (option 2) and wait until provisioning succeeds."
+        Write-Host "Please check the deployment status (option 3) and wait until provisioning succeeds."
         return
     }
 
@@ -207,8 +245,8 @@ function Show-Menu {
     Write-Host "Location: $location"
     Write-Host "====================================================================="
     Write-Host "1. Create Azure Managed Redis resource"
-    Write-Host "2. Check deployment status"
-    Write-Host "3. Create database and configure access"
+    Write-Host "2. Create database and configure access"
+    Write-Host "3. Check deployment status"
     Write-Host "4. Exit"
     Write-Host "====================================================================="
 }
@@ -227,13 +265,13 @@ do {
         }
         "2" {
             Write-Host ""
-            Check-DeploymentStatus
+            Create-DatabaseAndConfigureAccess
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }
         "3" {
             Write-Host ""
-            Create-DatabaseAndConfigureAccess
+            Check-DeploymentStatus
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }

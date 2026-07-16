@@ -63,26 +63,58 @@ create_redis_resource() {
     create_resource_group
     echo ""
 
-    # Check if the cluster already exists
+    # Check the current state of the cluster before deciding what to do.
     local cluster_state=$(az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>/dev/null)
-    if [ -n "$cluster_state" ]; then
-        echo "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
-        return 0
-    fi
+    case "$cluster_state" in
+        "Succeeded")
+            echo "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
+            return 0
+            ;;
+        "Failed"|"Canceled")
+            echo "A previous deployment of '$cache_name' is in a $cluster_state state."
+            echo "Deleting the failed resource before trying again..."
+            run_quiet "Delete failed Azure Managed Redis resource" az redisenterprise delete \
+                --resource-group $rg \
+                --name $cache_name \
+                --yes || return 1
+            echo "Failed resource deleted."
+            echo ""
+            ;;
+        "")
+            # No existing cluster; continue to create it below.
+            ;;
+        *)
+            echo "Azure Managed Redis resource '$cache_name' is still provisioning (State: $cluster_state)."
+            echo "Please wait for it to finish, then check the deployment status from the menu."
+            return 0
+            ;;
+    esac
 
-    echo "Creating Azure Managed Redis resource '$cache_name'..."
+    echo "Creating Azure Managed Redis resource '$cache_name' in '$location'..."
+    echo "This takes 5-10 minutes to complete. Please wait..."
 
-    run_quiet "Create Azure Managed Redis resource" az redisenterprise create \
+    if ! run_quiet "Create Azure Managed Redis resource" az redisenterprise create \
         --resource-group $rg \
         --name $cache_name \
         --location $location \
         --sku "Balanced_B0" \
         --public-network-access "Enabled" \
-        --no-database \
-        --no-wait || return 1
+        --no-database; then
+        echo ""
+        echo "⚠ The deployment failed. This is most often caused by a temporary"
+        echo "  lack of capacity for this SKU in the '$location' region."
+        echo ""
+        echo "To resolve this:"
+        echo "  1. Choose option 4 to exit the script."
+        echo "  2. Near the top of this script, change the 'location' variable to a"
+        echo "     different region, such as eastus2, australiaeast, or canadacentral."
+        echo "  3. Run the script again and choose option 1. The failed resource is"
+        echo "     deleted automatically before the next attempt."
+        return 1
+    fi
 
-    echo "The Azure Managed Redis resource is being created and takes 5-10 minutes to complete."
-    echo "You can check the deployment status from the menu later in the exercise."
+    echo ""
+    echo "✓ Azure Managed Redis resource created successfully: $cache_name"
 }
 
 # Function to check deployment status
@@ -116,7 +148,7 @@ create_database_and_configure_access() {
     local cluster_state=$(az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ "$cluster_state" != "Succeeded" ]; then
         echo "Error: Cluster is not ready (State: ${cluster_state:-Not created})."
-        echo "Please check the deployment status (option 2) and wait until provisioning succeeds."
+        echo "Please check the deployment status (option 3) and wait until provisioning succeeds."
         return 1
     fi
 
@@ -198,8 +230,8 @@ show_menu() {
     echo "Location: $location"
     echo "====================================================================="
     echo "1. Create Azure Managed Redis resource"
-    echo "2. Check deployment status"
-    echo "3. Create database and configure access"
+    echo "2. Create database and configure access"
+    echo "3. Check deployment status"
     echo "4. Exit"
     echo "====================================================================="
 }
@@ -218,13 +250,13 @@ while true; do
             ;;
         2)
             echo ""
-            check_deployment_status
+            create_database_and_configure_access
             echo ""
             read -p "Press Enter to continue..."
             ;;
         3)
             echo ""
-            create_database_and_configure_access
+            check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;

@@ -95,13 +95,13 @@ In this section you download the starter files for the app and use a script to i
 
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
 
-    This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
+    This option creates the resource group if it doesn't already exist, then deploys Azure Managed Redis. The script waits for the deployment to finish, which takes 5-10 minutes, and reports the result in the terminal. Leave the script running and continue to the next section to add code while the deployment provisions. Check back on the terminal periodically to watch for errors.
 
-1. After the following messages appear in the console, select **Enter** to return to the menu and then select **4** to exit the script. You run the script again later to check on the deployment status and create the database and *.env* file for the project.
+    When the deployment succeeds, a confirmation message like the following appears and the menu returns:
 
-    *The Azure Managed Redis resource is being created and takes 5-10 minutes to complete.*
+    *✓ Azure Managed Redis resource created successfully: amr-exercise-\<hash>*
 
-    *You can check the deployment status from the menu later in the exercise.*
+    > **Note:** If the deployment fails, it's most often due to a temporary lack of capacity for the SKU in your chosen region. Follow the on-screen guidance to exit the script, change the **location** variable near the top of the script to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose option 1. The failed resource is deleted automatically before the next attempt.
 
 ## Complete the app
 
@@ -324,9 +324,9 @@ The **subscribe_to_channel()** method calls **subscribe()** to register interest
 
 ## Verify resource deployment
 
-In this section you run the deployment script again to confirm the Azure Managed Redis deployment finished, then create the database, configure Microsoft Entra ID access, and generate the *.env* file with the endpoint.
+In this section you return to the running deployment script to confirm the Azure Managed Redis deployment finished, then create the database, configure Microsoft Entra ID access, and generate the *.env* file with the endpoint.
 
-1. Run the appropriate command in the terminal to start the deployment script. If you closed the previous terminal, select **Terminal > New Terminal** in the menu to open a new one.
+1. Return to the terminal where the deployment script is running. After a successful deployment, you see the confirmation message and the menu. If you exited the script, run the appropriate command to start it again.
 
     **Bash**
     ```bash
@@ -338,9 +338,9 @@ In this section you run the deployment script again to confirm the Azure Managed
     ./azdeploy.ps1
     ```
 
-1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status returns **Succeeded**, proceed to the next step. If not, wait a few minutes and try the option again.
+1. (Optional) Enter **3** to run the **3. Check deployment status** option as a last-minute check. If the cluster status returns **Succeeded**, proceed to the next step.
 
-1. After the deployment is complete, enter **3** to run the **3. Create database and configure access** option. This creates the database with Microsoft Entra ID authentication, assigns a data access policy to your account so the app can connect using your identity, and creates the *.env* file with the **REDIS_HOST** endpoint.
+1. Enter **2** to run the **2. Create database and configure access** option. This creates the database with Microsoft Entra ID authentication, assigns a data access policy to your account so the app can connect using your identity, and creates the *.env* file with the **REDIS_HOST** endpoint.
 
 1. Enter **4** to exit the deployment script.
 
