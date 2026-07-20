@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <title>Vector Search - Azure Managed Redis</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
 
@@ -32,15 +34,13 @@
 
                 <form action="/store-product" method="post">
                     <label for="product_key">Product key</label>
-                    <input type="text" id="product_key" name="product_key" placeholder="product:011" required>
+                    <input type="text" id="product_key" name="product_key" placeholder="product:000" required>
 
                     <label for="embedding">Embedding</label>
-                    <textarea id="embedding" name="embedding" rows="3" required>[0.53, 0.63, 0.58, 0.37, 0.68, 0.47, 0.73, 0.57]</textarea>
+                    <textarea id="embedding" name="embedding" rows="3" placeholder="[0.53, 0.63, ...]" required></textarea>
 
                     <label for="metadata">Metadata (key=value per line)</label>
-                    <textarea id="metadata" name="metadata" rows="4">product_id=011
-name=Gym Bag
-category=Sports</textarea>
+                    <textarea id="metadata" name="metadata" rows="4" placeholder="product_id=000" required></textarea>
 
                     <button type="submit" class="btn-success">Store Product</button>
                 </form>
@@ -76,83 +76,84 @@ category=Sports</textarea>
                 <h2 id="results-heading">Operation Results</h2>
 
                 {% with flashed = get_flashed_messages(with_categories=true) %}
-                    {% for category, message in flashed %}
-                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
-                    {% endfor %}
+                {% for category, message in flashed %}
+                <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                {% endfor %}
                 {% endwith %}
 
                 {% if products is defined and products %}
-                    <h3>Products</h3>
-                    <div class="results-container">
-                        {% for key in products %}
-                            <div class="message-card card-completed">
-                                <div class="message-header">
-                                    <span class="message-id">{{ key }}</span>
-                                    <span class="tag tag-valid">stored</span>
-                                </div>
-                            </div>
-                        {% endfor %}
+                <h3>Products</h3>
+                <div class="results-container">
+                    {% for key in products %}
+                    <div class="message-card card-completed">
+                        <div class="message-header">
+                            <span class="message-id">{{ key }}</span>
+                            <span class="tag tag-valid">stored</span>
+                        </div>
                     </div>
+                    {% endfor %}
+                </div>
                 {% endif %}
 
                 {% if store_result is defined and store_result %}
-                    <h3>Stored Product</h3>
-                    <div class="message-card card-completed">
-                        <div class="message-header">
-                            <span class="message-id">{{ store_result.key }}</span>
-                            <span class="tag tag-success">saved</span>
-                        </div>
-                        <div class="message-detail"><strong>Embedding:</strong> {{ store_result.embedding }}</div>
-                        {% if store_result.metadata %}
-                            <div class="message-detail"><strong>Metadata:</strong>
-                                {% for k, v in store_result.metadata.items() %}
-                                    <span class="tag tag-valid">{{ k }}={{ v }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                <h3>Stored Product</h3>
+                <div class="message-card card-completed">
+                    <div class="message-header">
+                        <span class="message-id">{{ store_result.key }}</span>
+                        <span class="tag tag-success">saved</span>
                     </div>
+                    <div class="message-detail"><strong>Embedding:</strong> {{ store_result.embedding }}</div>
+                    {% if store_result.metadata %}
+                    <div class="message-detail"><strong>Metadata:</strong>
+                        {% for k, v in store_result.metadata.items() %}
+                        <span class="tag tag-valid">{{ k }}={{ v }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
                 {% endif %}
 
                 {% if query_product is defined and query_product %}
-                    <h3>Search Query</h3>
-                    <div class="message-card">
-                        <div class="message-header">
-                            <span class="message-id">{{ query_product.key }}</span>
-                            <span class="tag">source</span>
-                        </div>
-                        <div class="message-detail"><strong>Name:</strong> {{ query_product.name }}</div>
-                        <div class="message-detail"><strong>Category:</strong> {{ query_product.category }}</div>
+                <h3>Search Query</h3>
+                <div class="message-card">
+                    <div class="message-header">
+                        <span class="message-id">{{ query_product.key }}</span>
+                        <span class="tag">source</span>
                     </div>
+                    <div class="message-detail"><strong>Name:</strong> {{ query_product.name }}</div>
+                    <div class="message-detail"><strong>Category:</strong> {{ query_product.category }}</div>
+                </div>
                 {% endif %}
 
                 {% if search_results is defined %}
-                    <h3>Similar Products</h3>
-                    {% if search_results %}
-                        <div class="results-container">
-                            {% for result in search_results %}
-                                <div class="message-card card-completed">
-                                    <div class="message-header">
-                                        <span class="message-id">{{ result.key }}</span>
-                                        <span class="tag tag-valid">distance {{ '%.4f'|format(result.similarity) }}</span>
-                                    </div>
-                                    <div class="message-detail"><strong>Product ID:</strong> {{ result.product_id }}</div>
-                                    <div class="message-detail"><strong>Name:</strong> {{ result.name }}</div>
-                                    <div class="message-detail"><strong>Category:</strong> {{ result.category }}</div>
-                                </div>
-                            {% endfor %}
+                <h3>Similar Products</h3>
+                {% if search_results %}
+                <div class="results-container">
+                    {% for result in search_results %}
+                    <div class="message-card card-completed">
+                        <div class="message-header">
+                            <span class="message-id">{{ result.key }}</span>
+                            <span class="tag tag-valid">distance {{ '%.4f'|format(result.similarity) }}</span>
                         </div>
-                    {% else %}
-                        <div class="empty-state">No similar products were returned.</div>
-                    {% endif %}
+                        <div class="message-detail"><strong>Product ID:</strong> {{ result.product_id }}</div>
+                        <div class="message-detail"><strong>Name:</strong> {{ result.name }}</div>
+                        <div class="message-detail"><strong>Category:</strong> {{ result.category }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">No similar products were returned.</div>
+                {% endif %}
                 {% endif %}
 
                 {% if products is not defined and store_result is not defined and search_results is not defined %}
-                    <div class="empty-state">
-                        Run an operation from the left panel to view results here.
-                    </div>
+                <div class="empty-state">
+                    Run an operation from the left panel to view results here.
+                </div>
                 {% endif %}
             </section>
         </div>
     </main>
 </body>
+
 </html>

@@ -6,7 +6,7 @@
 # location="<your-azure-region>"   # Azure region for the resources
 
 rg="rg-exercises" # Resource Group name
-location="westus2" # Azure region for the resources
+location="canadacentral" # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
