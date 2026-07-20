@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Vector Search - Azure Managed Redis</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Vector Search - Azure Managed Redis</h1>
+
+        <div class="left-panel">
+            <section class="section section-data" aria-labelledby="data-heading">
+                <h2 id="data-heading">Data Operations</h2>
+                <p>Load sample products and list available product keys stored in Redis.</p>
+                <div class="button-group">
+                    <form action="/load-sample" method="post">
+                        <button type="submit" class="btn-primary">Load Sample Products</button>
+                    </form>
+                    <form action="/list-products" method="post">
+                        <button type="submit" class="btn-secondary">List All Products</button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="section section-store" aria-labelledby="store-heading">
+                <h2 id="store-heading">Store Product</h2>
+                <p>Store a product embedding and metadata. Reusing a key updates the product.</p>
+
+                <form action="/store-product" method="post">
+                    <label for="product_key">Product key</label>
+                    <input type="text" id="product_key" name="product_key" placeholder="product:011" required>
+
+                    <label for="embedding">Embedding</label>
+                    <textarea id="embedding" name="embedding" rows="3" required>[0.53, 0.63, 0.58, 0.37, 0.68, 0.47, 0.73, 0.57]</textarea>
+
+                    <label for="metadata">Metadata (key=value per line)</label>
+                    <textarea id="metadata" name="metadata" rows="4">product_id=011
+name=Gym Bag
+category=Sports</textarea>
+
+                    <button type="submit" class="btn-success">Store Product</button>
+                </form>
+            </section>
+
+            <section class="section section-search" aria-labelledby="search-heading">
+                <h2 id="search-heading">Similarity Search</h2>
+                <p>Search using the embedding of an existing product key.</p>
+
+                <form action="/search-similar" method="post" class="inline-form">
+                    <label for="query_key" class="sr-only">Query product key</label>
+                    <input type="text" id="query_key" name="query_key" placeholder="product:001" required>
+                    <label for="top_k" class="sr-only">Top results</label>
+                    <input type="number" id="top_k" name="top_k" min="1" max="10" value="5" required>
+                    <button type="submit" class="btn-primary">Find Similar</button>
+                </form>
+            </section>
+
+            <section class="section section-remove" aria-labelledby="remove-heading">
+                <h2 id="remove-heading">Remove Product</h2>
+                <p>Remove a single product key from Redis.</p>
+
+                <form action="/remove-product" method="post" class="inline-form">
+                    <label for="remove_key" class="sr-only">Product key to remove</label>
+                    <input type="text" id="remove_key" name="remove_key" placeholder="product:011" required>
+                    <button type="submit" class="btn-warning">Remove</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <section class="section section-results" aria-labelledby="results-heading">
+                <h2 id="results-heading">Operation Results</h2>
+
+                {% with flashed = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in flashed %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                {% if products is defined and products %}
+                    <h3>Products</h3>
+                    <div class="results-container">
+                        {% for key in products %}
+                            <div class="message-card card-completed">
+                                <div class="message-header">
+                                    <span class="message-id">{{ key }}</span>
+                                    <span class="tag tag-valid">stored</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if store_result is defined and store_result %}
+                    <h3>Stored Product</h3>
+                    <div class="message-card card-completed">
+                        <div class="message-header">
+                            <span class="message-id">{{ store_result.key }}</span>
+                            <span class="tag tag-success">saved</span>
+                        </div>
+                        <div class="message-detail"><strong>Embedding:</strong> {{ store_result.embedding }}</div>
+                        {% if store_result.metadata %}
+                            <div class="message-detail"><strong>Metadata:</strong>
+                                {% for k, v in store_result.metadata.items() %}
+                                    <span class="tag tag-valid">{{ k }}={{ v }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if query_product is defined and query_product %}
+                    <h3>Search Query</h3>
+                    <div class="message-card">
+                        <div class="message-header">
+                            <span class="message-id">{{ query_product.key }}</span>
+                            <span class="tag">source</span>
+                        </div>
+                        <div class="message-detail"><strong>Name:</strong> {{ query_product.name }}</div>
+                        <div class="message-detail"><strong>Category:</strong> {{ query_product.category }}</div>
+                    </div>
+                {% endif %}
+
+                {% if search_results is defined %}
+                    <h3>Similar Products</h3>
+                    {% if search_results %}
+                        <div class="results-container">
+                            {% for result in search_results %}
+                                <div class="message-card card-completed">
+                                    <div class="message-header">
+                                        <span class="message-id">{{ result.key }}</span>
+                                        <span class="tag tag-valid">distance {{ '%.4f'|format(result.similarity) }}</span>
+                                    </div>
+                                    <div class="message-detail"><strong>Product ID:</strong> {{ result.product_id }}</div>
+                                    <div class="message-detail"><strong>Name:</strong> {{ result.name }}</div>
+                                    <div class="message-detail"><strong>Category:</strong> {{ result.category }}</div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">No similar products were returned.</div>
+                    {% endif %}
+                {% endif %}
+
+                {% if products is not defined and store_result is not defined and search_results is not defined %}
+                    <div class="empty-state">
+                        Run an operation from the left panel to view results here.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>

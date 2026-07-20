@@ -24,12 +24,35 @@ $hashBytes = $sha1.ComputeHash($bytes)
 $user_hash = [System.BitConverter]::ToString($hashBytes).Replace("-", "").Substring(0, 8).ToLower()
 $cache_name = "amr-exercise-$user_hash"
 
+# Run a command quietly, but surface its exit code and output if it fails. This
+# keeps the console clean on success while still reporting the error details
+# when a command fails, instead of silently discarding them. Use for action
+# commands (create/update/delete), not for commands whose output you need to
+# capture.
+# Usage: Invoke-Quiet "Description of the step" { az ... }
+function Invoke-Quiet {
+    param(
+        [string]$Description,
+        [scriptblock]$Command
+    )
+    $output = & $Command 2>&1
+    $rc = $LASTEXITCODE
+    if ($rc -ne 0) {
+        Write-Host "Error: $Description failed (exit code $rc)."
+        if ($output) {
+            Write-Host ($output | Out-String)
+        }
+        return $false
+    }
+    return $true
+}
+
 # Function to create resource group if it doesn't exist
 function Create-ResourceGroup {
     Write-Host "Checking resource group '$rg'..."
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>$null | Out-Null
+        if (-not (Invoke-Quiet "Create resource group" { az group create --name $rg --location $location })) { return }
         Write-Host "Resource group created: $rg"
     } else {
         Write-Host "Resource group already exists: $rg"
@@ -41,27 +64,82 @@ function Create-RedisResource {
     Create-ResourceGroup
     Write-Host ""
 
-    # Check if the cluster already exists
+    # Check the current state of the cluster before deciding what to do.
     $cluster_state = az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($cluster_state)) {
-        Write-Host "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
+    switch ($cluster_state) {
+        "Succeeded" {
+            Write-Host "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
+            return
+        }
+        { $_ -eq "Failed" -or $_ -eq "Canceled" } {
+            Write-Host "A previous deployment of '$cache_name' is in a $cluster_state state."
+            Write-Host "Deleting the failed resource before trying again..."
+            $deleted = Invoke-Quiet "Delete failed Azure Managed Redis resource" {
+                az redisenterprise delete `
+                    --resource-group $rg `
+                    --name $cache_name `
+                    --yes `
+                    --only-show-errors
+            }
+            if (-not $deleted) { return }
+            # The delete can report success before the resource is fully removed
+            # from Azure. Wait until it no longer exists, otherwise the next create
+            # can fail with a name conflict.
+            $waited = 0
+            while (-not [string]::IsNullOrWhiteSpace((az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>$null))) {
+                if ($waited -ge 300) {
+                    Write-Host "Error: Timed out waiting for the failed resource to finish deleting."
+                    Write-Host "Please wait a few minutes, then run option 1 again."
+                    return
+                }
+                Start-Sleep -Seconds 10
+                $waited += 10
+            }
+            Write-Host "Failed resource deleted."
+            Write-Host ""
+        }
+        "" {
+            # No existing cluster; continue to create it below.
+        }
+        $null {
+            # No existing cluster; continue to create it below.
+        }
+        default {
+            Write-Host "Azure Managed Redis resource '$cache_name' is still provisioning (State: $cluster_state)."
+            Write-Host "Please wait for it to finish, then check the deployment status from the menu."
+            return
+        }
+    }
+
+    Write-Host "Creating Azure Managed Redis resource '$cache_name' in '$location'..."
+    Write-Host "This takes 5-10 minutes to complete. Please wait..."
+
+    $created = Invoke-Quiet "Create Azure Managed Redis resource" {
+        az redisenterprise create `
+            --resource-group $rg `
+            --name $cache_name `
+            --location $location `
+            --sku "Balanced_B0" `
+            --public-network-access "Enabled" `
+            --no-database `
+            --only-show-errors
+    }
+    if (-not $created) {
+        Write-Host ""
+        Write-Host "The deployment failed. This is most often caused by a temporary"
+        Write-Host "lack of capacity for this SKU in the '$location' region."
+        Write-Host ""
+        Write-Host "To resolve this:"
+        Write-Host "  1. Choose option 4 to exit the script."
+        Write-Host "  2. Near the top of this script, change the 'location' variable to a"
+        Write-Host "     different region, such as eastus2, australiaeast, or canadacentral."
+        Write-Host "  3. Run the script again and choose option 1. The failed resource is"
+        Write-Host "     deleted automatically before the next attempt."
         return
     }
 
-    Write-Host "Creating Azure Managed Redis cluster '$cache_name'..."
-
-    # Create the Azure Managed Redis cluster (Balanced_B0 is the cheapest SKU)
-    az redisenterprise create `
-        --resource-group $rg `
-        --name $cache_name `
-        --location $location `
-        --sku Balanced_B0 `
-        --public-network-access "Enabled" `
-        --no-database `
-        --no-wait
-
-    Write-Host "The Azure Managed Redis cluster is being created and takes 5-10 minutes to complete."
-    Write-Host "You can check the deployment status from the menu later in the exercise."
+    Write-Host ""
+    Write-Host "Azure Managed Redis resource created successfully: $cache_name"
 }
 
 # Function to check deployment status
@@ -87,74 +165,89 @@ function Check-DeploymentStatus {
     }
 }
 
-# Function to create database and retrieve endpoint and access key
-function Create-DatabaseAndGetKey {
+# Function to create the database with RediSearch, grant the current user
+# Microsoft Entra ID access, and write the .env file with the Redis endpoint
+function Create-DatabaseAndConfigureAccess {
 
     # Check if cluster is provisioned
     $cluster_state = az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>$null
     if ($cluster_state -ne "Succeeded") {
         $state_display = if ([string]::IsNullOrWhiteSpace($cluster_state)) { "Not created" } else { $cluster_state }
         Write-Host "Error: Cluster is not ready (State: $state_display)."
-        Write-Host "Please check the deployment status (option 2) and wait until provisioning succeeds."
+        Write-Host "Please check the deployment status (option 3) and wait until provisioning succeeds."
         return
     }
 
     # Check if database already exists
     $db_state = az redisenterprise database show --resource-group $rg --cluster-name $cache_name --query "provisioningState" -o tsv 2>$null
     if (-not [string]::IsNullOrWhiteSpace($db_state)) {
-        Write-Host "Database already exists (State: $db_state). Enabling access key auth..."
-        az redisenterprise database update `
-            --resource-group $rg `
-            --cluster-name $cache_name `
-            --access-keys-auth "Enabled" `
-            2>$null | Out-Null
+        Write-Host "Database already exists (State: $db_state)."
     } else {
-        Write-Host "Creating database with RediSearch module and access key authentication..."
-        az redisenterprise database create `
-            --resource-group $rg `
-            --cluster-name $cache_name `
-            --clustering-policy "EnterpriseCluster" `
-            --eviction-policy "NoEviction" `
-            --modules name="RediSearch" `
-            --access-keys-auth "Enabled" `
-            2>$null | Out-Null
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to create database."
-            return
+        Write-Host "Creating vector-search database with RediSearch module..."
+        $created = Invoke-Quiet "Create database" {
+            az redisenterprise database create `
+                --resource-group $rg `
+                --cluster-name $cache_name `
+                --clustering-policy "EnterpriseCluster" `
+                --eviction-policy "NoEviction" `
+                --modules name="RediSearch" `
+                --only-show-errors
         }
+        if (-not $created) { return }
     }
 
-    Write-Host "Retrieving endpoint and access key..."
+    # Grant the signed-in user access to the database using Microsoft Entra ID.
+    # This assigns the built-in "default" access policy to the user's object ID
+    # so the app can authenticate with DefaultAzureCredential instead of a key.
+    $assignment_name = "useraccess"
+    $assignment_state = az redisenterprise database access-policy-assignment show `
+        --resource-group $rg `
+        --cluster-name $cache_name `
+        --database-name default `
+        --access-policy-assignment-name $assignment_name `
+        --query "provisioningState" -o tsv 2>$null
+
+    if (-not [string]::IsNullOrWhiteSpace($assignment_state)) {
+        Write-Host "Microsoft Entra access is already assigned for the current user."
+    } else {
+        Write-Host "Assigning Microsoft Entra access for the current user..."
+        $assigned = Invoke-Quiet "Assign access policy" {
+            az redisenterprise database access-policy-assignment create `
+                --resource-group $rg `
+                --cluster-name $cache_name `
+                --database-name default `
+                --access-policy-assignment-name $assignment_name `
+                --access-policy-name default `
+                --object-id $user_object_id `
+                --only-show-errors
+        }
+        if (-not $assigned) { return }
+    }
+
+    Write-Host "Retrieving endpoint..."
 
     # Get the endpoint (hostname)
     $hostname = az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>$null
 
-    # Get the primary access key
-    $primaryKey = az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>$null
-
-    # Check if values are empty
-    if ([string]::IsNullOrWhiteSpace($hostname) -or [string]::IsNullOrWhiteSpace($primaryKey)) {
+    # Check if the value is empty
+    if ([string]::IsNullOrWhiteSpace($hostname)) {
         Write-Host ""
-        Write-Host "Error: Unable to retrieve endpoint or access key."
+        Write-Host "Error: Unable to retrieve the endpoint."
         Write-Host "Please check the deployment status to ensure the resource is fully provisioned."
         return
     }
 
-    # Write .env file
-    @"
-REDIS_HOST=$hostname
-REDIS_KEY=$primaryKey
-"@ | Set-Content ".env" -NoNewline
+    # Write .env.ps1 file
+    "`$env:REDIS_HOST = `"$hostname`"" | Set-Content ".env.ps1"
 
     Clear-Host
     Write-Host ""
     Write-Host "Redis Connection Information"
     Write-Host "==========================================================="
     Write-Host "Endpoint: $hostname"
-    Write-Host "Primary Key: $primaryKey"
+    Write-Host "Authentication: Microsoft Entra ID (current user)"
     Write-Host ""
-    Write-Host "Values have been saved to .env file"
+    Write-Host "The endpoint has been saved to the .env.ps1 file"
 }
 
 # Display menu
@@ -168,8 +261,8 @@ function Show-Menu {
     Write-Host "Location: $location"
     Write-Host "====================================================================="
     Write-Host "1. Create Azure Managed Redis resource"
-    Write-Host "2. Check deployment status"
-    Write-Host "3. Create database and retrieve endpoint and access key"
+    Write-Host "2. Create database and configure access"
+    Write-Host "3. Check deployment status"
     Write-Host "4. Exit"
     Write-Host "====================================================================="
 }
@@ -181,20 +274,23 @@ do {
 
     switch ($choice) {
         "1" {
+            Clear-Host
             Write-Host ""
             Create-RedisResource
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }
         "2" {
+            Clear-Host
             Write-Host ""
-            Check-DeploymentStatus
+            Create-DatabaseAndConfigureAccess
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }
         "3" {
+            Clear-Host
             Write-Host ""
-            Create-DatabaseAndGetKey
+            Check-DeploymentStatus
             Write-Host ""
             Read-Host "Press Enter to continue..."
         }
