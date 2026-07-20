@@ -13,30 +13,32 @@ lab:
 
 # Implement semantic search in Azure Managed Redis
 
-In this exercise, you create an Azure Managed Redis resource and complete the code for a vector storage application. The application loads sample product data with embeddings, stores new products with vector embeddings and metadata, performs semantic similarity searches using vector embeddings, and displays related products based on cosine similarity. You implement core vector operations including storing vectors as binary data with metadata, creating a RediSearch index with HNSW algorithm configuration, and executing KNN queries to find semantically similar products.
+In this exercise, you deploy Azure Managed Redis and complete a Python Flask web app that stores product embeddings and metadata, creates a vector index, and performs similarity search using cosine distance. You add code to connect with Microsoft Entra ID, create the index, store product vectors, and query for similar products from a browser-based interface.
 
 Tasks performed in this exercise:
 
 - Download the project starter files
 - Create an Azure Managed Redis resource
-- Add code to complete business logic
-- Run the app to load sample data, store products with embeddings, and perform similarity searches
+- Add code to the starter files to complete the app
+- Run the app to load products, store vectors, and perform similarity searches
 
 This exercise takes approximately **30** minutes to complete.
 
 ## Before you start
 
+In this section you review the prerequisites needed for the exercise.
+
 To complete the exercise, you need:
 
-- An Azure subscription with the permission to create an Azure Managed Redis instance with an enterprise SKU. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
-- The Azure CLI **redisenterprise** extension. You can install it by running the **az extension add --name redisenterprise** command.
+- The Azure CLI **redisenterprise** extension, version 2.75.0 or greater. A later step installs or upgrades the extension for you.
 
 ## Download project starter files and deploy Azure Managed Redis
 
-In this section you download the starter files for the app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the starter files for the app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete, so you start the deployment first and add code to the app while it provisions.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -48,7 +50,7 @@ In this section you download the starter files for the app and use a script to i
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -69,10 +71,10 @@ In this section you download the starter files for the app and use a script to i
     az provider register --namespace Microsoft.Cache
     ```
 
-1. Run the following command to install the **redisenterprise** extension for Azure CLI.
+1. Run the following command to install or upgrade the **redisenterprise** extension for Azure CLI. Version 2.75.0 or greater is required to configure Microsoft Entra ID access on the database.
 
     ```
-    az extension add --name redisenterprise
+    az extension add --upgrade --name redisenterprise
     ```
 
 1. Run the appropriate command in the terminal to launch the script.
@@ -95,20 +97,233 @@ In this section you download the starter files for the app and use a script to i
 
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
 
-    This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
+    This option creates the resource group if it doesn't already exist, then deploys Azure Managed Redis. The script waits for the deployment to finish, which takes 5-10 minutes, and reports the result in the terminal. Leave the script running and continue to the next section to add code while the deployment provisions. Check back on the terminal periodically to watch for errors.
 
-1. After the following messages appear in the console, select **Enter** to return to the menu and then select **4** to exit the script. You run the script again later to check on the deployment status and also to create the *.env* file for the project.
+    When the deployment succeeds, a confirmation message like the following appears and the menu returns:
 
-    *The Azure Managed Redis resource is being created and takes 5-10 minutes to complete.*
+    *Azure Managed Redis resource created successfully: amr-exercise-\<hash>*
 
-    *You can check the deployment status from the menu later in the exercise.*
+    > **Note:** If the deployment fails, it's most often due to a temporary lack of capacity for the SKU in your chosen region. Follow the on-screen guidance to exit the script, change the **location** variable near the top of the script to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose option 1. The failed resource is deleted automatically before the next attempt.
 
+## Complete the app
+
+In this section you add code to the *client/vector_functions.py* file to complete vector storage and search operations. The Flask app in *client/app.py* calls these functions to execute the workflow from the browser. You don't need to edit *client/app.py*. You run the app later in the exercise.
+
+1. Open the *client/vector_functions.py* file to begin adding code.
+
+>**Note:** The code blocks you add to the application should align with the comment for that section of the code.
+
+### Add code to connect to Azure Managed Redis
+
+In this section you add code to create a Redis client that authenticates with Microsoft Entra ID. Using Entra ID means the app never handles an access key.
+
+The **get_client()** function reads the Redis endpoint from the **REDIS_HOST** environment variable and calls **create_from_default_azure_credential()** to build a credential provider. The provider uses **DefaultAzureCredential** to acquire a Microsoft Entra token and refreshes it automatically in the background.
+
+1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def get_client() -> redis.Redis:
+        """Create a Redis client for Azure Managed Redis using Microsoft Entra ID."""
+        redis_host = os.environ.get("REDIS_HOST")
+
+        if not redis_host:
+            raise ValueError("REDIS_HOST environment variable must be set")
+
+        credential_provider = create_from_default_azure_credential(
+            ("https://redis.azure.com/.default",),
+        )
+
+        return redis.Redis(
+            host=redis_host,
+            port=10000,
+            ssl=True,
+            decode_responses=False,
+            credential_provider=credential_provider,
+            socket_timeout=30,
+            socket_connect_timeout=30,
+        )
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to create the vector index
+
+In this section you add code to create the RediSearch index used by similarity search.
+
+The **_create_vector_index()** function defines text fields and a vector field named **embedding**. The vector field uses the HNSW algorithm with cosine distance and an embedding dimension of 8, matching the sample data.
+
+1. Locate the **# BEGIN CREATE VECTOR INDEX CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def _create_vector_index(self):
+        """Create a RediSearch index for product semantic search."""
+        try:
+            schema = (
+                TextField("name"),
+                TextField("category"),
+                TextField("product_id"),
+                VectorField(
+                    "embedding",
+                    "HNSW",
+                    {
+                        "TYPE": "FLOAT32",
+                        "DIM": VECTOR_DIM,
+                        "DISTANCE_METRIC": "COSINE",
+                    },
+                ),
+            )
+
+            definition = IndexDefinition(
+                prefix=["product:"],
+                index_type=IndexType.HASH,
+            )
+
+            self.r.ft(VECTOR_INDEX_NAME).create_index(
+                fields=schema,
+                definition=definition,
+            )
+        except redis.ResponseError as e:
+            if "already exists" not in str(e):
+                raise Exception(f"Error creating vector index: {e}")
+        except Exception as e:
+            raise Exception(f"Error creating vector index: {e}")
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to store product vectors
+
+In this section you add code to store a product embedding and metadata in Redis.
+
+The **store_product()** function converts the embedding list to **float32** bytes with numpy and writes the embedding plus metadata to a Redis hash using **hset()**.
+
+1. Locate the **# BEGIN STORE PRODUCT CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def store_product(
+        self,
+        vector_key: str,
+        vector: list[float],
+        metadata: dict[str, str] | None = None,
+    ) -> tuple[bool, str]:
+        """Store or update a product hash containing embedding and metadata."""
+        try:
+            embedding = np.array(vector, dtype=np.float32)
+            data: dict[str, Any] = {"embedding": embedding.tobytes()}
+
+            if metadata:
+                for key, value in metadata.items():
+                    data[key] = str(value)
+
+            result = self.r.hset(vector_key, mapping=data)
+            if result > 0:
+                return True, f"Product stored successfully under key '{vector_key}'"
+            return True, f"Product updated successfully under key '{vector_key}'"
+        except Exception as e:
+            return False, f"Error storing product: {e}"
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+### Add code to search similar products
+
+In this section you add code to run KNN similarity search against the vector index.
+
+The **search_similar_products()** function converts the query embedding to bytes, builds a RediSearch KNN query, and returns the closest product matches ordered by score.
+
+1. Locate the **# BEGIN SEARCH SIMILAR PRODUCTS CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
+
+    ```python
+    def search_similar_products(
+        self,
+        query_vector: list[float],
+        top_k: int = 3,
+    ) -> tuple[bool, list[dict[str, Any]] | str]:
+        """Run a KNN vector query against product embeddings."""
+        try:
+            query_bytes = np.array(query_vector, dtype=np.float32).tobytes()
+
+            knn_query = (
+                Query(f"*=>[KNN {top_k} @embedding $query_vec AS score]")
+                .return_fields("name", "category", "product_id", "score")
+                .sort_by("score")
+                .dialect(2)
+            )
+
+            results = self.r.ft(VECTOR_INDEX_NAME).search(
+                knn_query,
+                query_params={"query_vec": query_bytes},
+            )
+
+            if results.total == 0:
+                return False, "No products found in Redis. Load sample products first."
+
+            similarities: list[dict[str, Any]] = []
+            for doc in results.docs:
+                similarities.append(
+                    {
+                        "key": doc.id,
+                        "similarity": float(doc.score),
+                        "product_id": doc.product_id.decode() if isinstance(doc.product_id, bytes) else doc.product_id,
+                        "name": doc.name.decode() if isinstance(doc.name, bytes) else doc.name,
+                        "category": doc.category.decode() if isinstance(doc.category, bytes) else doc.category,
+                    }
+                )
+
+            return True, similarities
+        except Exception as e:
+            return False, f"Error searching products: {e}"
+    ```
+
+1. Save your changes and take a few minutes to review the code.
+
+## Verify resource deployment
+
+In this section you return to the deployment script to create the vector database, configure Microsoft Entra ID access, and generate the environment variable file with the Redis endpoint.
+
+1. Return to the terminal where the deployment script is running. After a successful deployment, you see the confirmation message and the menu. If you exited the script, run the appropriate command to start it again.
+
+    **Bash**
+    ```bash
+    bash azdeploy.sh
+    ```
+
+    **PowerShell**
+    ```powershell
+    ./azdeploy.ps1
+    ```
+
+1. Enter **2** to run the **2. Create database and configure access** option. This creates the vector-ready database with the RediSearch module, assigns a data access policy to your account, and creates the environment variable file with **REDIS_HOST**.
+
+1. (Optional) Enter **3** to run the **3. Check deployment status** option as a final check.
+
+1. Enter **4** to exit the deployment script.
+
+1. Run the appropriate command to load the environment variables into your terminal session from the file created in the previous step.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
 
 ## Configure the Python environment
 
-In this section, you create the Python environment and install the dependencies.
+In this section you navigate to the client directory, create the Python environment, and install the dependencies.
 
-1. Run the following command in the VS Code terminal to create the Python environment.
+1. Run the following command in the VS Code terminal to navigate to the *client* directory.
+
+    ```
+    cd client
+    ```
+
+1. Run the following command to create the Python environment.
 
     ```
     python -m venv .venv
@@ -132,258 +347,37 @@ In this section, you create the Python environment and install the dependencies.
     pip install -r requirements.txt
     ```
 
-## Complete the manage vector app
-
-In this section you add code to the *manage_vector.py* script to complete the app. You run the app later in the exercise, after you confirm the Azure Managed Redis resource is fully deployed and create the *.env* file.
-
-1. Open the *manage_vector.py* file to begin adding code.
-
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
-### Add the initialization and connection code
-
-In this section, you add code to establish a connection to Azure Managed Redis using redis-py. The **_connect_to_redis()** function uses the redis-py **Redis** class to create a secure SSL connection with authentication. The **__init__()** method initializes the vector index for semantic search operations.
-
-1. Locate the **# BEGIN INITIALIZATION AND CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def __init__(self):
-        """Initialize the product manager and establish Redis connection"""
-        self.r = self._connect_to_redis()
-        self._create_vector_index()  # Create RediSearch index for product embeddings
-        self.VECTOR_DIM = 8  # Product embedding dimensionality (matches sample_data.json)
-
-    def _connect_to_redis(self) -> redis.Redis:
-        """Establish connection to Azure Managed Redis using SSL encryption and authentication"""
-        try:
-            # Get connection parameters from environment variables
-            redis_host = os.getenv("REDIS_HOST")
-            redis_key = os.getenv("REDIS_KEY")
-
-            # Create Redis connection with SSL and authentication
-            r = redis.Redis(
-                host=redis_host,
-                port=10000,  # Azure Managed Redis uses port 10000
-                ssl=True,  # Use SSL encryption
-                decode_responses=False,  # Keep binary for embeddings - only decode text when needed
-                password=redis_key,  # Authentication key
-                db=0,  # Connect to database 0 (the default database with RediSearch module)
-                socket_timeout=30,  # Connection timeout
-                socket_connect_timeout=30,  # Socket timeout
-            )
-
-            # Test connection
-            r.ping()  # Verify Redis connectivity
-            return r
-
-        except redis.ConnectionError as e:
-            raise Exception(f"Connection error: {e}")
-        except redis.AuthenticationError as e:
-            raise Exception(f"Authentication error: {e}")
-        except Exception as e:
-            raise Exception(f"Unexpected error: {e}")
-    ```
-
-1. Save your changes.
-
-### Add the create vector index code
-
-In this section, you add code to create a RediSearch index for vector similarity search using the redis-py search module. The **_create_vector_index()** function defines the schema with text fields and a VectorField configured for HNSW (Hierarchical Navigable Small World) indexing with cosine similarity, enabling efficient semantic search operations.
-
-1. Locate the **# BEGIN CREATE VECTOR INDEX CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def _create_vector_index(self):
-        """Create a RediSearch index for product semantic search using HNSW algorithm"""
-        try:
-            # Define schema with embedding field for HNSW-based product similarity search
-            # DIM=8 matches our sample data dimensions (in production, this would match your embedding model's output)
-            schema = (
-                TextField("name"),
-                TextField("category"),
-                TextField("product_id"),
-                VectorField(
-                    "embedding",
-                    "HNSW",  # Hierarchical Navigable Small World - fast approximate search
-                    {
-                        "TYPE": "FLOAT32",           # Standard for embeddings
-                        "DIM": 8,                    # Must match embedding dimensions in sample_data.json
-                        "DISTANCE_METRIC": "COSINE"  # Cosine similarity for semantic search
-                    }
-                )
-            )
-
-            # Create index on hash keys starting with "product:"
-            definition = IndexDefinition(
-                prefix=["product:"],
-                index_type=IndexType.HASH
-            )
-            self.r.ft("idx:products").create_index(
-                fields=schema,
-                definition=definition
-            )
-        except redis.ResponseError as e:
-            if "already exists" in str(e):
-                pass  # Index already exists, which is fine
-            else:
-                raise Exception(f"Error creating vector index: {str(e)}")
-        except Exception as e:
-            raise Exception(f"Error creating vector index: {str(e)}")
-    ```
-
-1. Save your changes.
-
-### Add the store product code
-
-In this section, you add code to store products with vector embeddings and metadata using Redis. The **store_product()** function uses numpy to convert embedding arrays to binary float32 bytes, then uses the redis-py **hset()** method to store the binary embedding and metadata fields in a Redis hash structure. This approach provides efficient storage and retrieval of vector data.
-
-1. Locate the **# BEGIN STORE PRODUCT CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def store_product(self, vector_key: str, vector: list, metadata: dict = None) -> tuple[bool, str]:
-        """Store a product with embedding in Redis using hash data structure with binary embedding storage"""
-        try:
-            # Convert embedding to binary bytes using numpy for efficient storage
-            # This follows redis-py best practices for storing embeddings
-            embedding = np.array(vector, dtype=np.float32)
-            data = {"embedding": embedding.tobytes()}  # Store embedding as binary bytes
-
-            # Add metadata fields to the hash
-            if metadata:
-                for key, value in metadata.items():
-                    data[key] = str(value)
-
-            # Store the hash in Redis using hset() method
-            result = self.r.hset(vector_key, mapping=data)
-
-            if result > 0:
-                return True, f"Product stored successfully under key '{vector_key}'"
-            else:
-                return True, f"Product updated successfully under key '{vector_key}'"
-
-        except Exception as e:
-            return False, f"Error storing product: {e}"
-    ```
-
-1. Save your changes.
-
-### Add the search similar products vector code
-
-In this section, you add code to perform vector similarity search using RediSearch with the redis-py client. The **search_similar_products()** function uses numpy to convert the query vector to binary float32 bytes, then executes a KNN (k-nearest neighbors) query against the RediSearch index to find the most similar products based on cosine similarity of their embeddings.
-
-1. Locate the **# BEGIN SEARCH SIMILAR PRODUCTS CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
-
-    ```python
-    def search_similar_products(self, query_vector: list, top_k: int = 3) -> tuple[bool, list | str]:
-        """Search for products similar to the query vector using RediSearch KNN queries"""
-        try:
-            # Convert query vector to binary bytes for KNN search
-            query_bytes = np.array(query_vector, dtype=np.float32).tobytes()
-
-            # Build KNN query using RediSearch vector search syntax for semantic similarity
-            # *=>[KNN k @field_name $query_vec] finds k most similar products based on embedding distance
-            knn_query = (
-                Query(f"*=>[KNN {top_k} @embedding $query_vec AS score]")
-                .return_fields("name", "category", "product_id", "score")
-                .sort_by("score")
-                .dialect(2)  # Dialect 2 enables vector search syntax
-            )
-
-            # Execute KNN search with query vector as parameter
-            results = self.r.ft("idx:products").search(
-                knn_query,
-                query_params={"query_vec": query_bytes}
-            )
-
-            if results.total == 0:
-                return False, "No products found in Redis. Ensure products are loaded and RediSearch module is enabled."
-
-            # Format results
-            similarities = []
-            for doc in results.docs:
-                similarities.append({
-                    "key": doc.id,
-                    "similarity": float(doc.score),
-                    "product_id": doc.product_id.decode() if isinstance(doc.product_id, bytes) else doc.product_id,
-                    "name": doc.name.decode() if isinstance(doc.name, bytes) else doc.name,
-                    "category": doc.category.decode() if isinstance(doc.category, bytes) else doc.category
-                })
-
-            return True, similarities
-
-        except Exception as e:
-            return False, f"Error searching products: {e}"
-    ```
-
-1. Save your changes.
-
-### Review the code
-
-Take a few minutes to review all of the code in the *manage_vector.py* file.
-
-## Verify resource deployment
-
-In this section you run the deployment script again to verify if the Azure Managed Redis deployment is completed, and create the *.env* file with the endpoint and access key values.
-
-1. Run the appropriate command in the terminal to start the deployment script. If you closed the previous terminal, select **Terminal > New Terminal** in the menu to open a new one.
-
-    **Bash**
-    ```bash
-    bash azdeploy.sh
-    ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-    ```
-
-1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Successful**, proceed to the next step. If not, then wait a few minutes and try the option again.
-
-1. After the deployment is complete, enter **3** to run the **3. Create database and retrieve endpoint and access key** option. This creates the database with the RediSearch module, enables access key authentication, and retrieves the endpoint and access key. It then creates the *.env* file with those values.
-
-1. Review the *.env* file to verify the values are present, then enter **4** to exit the deployment script.
-
 ## Run the app
 
-In this section, you run the completed application and practice loading, storing, and searching vector data. The app uses **tkinter** to create a GUI so you can more easily view and manage data.
+In this section you run the completed Flask application to perform vector storage and similarity search from a single web page.
 
-1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
+1. Run the following command in the terminal to start the app. Refer to the commands from earlier in the exercise to activate the environment and load the environment variables, if needed, before running the command. If you navigated away from the *client* directory, run **cd client** first.
 
     ```
-    python vectorapp.py
+    python app.py
     ```
 
-    The app should look similar to the following image:
+1. Open a browser and navigate to `http://localhost:5000` to access the app.
 
-    ![Screenshot of the vector app running.](./media/vector-app.png)
+### Load sample data and perform similarity search
 
-> **Note:** All of the steps in this section are performed in the app.
+In this section you load sample product embeddings and run your first similarity search.
 
-### Load sample data and perform a similarity search
+1. In **Data Operations**, select **Load Sample Products**.
 
-In this section, you practice loading sample vector data into Redis and then performing a similarity search. You practice retrieving a known vector and using it as a query to find semantically related products in your database.
+1. Select **List All Products** and confirm product keys are displayed in **Operation Results**.
 
-1. Select **Load Sample Products**. The status of the load operation will appear in **Operation Results**.
+1. In **Similarity Search**, enter **product:001** and leave **top_k** set to **5**, then select **Find Similar**.
 
-1. Select **List All Products** to display the sample data. The sample data is listed showing the: Key, Name, Category, and Embedding for the products in the sample data.
+1. Review the returned products and their distance scores in **Operation Results**.
 
-1. Select **Find Similar Products** and enter `product:001` in the **Product Key:** input field, then select **Search**.
+### Store a new product and search again
 
-    A list of similar products is returned with the product information and the similarity score.
+In this section you store a new product embedding and run similarity search again to see how nearest neighbors change.
 
-### Store a new product and perform a similarity search
+1. In **Store Product**, enter the following values and select **Store Product**.
 
-
-
-1. Select **Store New Product** and enter the following information in the form, then select **Store Product**. Review the operation results.
-
-    Product Key:
+    Product key:
 
     ```
     product:011
@@ -403,11 +397,17 @@ In this section, you practice loading sample vector data into Redis and then per
     category=Sports
     ```
 
-    > **Note:** You can also edit any data record by entering that record's product key in the **Store New Product** form and changing the other fields.
+1. In **Similarity Search**, enter **product:009** and select **Find Similar**.
 
-1. Select **Find Similar Products** and enter `product:009` in the **Product Key:** input field, then select **Search**.
+1. Review the results and verify that product similarity ordering reflects the newly stored vector.
 
-    Review the output and notice the Gym Bag is now the product most similar to the Premium Backpack.
+### Remove a product
+
+In this section you remove one product key to validate delete behavior.
+
+1. In **Remove Product**, enter **product:011** and select **Remove**.
+
+1. Select **List All Products** and confirm **product:011** no longer appears in the product list.
 
 ## Clean up resources
 
@@ -428,18 +428,28 @@ If you encounter issues while completing this exercise, try the following troubl
 **Verify Azure Managed Redis resource deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
 - Confirm that the Azure Managed Redis resource shows a **Provisioning State** of **Succeeded**.
-- Check that the resource has **Public network access** enabled and **Access keys authentication** set to **Enabled**.
+- Run the deployment script's **Check deployment status** option and confirm the cluster and database are ready before running the app.
+
+**Check authentication and access**
+- Confirm you are logged in to Azure CLI by running **az account show**.
+- Ensure the deployment script's **Create database and configure access** option completed successfully so your account has a data access policy on the database.
+- If the app reports an authentication error, wait a moment and try again, as the access policy assignment can take a short time to take effect.
 
 **Check code completeness and indentation**
-- Ensure all code blocks were added to the correct sections and between the appropriate BEGIN/END comment markers.
-- Verify that Python indentation is consistent (use spaces, not tabs) and that all code aligns properly within functions.
+- Ensure all code blocks were added to the correct sections in *client/vector_functions.py* between the appropriate BEGIN/END comment markers.
+- Verify that Python indentation is consistent (use spaces, not tabs).
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project folder and contains valid **REDIS_HOST** and **REDIS_KEY** values.
-- Ensure the *.env* file is in the root of the project.
+- Check that the *.env* file exists in the project root and contains the **REDIS_HOST** value.
+- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
+- If variables are empty, run **source .env** (Bash) or **. .\.env.ps1** (PowerShell) again.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the app.
-- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
+- Verify that all packages from *client/requirements.txt* were installed successfully by running **pip list**.
 
+**No search results or missing products**
+- Confirm you loaded sample products before running similarity searches.
+- Verify the query product key exists by selecting **List All Products**.
+- Ensure embeddings contain 8 numeric values to match the index configuration.

@@ -2,8 +2,11 @@
 
 # Change the values of these variables as needed
 
-rg="<your-resource-group-name>"  # Resource Group name
-location="<your-azure-region>"   # Azure region for the resources
+# rg="<your-resource-group-name>"  # Resource Group name
+# location="<your-azure-region>"   # Azure region for the resources
+
+rg="rg-exercises" # Resource Group name
+location="canadacentral" # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -21,12 +24,34 @@ fi
 user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 cache_name="amr-exercise-${user_hash}"
 
+# Run a command quietly, but surface its exit code and output if it fails. This
+# keeps the console clean on success while still reporting the error details
+# when a command fails, instead of silently discarding them. Use for action
+# commands (create/update/delete), not for commands whose output you need to
+# capture.
+# Usage: run_quiet "Description of the step" <command> [args...]
+run_quiet() {
+    local description="$1"
+    shift
+    local output rc
+    output=$("$@" 2>&1)
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "Error: ${description} failed (exit code ${rc})."
+        if [ -n "$output" ]; then
+            echo "$output"
+        fi
+        return $rc
+    fi
+    return 0
+}
+
 # Function to create resource group if it doesn't exist
 create_resource_group() {
     echo "Checking resource group '$rg'..."
     local exists=$(az group exists --name $rg)
     if [ "$exists" = "false" ]; then
-        az group create --name $rg --location $location > /dev/null 2>&1
+        run_quiet "Create resource group" az group create --name $rg --location $location || return 1
         echo "Resource group created: $rg"
     else
         echo "Resource group already exists: $rg"
@@ -38,27 +63,73 @@ create_redis_resource() {
     create_resource_group
     echo ""
 
-    # Check if the cluster already exists
+    # Check the current state of the cluster before deciding what to do.
     local cluster_state=$(az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>/dev/null)
-    if [ -n "$cluster_state" ]; then
-        echo "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
-        return 0
-    fi
+    case "$cluster_state" in
+        "Succeeded")
+            echo "Azure Managed Redis resource already exists: $cache_name (State: $cluster_state)"
+            return 0
+            ;;
+        "Failed"|"Canceled")
+            echo "A previous deployment of '$cache_name' is in a $cluster_state state."
+            echo "Deleting the failed resource before trying again..."
+            run_quiet "Delete failed Azure Managed Redis resource" az redisenterprise delete \
+                --resource-group $rg \
+                --name $cache_name \
+                --yes \
+                --only-show-errors || return 1
+            # The delete can report success before the resource is fully removed
+            # from Azure. Wait until it no longer exists, otherwise the next create
+            # can fail with a name conflict.
+            local waited=0
+            while [ -n "$(az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>/dev/null)" ]; do
+                if [ $waited -ge 300 ]; then
+                    echo "Error: Timed out waiting for the failed resource to finish deleting."
+                    echo "Please wait a few minutes, then run option 1 again."
+                    return 1
+                fi
+                sleep 10
+                waited=$((waited + 10))
+            done
+            echo "Failed resource deleted."
+            echo ""
+            ;;
+        "")
+            # No existing cluster; continue to create it below.
+            ;;
+        *)
+            echo "Azure Managed Redis resource '$cache_name' is still provisioning (State: $cluster_state)."
+            echo "Please wait for it to finish, then check the deployment status from the menu."
+            return 0
+            ;;
+    esac
 
-    echo "Creating Azure Managed Redis cluster '$cache_name'..."
+    echo "Creating Azure Managed Redis resource '$cache_name' in '$location'..."
+    echo "This takes 5-10 minutes to complete. Please wait..."
 
-    # Create the Azure Managed Redis cluster (Balanced_B0 is the cheapest SKU)
-    az redisenterprise create \
+    if ! run_quiet "Create Azure Managed Redis resource" az redisenterprise create \
         --resource-group $rg \
         --name $cache_name \
         --location $location \
-        --sku Balanced_B0 \
+        --sku "Balanced_B0" \
         --public-network-access "Enabled" \
         --no-database \
-        --no-wait
+        --only-show-errors; then
+        echo ""
+        echo "The deployment failed. This is most often caused by a temporary"
+        echo "lack of capacity for this SKU in the '$location' region."
+        echo ""
+        echo "To resolve this:"
+        echo "  1. Choose option 4 to exit the script."
+        echo "  2. Near the top of this script, change the 'location' variable to a"
+        echo "     different region, such as eastus2, australiaeast, or canadacentral."
+        echo "  3. Run the script again and choose option 1. The failed resource is"
+        echo "     deleted automatically before the next attempt."
+        return 1
+    fi
 
-    echo "The Azure Managed Redis cluster is being created and takes 5-10 minutes to complete."
-    echo "You can check the deployment status from the menu later in the exercise."
+    echo ""
+    echo "Azure Managed Redis resource created successfully: $cache_name"
 }
 
 # Function to check deployment status
@@ -84,63 +155,74 @@ check_deployment_status() {
     fi
 }
 
-# Function to create database and retrieve endpoint and access key
-create_database_and_get_key() {
+# Function to create the database with RediSearch, grant the current user
+# Microsoft Entra ID access, and write the .env file with the Redis endpoint.
+create_database_and_configure_access() {
 
     # Check if cluster is provisioned
     local cluster_state=$(az redisenterprise show --resource-group $rg --name $cache_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ "$cluster_state" != "Succeeded" ]; then
         echo "Error: Cluster is not ready (State: ${cluster_state:-Not created})."
-        echo "Please check the deployment status (option 2) and wait until provisioning succeeds."
+        echo "Please check the deployment status (option 3) and wait until provisioning succeeds."
         return 1
     fi
 
     # Check if database already exists
     local db_state=$(az redisenterprise database show --resource-group $rg --cluster-name $cache_name --query "provisioningState" -o tsv 2>/dev/null)
     if [ -n "$db_state" ]; then
-        echo "Database already exists (State: $db_state). Enabling access key auth..."
-        az redisenterprise database update \
-            --resource-group $rg \
-            --cluster-name $cache_name \
-            --access-keys-auth "Enabled" \
-            > /dev/null 2>&1
+        echo "Database already exists (State: $db_state)."
     else
-        echo "Creating database with RediSearch module and access key authentication..."
-        az redisenterprise database create \
+        echo "Creating vector-search database with RediSearch module..."
+        run_quiet "Create database" az redisenterprise database create \
             --resource-group $rg \
             --cluster-name $cache_name \
             --clustering-policy "EnterpriseCluster" \
             --eviction-policy "NoEviction" \
             --modules name="RediSearch" \
-            --access-keys-auth "Enabled" \
-            > /dev/null 2>&1
-
-        if [ $? -ne 0 ]; then
-            echo "Error: Failed to create database."
-            return 1
-        fi
+            --only-show-errors || return 1
     fi
 
-    echo "Retrieving endpoint and access key..."
+    # Grant the signed-in user access to the database using Microsoft Entra ID.
+    # This assigns the built-in "default" access policy to the user's object ID
+    # so the app can authenticate with DefaultAzureCredential instead of a key.
+    local assignment_name="useraccess"
+    local assignment_state=$(az redisenterprise database access-policy-assignment show \
+        --resource-group $rg \
+        --cluster-name $cache_name \
+        --database-name default \
+        --access-policy-assignment-name $assignment_name \
+        --query "provisioningState" -o tsv 2>/dev/null)
+
+    if [ -n "$assignment_state" ]; then
+        echo "Microsoft Entra access is already assigned for the current user."
+    else
+        echo "Assigning Microsoft Entra access for the current user..."
+        run_quiet "Assign access policy" az redisenterprise database access-policy-assignment create \
+            --resource-group $rg \
+            --cluster-name $cache_name \
+            --database-name default \
+            --access-policy-assignment-name $assignment_name \
+            --access-policy-name default \
+            --object-id $user_object_id \
+            --only-show-errors || return 1
+    fi
+
+    echo "Retrieving endpoint..."
 
     # Get the endpoint (hostname)
     local hostname=$(az redisenterprise show --resource-group $rg --name $cache_name --query "hostName" -o tsv 2>/dev/null)
 
-    # Get the primary access key
-    local primaryKey=$(az redisenterprise database list-keys --cluster-name $cache_name -g $rg --query "primaryKey" -o tsv 2>/dev/null)
-
-    # Check if values are empty
-    if [ -z "$hostname" ] || [ -z "$primaryKey" ]; then
+    # Check if the value is empty
+    if [ -z "$hostname" ]; then
         echo ""
-        echo "Error: Unable to retrieve endpoint or access key."
+        echo "Error: Unable to retrieve the endpoint."
         echo "Please check the deployment status to ensure the resource is fully provisioned."
         return 1
     fi
 
     # Write .env file
     cat > .env << EOF
-REDIS_HOST=$hostname
-REDIS_KEY=$primaryKey
+export REDIS_HOST="$hostname"
 EOF
 
     clear
@@ -148,9 +230,9 @@ EOF
     echo "Redis Connection Information"
     echo "==========================================================="
     echo "Endpoint: $hostname"
-    echo "Primary Key: $primaryKey"
+    echo "Authentication: Microsoft Entra ID (current user)"
     echo ""
-    echo "Values have been saved to .env file"
+    echo "The endpoint has been saved to the .env file"
 }
 
 # Display menu
@@ -164,8 +246,8 @@ show_menu() {
     echo "Location: $location"
     echo "====================================================================="
     echo "1. Create Azure Managed Redis resource"
-    echo "2. Check deployment status"
-    echo "3. Create database and retrieve endpoint and access key"
+    echo "2. Create database and configure access"
+    echo "3. Check deployment status"
     echo "4. Exit"
     echo "====================================================================="
 }
@@ -177,20 +259,23 @@ while true; do
 
     case $choice in
         1)
+            clear
             echo ""
             create_redis_resource
             echo ""
             read -p "Press Enter to continue..."
             ;;
         2)
+            clear
             echo ""
-            check_deployment_status
+            create_database_and_configure_access
             echo ""
             read -p "Press Enter to continue..."
             ;;
         3)
+            clear
             echo ""
-            create_database_and_get_key
+            check_deployment_status
             echo ""
             read -p "Press Enter to continue..."
             ;;
