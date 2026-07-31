@@ -27,6 +27,25 @@ $foundryResource = "foundry-resource-$userHash"
 $acrName = "acr$userHash"
 $aksCluster = "aks-$userHash"
 $apiImageName = "aks-api"
+$aksVmSize = "Standard_D2s_v5"
+
+# Run action commands quietly while preserving actionable failure details.
+function Invoke-Quiet {
+    param(
+        [string]$Description,
+        [scriptblock]$Command
+    )
+    $output = & $Command 2>&1
+    $rc = $LASTEXITCODE
+    if ($rc -ne 0) {
+        Write-Host "Error: $Description failed (exit code $rc)."
+        if ($output) {
+            Write-Host ($output | Out-String)
+        }
+        return $false
+    }
+    return $true
+}
 
 # Function to display menu
 function Show-Menu {
@@ -47,7 +66,8 @@ function Show-Menu {
     Write-Host "5. Check deployment status"
     Write-Host "6. Deploy to AKS"
     Write-Host "7. Delete/Purge Foundry deployment"
-    Write-Host "8. Exit"
+    Write-Host "8. Delete failed AKS deployment"
+    Write-Host "9. Exit"
     Write-Host "====================================================================="
 }
 
@@ -68,11 +88,9 @@ function Provision-FoundryResources {
     $rgExists = az group exists --name $rg
     if ($rgExists -eq "false") {
         Write-Host "Creating resource group: $rg in $location"
-        az group create --name $rg --location $location 2>$null | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to create resource group." -ForegroundColor Red
-            return $false
-        }
+        if (-not (Invoke-Quiet "Create resource group" {
+            az group create --name $rg --location $location --only-show-errors
+        })) { return $false }
     }
     else {
         Write-Host "$([char]0x2713) Resource group already exists"
@@ -85,20 +103,18 @@ function Provision-FoundryResources {
     $foundryCheck = az cognitiveservices account show --name $foundryResource --resource-group $rg 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Creating Microsoft Foundry resource: $foundryResource"
-        $createResult = az cognitiveservices account create `
-            --name $foundryResource `
-            --resource-group $rg `
-            --location $location `
-            --custom-domain $foundryResource `
-            --kind AIServices `
-            --sku s0 `
-            --yes 2>&1
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to create Foundry resource."
-            Write-Host "Error details: $createResult" -ForegroundColor Red
-            return $false
+        $created = Invoke-Quiet "Create Microsoft Foundry resource" {
+            az cognitiveservices account create `
+                --name $foundryResource `
+                --resource-group $rg `
+                --location $location `
+                --custom-domain $foundryResource `
+                --kind AIServices `
+                --sku s0 `
+                --yes `
+                --only-show-errors
         }
+        if (-not $created) { return $false }
         Write-Host "$([char]0x2713) Foundry resource created"
         Write-Host "Waiting for resource to be fully ready..."
         Start-Sleep -Seconds 10
@@ -132,20 +148,19 @@ function Provision-FoundryResources {
 
     if ([string]::IsNullOrEmpty($deploymentExists)) {
         Write-Host "Deploying gpt-5-mini model (this may take a few minutes)..."
-        az cognitiveservices account deployment create `
-            --name $foundryResource `
-            --resource-group $rg `
-            --deployment-name "gpt-5-mini" `
-            --model-name "gpt-5-mini" `
-            --model-version "2025-08-07" `
-            --model-format "OpenAI" `
-            --sku-capacity "1" `
-            --sku-name "GlobalStandard" 2>$null | Out-Null
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to deploy model."
-            return $false
+        $deployed = Invoke-Quiet "Deploy gpt-5-mini model" {
+            az cognitiveservices account deployment create `
+                --name $foundryResource `
+                --resource-group $rg `
+                --deployment-name "gpt-5-mini" `
+                --model-name "gpt-5-mini" `
+                --model-version "2025-08-07" `
+                --model-format "OpenAI" `
+                --sku-capacity "1" `
+                --sku-name "GlobalStandard" `
+                --only-show-errors
         }
+        if (-not $deployed) { return $false }
         Write-Host "$([char]0x2713) Model deployed successfully"
     }
     else {
@@ -168,7 +183,9 @@ function Create-ResourceGroup {
 
     $exists = az group exists --name $rg
     if ($exists -eq "false") {
-        az group create --name $rg --location $location 2>$null | Out-Null
+        if (-not (Invoke-Quiet "Create resource group" {
+            az group create --name $rg --location $location --only-show-errors
+        })) { return $false }
         Write-Host "Resource group created: $rg"
     }
     else {
@@ -182,13 +199,17 @@ function Create-ResourceGroup {
 function Create-ACR {
     Write-Host "Creating Azure Container Registry '$acrName'..."
 
-    $acrCheck = az acr show --resource-group $rg --name $acrName 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        az acr create `
-            --resource-group $rg `
-            --name $acrName `
-            --sku Basic `
-            --admin-enabled true 2>$null | Out-Null
+    $existingAcr = az acr show --resource-group $rg --name $acrName --query "name" -o tsv 2>$null
+    if ([string]::IsNullOrWhiteSpace($existingAcr)) {
+        $created = Invoke-Quiet "Create Azure Container Registry" {
+            az acr create `
+                --resource-group $rg `
+                --name $acrName `
+                --sku Basic `
+                --admin-enabled true `
+                --only-show-errors
+        }
+        if (-not $created) { return $false }
         Write-Host "ACR created: $acrName"
     }
     else {
@@ -211,67 +232,120 @@ function Build-AndPushImage {
     }
 
     # Build image using ACR Tasks
-    az acr build `
-        --resource-group $rg `
-        --registry $acrName `
-        --image "${apiImageName}:latest" `
-        --file api/Dockerfile `
-        --no-logs `
-        api/ 2>$null | Out-Null
+    $built = Invoke-Quiet "Build and push API image" {
+        az acr build `
+            --resource-group $rg `
+            --registry $acrName `
+            --image "${apiImageName}:latest" `
+            --file api/Dockerfile `
+            --no-logs `
+            --only-show-errors `
+            api/
+    }
+    if (-not $built) { return $false }
 
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Image built and pushed: ${acrServer}/${apiImageName}:latest"
-        return $true
-    }
-    else {
-        Write-Host "Error building/pushing image."
-        return $false
-    }
+    Write-Host "Image built and pushed: ${acrServer}/${apiImageName}:latest"
+    return $true
 }
 
 # Function to create AKS cluster
 function Create-AKSCluster {
-    Write-Host "Creating AKS cluster '$aksCluster'..."
+    $aksState = az aks show --resource-group $rg --name $aksCluster --query "provisioningState" -o tsv 2>$null
+    switch ($aksState) {
+        "Succeeded" {
+            Write-Host "AKS cluster already exists: $aksCluster (State: $aksState)"
+            return $true
+        }
+        { $_ -eq "Failed" -or $_ -eq "Canceled" } {
+            Write-Host "Error: AKS cluster '$aksCluster' is in a $aksState state."
+            Write-Host "Review the Azure error, correct the underlying issue, then use option 8"
+            Write-Host "to delete the failed deployment before running option 4 again."
+            return $false
+        }
+        "" {}
+        $null {}
+        default {
+            Write-Host "AKS cluster '$aksCluster' is still provisioning (State: $aksState)."
+            Write-Host "Please wait for it to finish, then check the deployment status from the menu."
+            return $true
+        }
+    }
+
+    Write-Host "Creating AKS cluster '$aksCluster' with one $aksVmSize node on the Free tier..."
     Write-Host "This may take 5-10 minutes to complete. Please wait..."
     Write-Host ""
+    $startTime = Get-Date
 
-    $aksCheck = az aks show --resource-group $rg --name $aksCluster 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        $startTime = Get-Date
-
+    $created = Invoke-Quiet "Create AKS cluster" {
         az aks create `
             --resource-group $rg `
+            --location $location `
             --name $aksCluster `
             --node-count 1 `
-            --node-vm-size Standard_D2s_v3 `
+            --node-vm-size $aksVmSize `
+            --tier free `
             --vm-set-type VirtualMachineScaleSets `
             --load-balancer-sku standard `
             --enable-managed-identity `
             --network-plugin azure `
             --no-ssh-key `
-            --attach-acr $acrName 2>$null | Out-Null
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to create AKS cluster."
-            return $false
-        }
-
-        # Verify cluster is fully provisioned and nodes are Running
-        Write-Host "Waiting for cluster to be fully operational..."
-        az aks wait --resource-group $rg --name $aksCluster --updated 2>$null | Out-Null
-
-        $endTime = Get-Date
-        $duration = $endTime - $startTime
-        $minutes = [math]::Floor($duration.TotalMinutes)
-        $seconds = $duration.Seconds
-
-        Write-Host "$([char]0x2713) AKS cluster creation completed: $aksCluster"
-        Write-Host "  Deployment time: ${minutes}m ${seconds}s"
+            --attach-acr $acrName `
+            --only-show-errors
     }
-    else {
-        Write-Host "AKS cluster already exists: $aksCluster"
+    if (-not $created) {
+        Write-Host ""
+        Write-Host "The AKS deployment failed. Review the Azure error details above."
+        Write-Host "Quota checks can fail before a cluster is created, while later failures"
+        Write-Host "can leave a cluster in a Failed state. Use option 5 to check the status."
+        Write-Host "For regional capacity or SKU availability errors, change the 'location'"
+        Write-Host "variable near the top of this script. For quota errors, use a region with"
+        Write-Host "available quota or request a quota increase."
+        Write-Host "Correct the reported issue, then use option 8 to delete any failed deployment."
+        return $false
     }
 
+    $duration = (Get-Date) - $startTime
+    $minutes = [math]::Floor($duration.TotalMinutes)
+    $seconds = $duration.Seconds
+    Write-Host "AKS cluster creation completed: $aksCluster"
+    Write-Host "  Deployment time: ${minutes}m ${seconds}s"
+    return $true
+}
+
+# Function to delete an AKS deployment only when it is in a failed terminal state
+function Remove-FailedAKSDeployment {
+    $aksState = az aks show --resource-group $rg --name $aksCluster --query "provisioningState" -o tsv 2>$null
+
+    if ([string]::IsNullOrWhiteSpace($aksState)) {
+        Write-Host "No AKS deployment was found: $aksCluster"
+        return $true
+    }
+
+    if ($aksState -ne "Failed" -and $aksState -ne "Canceled") {
+        Write-Host "Error: Refusing to delete AKS cluster '$aksCluster' (State: $aksState)."
+        Write-Host "This option only deletes deployments in a Failed or Canceled state."
+        return $false
+    }
+
+    Write-Host "WARNING: This permanently deletes AKS cluster '$aksCluster' and its"
+    Write-Host "AKS-managed resources. This action cannot be undone."
+    $confirm = Read-Host "Are you sure you want to delete the failed deployment? (yes/no)"
+
+    if ($confirm -ne "yes") {
+        Write-Host "Deletion canceled."
+        return $true
+    }
+
+    $deleted = Invoke-Quiet "Delete failed AKS deployment" {
+        az aks delete `
+            --resource-group $rg `
+            --name $aksCluster `
+            --yes `
+            --only-show-errors
+    }
+    if (-not $deleted) { return $false }
+
+    Write-Host "Failed AKS deployment deleted: $aksCluster"
     return $true
 }
 
@@ -282,16 +356,16 @@ function Deploy-ToAKS {
 
     # Get AKS credentials
     Write-Host "Getting AKS credentials..."
-    az aks get-credentials `
-        --resource-group $rg `
-        --name $aksCluster `
-        --overwrite-existing 2>$null | Out-Null
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to get AKS credentials."
-        return $false
+    $configured = Invoke-Quiet "Get AKS credentials" {
+        az aks get-credentials `
+            --resource-group $rg `
+            --name $aksCluster `
+            --overwrite-existing `
+            --only-show-errors
     }
-    Write-Host "$([char]0x2713) AKS credentials configured"
+    if (-not $configured) { return $false }
+
+    Write-Host "AKS credentials configured"
     Write-Host ""
 
     # Get Foundry endpoint
@@ -316,17 +390,17 @@ function Deploy-ToAKS {
         return $false
     }
 
-    az role assignment create `
-        --assignee-object-id $kubeletIdentity `
-        --assignee-principal-type ServicePrincipal `
-        --role "Cognitive Services OpenAI User" `
-        --scope $foundryResourceId 2>$null | Out-Null
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to assign Cognitive Services OpenAI User role. Re-run option 6 to try again."
-        return $false
+    $assigned = Invoke-Quiet "Assign Cognitive Services OpenAI User role" {
+        az role assignment create `
+            --assignee-object-id $kubeletIdentity `
+            --assignee-principal-type ServicePrincipal `
+            --role "Cognitive Services OpenAI User" `
+            --scope $foundryResourceId `
+            --only-show-errors
     }
-    Write-Host "$([char]0x2713) Role assigned to AKS kubelet identity (may take 1-2 minutes to propagate)"
+    if (-not $assigned) { return $false }
+
+    Write-Host "Role assigned to AKS kubelet identity (may take 1-2 minutes to propagate)"
     Write-Host ""
 
     # Update the deployment.yaml with the correct ACR endpoint and Foundry endpoint
@@ -497,7 +571,11 @@ function Check-DeploymentStatus {
 # Main menu loop
 while ($true) {
     Show-Menu
-    $choice = Read-Host "Please select an option (1-8)"
+    $choice = Read-Host "Please select an option (1-9)"
+
+    if ($choice -in @("1", "2", "3", "4", "5", "6", "7", "8", "9")) {
+        Clear-Host
+    }
 
     switch ($choice) {
         "1" {
@@ -508,9 +586,10 @@ while ($true) {
         }
         "2" {
             Write-Host ""
-            Create-ResourceGroup | Out-Null
-            Write-Host ""
-            Create-ACR | Out-Null
+            if (Create-ResourceGroup) {
+                Write-Host ""
+                Create-ACR | Out-Null
+            }
             Write-Host ""
             Read-Host "Press Enter to continue"
         }
@@ -545,12 +624,18 @@ while ($true) {
             Read-Host "Press Enter to continue"
         }
         "8" {
+            Write-Host ""
+            Remove-FailedAKSDeployment | Out-Null
+            Write-Host ""
+            Read-Host "Press Enter to continue"
+        }
+        "9" {
             Write-Host "Exiting..."
             Clear-Host
             exit 0
         }
         default {
-            Write-Host "Invalid option. Please select 1-8."
+            Write-Host "Invalid option. Please select 1-9."
             Read-Host "Press Enter to continue"
         }
     }
