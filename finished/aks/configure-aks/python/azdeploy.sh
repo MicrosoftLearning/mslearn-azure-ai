@@ -6,7 +6,7 @@
 # location="<your-azure-region>"   # Azure region for the resources
 
 rg="rg-exercises"           # Resource Group name
-location="eastus2"          # Azure region for the resources
+location="canadacentral"          # Azure region for the resources
 
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -27,7 +27,7 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 acr_name="acr${user_hash}"
 aks_cluster="aks-${user_hash}"
 api_image_name="aks-config-api"
-aks_vm_size="Standard_D2s_v3"
+aks_vm_size="Standard_D2s_v5"
 
 # Run action commands quietly while preserving actionable failure details.
 run_quiet() {

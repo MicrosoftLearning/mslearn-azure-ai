@@ -2,6 +2,10 @@
 
 ## General Rules
 
+### Azure Authentication
+
+Never sign Azure CLI, sandbox terminals, or other command-line tools into the user's accounts. For Azure queries, use authenticated ARM-backed Azure tools instead.
+
 ### Starter Folder
 
 Never browse, read, or reference files in the `starter/` folder unless the user explicitly asks you to. The starter folder contains incomplete versions of exercises and should not be used as a reference for patterns, code, or structure. Do not create or modify any files in the `starter/` folder until the user explicitly directs you to do so.
