@@ -26,8 +26,7 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 # Resource names with hash for uniqueness
 foundry_resource="foundry-resource-${user_hash}"
 acr_name="acr${user_hash}"
-#aks_cluster="aks-${user_hash}"
-aks_cluster="aks-nodepoolv7"
+aks_cluster="aks-${user_hash}"
 api_image_name="aks-api"
 aks_vm_size="Standard_D2s_v7"
 

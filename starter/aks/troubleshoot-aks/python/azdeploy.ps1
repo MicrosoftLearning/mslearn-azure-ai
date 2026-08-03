@@ -23,7 +23,7 @@ $userHash = [System.BitConverter]::ToString($hashBytes).Replace("-", "").Substri
 $acrName = "acr$userHash"
 $aksCluster = "aks-$userHash"
 $apiImageName = "aks-troubleshoot-api"
-$aksVmSize = "Standard_D2s_v5"
+$aksVmSize = "Standard_D2s_v7"
 
 # Run action commands quietly while preserving actionable failure details.
 function Invoke-Quiet {

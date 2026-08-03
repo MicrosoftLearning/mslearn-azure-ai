@@ -24,7 +24,7 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 acr_name="acr${user_hash}"
 aks_cluster="aks-${user_hash}"
 api_image_name="aks-config-api"
-aks_vm_size="Standard_D2s_v5"
+aks_vm_size="Standard_D2s_v7"
 
 # Run action commands quietly while preserving actionable failure details.
 run_quiet() {
