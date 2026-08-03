@@ -37,7 +37,7 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure services
 
-In this section you download the starter files for the console app and use a script to deploy the necessary services to your Azure subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the starter files for the console app and use a script to deploy the necessary services to your Azure subscription. The Azure resource deployments can take 15-20 minutes to complete.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -109,9 +109,11 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the image has been built and pushed to ACR, enter **4** to launch the **4. Create AKS cluster** option. This creates the AKS resource configured with a managed identity and gives the service permission to pull images from the ACR resource. This operation can take 5-10 minutes to complete.
 
-1. After the AKS resources has been deployed, enter **5** to launch the **5. Check deployment status** option. This option reports if each of the three resources have been successfully deployed.
+1. After the AKS resources have been deployed, enter **5** to launch the **5. Check deployment status** option. This option reports whether all three resources were successfully deployed.
 
-    If all of the services return a **successful** message, enter **8** to exit the deployment script.
+    If all of the services return a **successful** message, enter **9** to exit the deployment script.
+
+    If the AKS cluster is in a **Failed** or **Canceled** state, correct the reported issue, then enter **8** to launch the **8. Delete failed AKS deployment** option before running option **4** again. This guarded option does not delete a healthy or in-progress cluster.
 
 Next, you complete the YAML files necessary to deploy the API to AKS.
 
@@ -221,7 +223,7 @@ In this section you use the deployment script to apply the manifests to AKS.
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
     ```
 
-1. Enter **6** to launch the **6. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, assigns the **Cognitive Services OpenAI User** role to the AKS kubelet managed identity so the API can authenticate to Foundry using Microsoft Entra ID, updates the deployment manifest with your ACR endpoint and Foundry endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **8** to exit the deployment script.
+1. Enter **6** to launch the **6. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, assigns the **Cognitive Services OpenAI User** role to the AKS kubelet managed identity so the API can authenticate to Foundry using Microsoft Entra ID, updates the deployment manifest with your ACR endpoint and Foundry endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **9** to exit the deployment script.
 
 1. Run the following commands in the terminal to verify the deployment. Expect **kubectl get deploy,svc** to show the Deployment **READY** as **1/1** (or your replica count) and the Service **EXTERNAL-IP** to have a public IP (not **\<pending>**). The rollout command should print **deployment "aks-api" successfully rolled out** when the update is complete.
 
@@ -305,6 +307,13 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that the Microsoft Foundry resource shows a **Provisioning State** of **Succeeded** and the **gpt-5-mini** model is deployed.
 - Verify the Azure Container Registry (ACR) exists and contains the **aks-api** image.
 - Check that the AKS cluster is in a **Succeeded** state and the nodes are running.
+
+**Resolve AKS cluster creation failures**
+- Run the deployment script and select option **5. Check deployment status**. Quota validation can fail before an AKS resource is created, while failures later in provisioning can leave the cluster in a **Failed** or **Canceled** state.
+- If the error reports that **Standard_D2s_v5** is unavailable or that the region has insufficient capacity, exit with option **9**, change the **location** value near the top of the deployment script to another recommended region, and run option **4. Create AKS cluster** again.
+- If the error reports insufficient quota, select a region where your subscription has available Dsv5-family quota or request a quota increase. Changing regions only helps when the other region has sufficient quota.
+- The AKS cluster uses the **location** configured in the script even when the resource group already exists in another region.
+- If option **5** reports **Failed** or **Canceled**, correct the underlying issue and run option **8. Delete failed AKS deployment** before retrying option **4**. If no AKS resource was created, no deletion is needed.
 
 **Verify AKS deployment status**
 - Run **kubectl get pods** to check if the API pods are running. Look for **Running** status.

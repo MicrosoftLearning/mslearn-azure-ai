@@ -37,7 +37,7 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure services
 
-In this section you download the starter files for the console app and use a script to deploy the necessary services to your Azure subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the starter files for the console app and use a script to deploy the necessary services to your Azure subscription. The Azure resource deployments can take 10-15 minutes to complete.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -96,7 +96,7 @@ In this section you download the starter files for the console app and use a scr
 
 With the deployment script running, follow these steps to create the needed resources in Azure.
 
-1. After the model is deployed, enter **1** to launch **Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
+1. Enter **1** to launch **Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
 
 1. After the ACR resource has been created, enter **2** to launch **Build and push API image to ACR**. This option uses ACR tasks to build the image and add it to the ACR repository. This operation can take 3-5 minutes to complete.
 
@@ -106,9 +106,11 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the credentials have been set, enter **5** to launch the **Deploy applications to AKS** option. This deploys an API to the AKS cluster.
 
-1. After the app has been deployed, enter **6** to launch the **Check deployment stats** option. This option reports if each of the resources have been successfully deployed.
+1. After the app has been deployed, enter **6** to launch the **Check deployment status** option. This option reports if each of the resources have been successfully deployed.
 
-    If all of the services return a **successful** message, enter **7** to exit the deployment script.
+    If all of the services return a **successful** message, enter **8** to exit the deployment script.
+
+    If the AKS cluster is in a **Failed** or **Canceled** state, correct the reported issue, then enter **7** to launch the **Delete failed AKS deployment** option before running option **3** again. This guarded option does not delete a healthy or in-progress cluster.
 
 >**Note:** Leave the terminal open, all of the steps in the exercise are performed in the terminal.
 
@@ -347,6 +349,13 @@ If you encounter issues while setting up this exercise, try the following troubl
 - Run the deployment script and select option **6. Check deployment status** to verify the state of all deployed resources.
 - This command checks ACR provisioning state, AKS cluster provisioning state, and Kubernetes resource availability.
 - Use this output to identify which component may be causing issues.
+
+**Resolve AKS cluster creation failures**
+- Quota validation can fail before an AKS resource is created, while failures later in provisioning can leave the cluster in a **Failed** or **Canceled** state.
+- If the error reports that **Standard_D2s_v5** is unavailable or that the region has insufficient capacity, exit with option **8**, change the **location** value near the top of the deployment script, and run option **3. Create AKS cluster** again.
+- If the error reports insufficient quota, select a region where your subscription has available Dsv5-family quota or request a quota increase. Changing regions only helps when the other region has sufficient quota.
+- The AKS cluster uses the **location** configured in the script even when the resource group already exists in another region.
+- If option **6** reports **Failed** or **Canceled**, correct the underlying issue and run option **7. Delete failed AKS deployment** before retrying option **3**. If no AKS resource was created, no deletion is needed.
 
 **ACR image pull errors**
 - If pods show **ImagePullBackOff** or **ErrImagePull** status, verify the ACR resource was created and the image was pushed successfully.

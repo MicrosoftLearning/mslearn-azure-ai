@@ -5,7 +5,6 @@
 rg="<your-resource-group-name>"  # Resource Group name
 location="<your-azure-region>"   # Azure region for the resources
 
-
 # ============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
 # ============================================================================
@@ -25,6 +24,24 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 acr_name="acr${user_hash}"
 aks_cluster="aks-${user_hash}"
 api_image_name="aks-config-api"
+aks_vm_size="Standard_D2s_v7"
+
+# Run action commands quietly while preserving actionable failure details.
+run_quiet() {
+    local description="$1"
+    shift
+    local output rc
+    output=$("$@" 2>&1)
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "Error: ${description} failed (exit code ${rc})."
+        if [ -n "$output" ]; then
+            echo "$output"
+        fi
+        return $rc
+    fi
+    return 0
+}
 
 # Function to display menu
 show_menu() {
@@ -42,7 +59,8 @@ show_menu() {
     echo "3. Create AKS cluster"
     echo "4. Get AKS credentials for kubectl"
     echo "5. Check deployment status"
-    echo "6. Exit"
+    echo "6. Delete failed AKS deployment"
+    echo "7. Exit"
     echo "====================================================================="
 }
 
@@ -52,7 +70,10 @@ create_resource_group() {
 
     local exists=$(az group exists --name $rg)
     if [ "$exists" = "false" ]; then
-        az group create --name $rg --location $location > /dev/null 2>&1
+        run_quiet "Create resource group" az group create \
+            --name $rg \
+            --location $location \
+            --only-show-errors || return 1
         echo "Resource group created: $rg"
     else
         echo "Resource group already exists: $rg"
@@ -63,13 +84,14 @@ create_resource_group() {
 create_acr() {
     echo "Creating Azure Container Registry '$acr_name'..."
 
-    local exists=$(az acr show --resource-group $rg --name $acr_name 2>/dev/null)
-    if [ -z "$exists" ]; then
-        az acr create \
+    local existing_acr=$(az acr show --resource-group $rg --name $acr_name --query "name" -o tsv 2>/dev/null)
+    if [ -z "$existing_acr" ]; then
+        run_quiet "Create Azure Container Registry" az acr create \
             --resource-group $rg \
             --name $acr_name \
             --sku Basic \
-            --admin-enabled true > /dev/null 2>&1
+            --admin-enabled true \
+            --only-show-errors || return 1
         echo "ACR created: $acr_name"
         echo "ACR endpoint: $acr_name.azurecr.io"
     else
@@ -91,75 +113,130 @@ build_and_push_image() {
     fi
 
     # Build image using ACR Tasks
-    az acr build \
+    run_quiet "Build and push API image" az acr build \
         --resource-group $rg \
         --registry $acr_name \
         --image ${api_image_name}:latest \
         --file api/Dockerfile \
         --no-logs \
-        api/ > /dev/null 2>&1
+        --only-show-errors \
+        api/ || return 1
 
-    if [ $? -eq 0 ]; then
-        echo "Image built and pushed: ${acr_server}/${api_image_name}:latest"
-    else
-        echo "Error building/pushing image."
-        return 1
-    fi
+    echo "Image built and pushed: ${acr_server}/${api_image_name}:latest"
 }
 
 # Function to create AKS cluster
 create_aks_cluster() {
-    echo "Creating AKS cluster '$aks_cluster'..."
+    local aks_state=$(az aks show --resource-group $rg --name $aks_cluster --query "provisioningState" -o tsv 2>/dev/null)
+    case "$aks_state" in
+        "Succeeded")
+            echo "AKS cluster already exists: $aks_cluster (State: $aks_state)"
+            return 0
+            ;;
+        "Failed"|"Canceled")
+            echo "Error: AKS cluster '$aks_cluster' is in a $aks_state state."
+            echo "Review the Azure error, correct the underlying issue, then use option 6"
+            echo "to delete the failed deployment before running option 3 again."
+            return 1
+            ;;
+        "")
+            ;;
+        *)
+            echo "AKS cluster '$aks_cluster' is still provisioning (State: $aks_state)."
+            echo "Please wait for it to finish, then check the deployment status from the menu."
+            return 0
+            ;;
+    esac
+
+    echo "Creating AKS cluster '$aks_cluster' with one $aks_vm_size node..."
     echo "This may take 5-10 minutes to complete. Please wait..."
     echo ""
+    local start_time=$(date +%s)
 
-    local exists=$(az aks show --resource-group $rg --name $aks_cluster 2>/dev/null)
-    if [ -z "$exists" ]; then
-        local start_time=$(date +%s)
-
-        az aks create \
-            --resource-group $rg \
-            --name $aks_cluster \
-            --node-count 1 \
-            --node-vm-size Standard_D2s_v3 \
-            --vm-set-type VirtualMachineScaleSets \
-            --load-balancer-sku standard \
-            --enable-managed-identity \
-            --network-plugin azure \
-            --no-ssh-key \
-            --attach-acr $acr_name > /dev/null 2>&1
-
-        if [ $? -ne 0 ]; then
-            echo "Error: Failed to create AKS cluster."
-            return 1
-        fi
-
-        # Verify cluster is fully provisioned and nodes are Running
-        echo "Waiting for cluster to be fully operational..."
-        az aks wait --resource-group $rg --name $aks_cluster --updated > /dev/null 2>&1
-
-        local end_time=$(date +%s)
-        local duration=$((end_time - start_time))
-        local minutes=$((duration / 60))
-        local seconds=$((duration % 60))
-
-        echo "✓ AKS cluster creation completed: $aks_cluster"
-        echo "  Deployment time: ${minutes}m ${seconds}s"
-
-        # Assign Storage Account Contributor role to kubelet identity for Azure Files support
-        echo "Configuring storage permissions for Azure Files..."
-        local kubelet_id=$(az aks show --resource-group $rg --name $aks_cluster --query "identityProfile.kubeletidentity.clientId" -o tsv)
-        local node_rg=$(az aks show --resource-group $rg --name $aks_cluster --query "nodeResourceGroup" -o tsv)
-
-        az role assignment create \
-            --role "Storage Account Contributor" \
-            --assignee "$kubelet_id" \
-            --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$node_rg" > /dev/null 2>&1
-
-        echo "✓ Storage permissions configured"
-    else
-        echo "AKS cluster already exists: $aks_cluster"
+    if ! run_quiet "Create AKS cluster" az aks create \
+        --resource-group $rg \
+        --location $location \
+        --name $aks_cluster \
+        --node-count 1 \
+        --node-vm-size $aks_vm_size \
+        --tier free \
+        --vm-set-type VirtualMachineScaleSets \
+        --load-balancer-sku standard \
+        --enable-managed-identity \
+        --network-plugin azure \
+        --no-ssh-key \
+        --attach-acr $acr_name \
+        --only-show-errors; then
+        echo ""
+        echo "The AKS deployment failed. Review the Azure error details above."
+        echo "Quota checks can fail before a cluster is created, while later failures"
+        echo "can leave a cluster in a Failed state. Use option 5 to check the status."
+        echo "For regional capacity or SKU availability errors, change the 'location'"
+        echo "variable near the top of this script. For quota errors, use a region with"
+        echo "available quota or request a quota increase."
+        echo "Correct the reported issue, then use option 6 to delete any failed deployment."
+        return 1
     fi
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+
+    echo "AKS cluster creation completed: $aks_cluster"
+    echo "  Deployment time: ${minutes}m ${seconds}s"
+
+    # Assign Storage Account Contributor role to kubelet identity for Azure Files support
+    echo "Configuring storage permissions for Azure Files..."
+    local kubelet_id=$(az aks show --resource-group $rg --name $aks_cluster --query "identityProfile.kubeletidentity.clientId" -o tsv 2>/dev/null)
+    local node_rg=$(az aks show --resource-group $rg --name $aks_cluster --query "nodeResourceGroup" -o tsv 2>/dev/null)
+    local subscription_id=$(az account show --query id -o tsv 2>/dev/null)
+
+    if [ -z "$kubelet_id" ] || [ -z "$node_rg" ] || [ -z "$subscription_id" ]; then
+        echo "Error: Could not retrieve the AKS identity or node resource group."
+        return 1
+    fi
+
+    run_quiet "Configure storage permissions" az role assignment create \
+        --role "Storage Account Contributor" \
+        --assignee "$kubelet_id" \
+        --scope "/subscriptions/$subscription_id/resourceGroups/$node_rg" \
+        --only-show-errors || return 1
+
+    echo "Storage permissions configured"
+}
+
+# Function to delete an AKS deployment only when it is in a failed terminal state
+delete_failed_aks_deployment() {
+    local aks_state=$(az aks show --resource-group $rg --name $aks_cluster --query "provisioningState" -o tsv 2>/dev/null)
+
+    if [ -z "$aks_state" ]; then
+        echo "No AKS deployment was found: $aks_cluster"
+        return 0
+    fi
+
+    if [ "$aks_state" != "Failed" ] && [ "$aks_state" != "Canceled" ]; then
+        echo "Error: Refusing to delete AKS cluster '$aks_cluster' (State: $aks_state)."
+        echo "This option only deletes deployments in a Failed or Canceled state."
+        return 1
+    fi
+
+    echo "WARNING: This permanently deletes AKS cluster '$aks_cluster' and its"
+    echo "AKS-managed resources. This action cannot be undone."
+    read -p "Are you sure you want to delete the failed deployment? (yes/no): " confirm
+
+    if [ "$confirm" != "yes" ]; then
+        echo "Deletion canceled."
+        return 0
+    fi
+
+    run_quiet "Delete failed AKS deployment" az aks delete \
+        --resource-group $rg \
+        --name $aks_cluster \
+        --yes \
+        --only-show-errors || return 1
+
+    echo "Failed AKS deployment deleted: $aks_cluster"
 }
 
 # Function to get AKS credentials
@@ -168,16 +245,13 @@ get_aks_credentials() {
     echo ""
 
     # Get AKS credentials
-    az aks get-credentials \
+    run_quiet "Get AKS credentials" az aks get-credentials \
         --resource-group "$rg" \
         --name "$aks_cluster" \
-        --overwrite-existing > /dev/null 2>&1
+        --overwrite-existing \
+        --only-show-errors || return 1
 
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to get AKS credentials."
-        return 1
-    fi
-    echo "✓ AKS credentials configured"
+    echo "AKS credentials configured"
     echo ""
     echo "You can now use kubectl to interact with your AKS cluster."
     echo ""
@@ -269,14 +343,19 @@ check_deployment_status() {
 # Main menu loop
 while true; do
     show_menu
-    read -p "Please select an option (1-6): " choice
+    read -p "Please select an option (1-7): " choice
+
+    case $choice in
+        1|2|3|4|5|6|7) clear ;;
+    esac
 
     case $choice in
         1)
             echo ""
-            create_resource_group
-            echo ""
-            create_acr
+            if create_resource_group; then
+                echo ""
+                create_acr
+            fi
             echo ""
             read -p "Press Enter to continue..."
             ;;
@@ -305,12 +384,18 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         6)
+            echo ""
+            delete_failed_aks_deployment
+            echo ""
+            read -p "Press Enter to continue..."
+            ;;
+        7)
             echo "Exiting..."
             clear
             exit 0
             ;;
         *)
-            echo "Invalid option. Please select 1-6."
+            echo "Invalid option. Please select 1-7."
             read -p "Press Enter to continue..."
             ;;
     esac
