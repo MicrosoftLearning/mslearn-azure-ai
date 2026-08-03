@@ -271,7 +271,7 @@ function Create-AKSCluster {
         }
     }
 
-    Write-Host "Creating AKS cluster '$aksCluster' with one $aksVmSize node on the Free tier..."
+    Write-Host "Creating AKS cluster '$aksCluster' with one $aksVmSize node..."
     Write-Host "This may take 5-10 minutes to complete. Please wait..."
     Write-Host ""
     $startTime = Get-Date

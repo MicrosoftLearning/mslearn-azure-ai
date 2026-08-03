@@ -27,7 +27,7 @@ user_hash=$(echo -n "$user_object_id" | sha1sum | cut -c1-8)
 acr_name="acr${user_hash}"
 aks_cluster="aks-${user_hash}"
 api_image_name="aks-config-api"
-aks_vm_size="Standard_D2s_v5"
+aks_vm_size="Standard_D2s_v3"
 
 # Run action commands quietly while preserving actionable failure details.
 run_quiet() {
@@ -151,7 +151,7 @@ create_aks_cluster() {
             ;;
     esac
 
-    echo "Creating AKS cluster '$aks_cluster' with one $aks_vm_size node on the Free tier..."
+    echo "Creating AKS cluster '$aks_cluster' with one $aks_vm_size node..."
     echo "This may take 5-10 minutes to complete. Please wait..."
     echo ""
     local start_time=$(date +%s)

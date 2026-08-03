@@ -161,7 +161,7 @@ create_aks_cluster() {
             ;;
     esac
 
-    echo "Creating AKS cluster '$aks_cluster' with one $aks_vm_size node on the Free tier..."
+    echo "Creating AKS cluster '$aks_cluster' with one $aks_vm_size node..."
     echo "This may take 5-10 minutes to complete. Please wait..."
     echo ""
     local start_time=$(date +%s)
