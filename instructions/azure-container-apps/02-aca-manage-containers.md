@@ -360,6 +360,8 @@ Console logs shown by **az containerapp logs show** are recent only. For histori
         --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == '$env:CONTAINER_APP_NAME' | project TimeGenerated, Log_s | order by TimeGenerated desc | take 20" `
         -o table
     ```
+    > [!WARNING]
+    > If you get an error like _"Preview version of extension is disabled by default for extension installation, enabled for modules without stable versions. Please run 'az config set extension. or false' to config it specifically. The command requires the extension log—analytics. Do you want to install it now? The command will continue to run after the extension is installed. (Y/n):"_ when running the command, select Y to continue installing the extension.
 
     > [!NOTE]
     > Log Analytics data may take a few minutes to appear after events occur. If you don't see recent logs, wait a few minutes and try again.
