@@ -28,6 +28,9 @@ API_IMAGE_NAME = "aks-api"
 FOUNDRY_MODEL_NAME = "gpt-5-mini"
 FOUNDRY_MODEL_VERSION = "2025-08-07"
 
+# Suppress Azure CLI preview / deprecation WARNINGs from every subprocess call.
+os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
+
 _EXE_CACHE: dict[str, str] = {}
 
 
@@ -167,7 +170,6 @@ def create_resource_group() -> bool:
                 "az", "group", "create",
                 "--name", rg,
                 "--location", location,
-                "--only-show-errors",
             ],
         ):
             return False
@@ -204,7 +206,6 @@ def provision_foundry_resources(foundry_resource: str) -> bool:
                 "--kind", "AIServices",
                 "--sku", "s0",
                 "--yes",
-                "--only-show-errors",
             ],
         ):
             return False
@@ -246,7 +247,6 @@ def provision_foundry_resources(foundry_resource: str) -> bool:
                 "--model-format", "OpenAI",
                 "--sku-capacity", "1",
                 "--sku-name", "GlobalStandard",
-                "--only-show-errors",
             ],
         ):
             return False
@@ -278,7 +278,6 @@ def create_acr(acr_name: str) -> bool:
                 "--name", acr_name,
                 "--sku", "Basic",
                 "--admin-enabled", "true",
-                "--only-show-errors",
             ],
         ):
             return False
@@ -307,7 +306,6 @@ def build_and_push_image(acr_name: str) -> bool:
             "--image", f"{API_IMAGE_NAME}:latest",
             "--file", "api/Dockerfile",
             "--no-logs",
-            "--only-show-errors",
             "api/",
         ],
     ):
@@ -367,7 +365,6 @@ def create_aks_cluster(acr_name: str, aks_cluster: str) -> bool:
             "--network-plugin", "azure",
             "--no-ssh-key",
             "--attach-acr", acr_name,
-            "--only-show-errors",
         ],
     ):
         _print_aks_failure_hint()
@@ -410,7 +407,6 @@ def delete_failed_aks_deployment(aks_cluster: str) -> bool:
             "--resource-group", rg,
             "--name", aks_cluster,
             "--yes",
-            "--only-show-errors",
         ],
     ):
         return False
@@ -447,7 +443,6 @@ def deploy_to_aks(foundry_resource: str, acr_name: str, aks_cluster: str) -> boo
             "--resource-group", rg,
             "--name", aks_cluster,
             "--overwrite-existing",
-            "--only-show-errors",
         ],
     ):
         return False
@@ -488,7 +483,6 @@ def deploy_to_aks(foundry_resource: str, acr_name: str, aks_cluster: str) -> boo
             "--assignee-principal-type", "ServicePrincipal",
             "--role", "Cognitive Services OpenAI User",
             "--scope", foundry_resource_id,
-            "--only-show-errors",
         ],
     ):
         return False
