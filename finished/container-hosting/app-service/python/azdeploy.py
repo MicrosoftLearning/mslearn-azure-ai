@@ -223,13 +223,14 @@ def create_app_service_plan(acr_name: str, app_plan: str, app_name: str) -> bool
                 "az", "appservice", "plan", "create",
                 "--resource-group", rg,
                 "--name", app_plan,
-                "--sku", "B1",
+                "--location", location,
+                "--sku", "P0v3",
                 "--is-linux",
             ],
         ):
             return False
         print(f"App Service Plan created: {app_plan}")
-        print("  SKU: B1 (Basic tier - supports always-on and custom containers)")
+        print("  SKU: P0v3 (Premium v3 tier)")
     else:
         print(f"App Service Plan already exists: {app_plan}")
 
