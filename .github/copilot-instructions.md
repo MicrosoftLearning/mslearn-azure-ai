@@ -90,47 +90,9 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 > **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
 ```
 
-### Deployment Scripts (azdeploy.sh / azdeploy.ps1)
+### Deployment Scripts (azdeploy.sh / azdeploy.ps1 / azdeploy.py)
 
-When updating deployment scripts for new exercises:
-
-1. **Never modify the first 11 lines** - The header section with variable declarations (`rg`, `location`) and comments must remain unchanged.
-
-2. **Preserve existing patterns** - Do not rewrite functions that don't need changes. Only modify:
-   - Resource names and variables below line 11
-   - Service-specific creation/configuration functions
-   - Menu items and descriptions
-   - Status check logic for the new services
-
-3. **Follow established conventions**:
-   - Check if resources exist before creating them (query **provisioningState** and branch on it)
-   - Use "Error: ..." prefix for error messages
-   - Use `local` for function-scoped variables (Bash)
-   - Generate unique resource names using Azure user object ID hash
-   - Include Azure auth check at script startup
-   - Do **not** use icon or emoji characters (e.g. ✓, ⚠) in output. They render inconsistently in PowerShell and across terminals. Use plain text status words instead (for example, "created successfully", "still provisioning", "Not created").
-   - Keep Bash and PowerShell output messages identical so both scripts behave the same.
-
-4. **Suppress noise but surface real errors**:
-   - Add `--only-show-errors` to Azure CLI action commands (create/update/delete). This hides breaking-change WARNINGs while still printing ERRORs on failure.
-   - Redirect probe/query commands (show/list used for existence checks) with `2>/dev/null` (Bash) or `2>$null` (PowerShell) so a "not found" doesn't print a stack trace.
-   - In PowerShell, wrap action commands in the `Invoke-Quiet` helper, which stays quiet on success and prints the exit code and captured output only on failure.
-
-5. **Handle create failures and retries robustly** (the gold standard for this is *finished/amr/pub-sub/python/azdeploy.sh* and *azdeploy.ps1*):
-   - Make resource creation **block** until it reaches a terminal state (omit `--no-wait` for the create) so the script can detect success or failure inline.
-   - Before creating, inspect the existing **provisioningState**: `Succeeded` → already exists, return; `Failed`/`Canceled` → delete the stale resource, then poll until it is fully gone before recreating (a delete can report success before Azure finishes removing the resource, which otherwise causes a name conflict); empty/null → create; anything else → still provisioning, return.
-   - On a create failure, print clear, actionable guidance (for example, capacity/region issues and how to change the region and retry).
-
-6. **Reference scripts** - Use existing scripts in the repository as templates. The gold-standard examples (best error handling, blocking create, retry-safe delete, warning suppression, Bash/PowerShell parity) are:
-   - *finished/amr/pub-sub/python/azdeploy.sh*
-   - *finished/amr/pub-sub/python/azdeploy.ps1*
-
-7. **When asked to update a copied script**:
-   - First review the source script to understand existing patterns
-   - Only modify service-specific logic (create, configure, status check functions)
-   - Keep the menu loop structure, resource group function, and env file patterns intact
-   - Update variable names and menu text to match the new exercise
-   - Clear the screen (`clear` / `Clear-Host`) after a valid menu selection so long-running output stays readable
+Authoring, updating, or porting an azdeploy script is covered end-to-end by the [azdeploy-scripts skill](skills/azdeploy-scripts/SKILL.md). Load that skill whenever a request touches an `azdeploy.sh`, `azdeploy.ps1`, or `azdeploy.py` file — it defines the shared Bash/PowerShell conventions, the Python port workflow, the ASCII-only + cross-shell rules, and the dual `.env` / `.env.ps1` contract.
 
 ### Azure CLI Commands
 
