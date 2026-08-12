@@ -36,7 +36,7 @@ To complete the exercise, you need:
 
 ## Download project starter files and deploy Azure Managed Redis
 
-In this section you download the starter files for the console app and use a script to initialize the deployment of Azure Managed Redis to your subscription. The Azure Managed Redis deployment takes 5-10 minutes to complete.
+In this section you download the starter files for the console app and use a script to deploy Azure Managed Redis to your subscription. The deployment takes 5-10 minutes, so you start it first and complete the app code while it provisions.
 
 1. Open a browser and enter the following URL to download the starter file. The file will be saved in your default download location.
 
@@ -48,7 +48,7 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -75,62 +75,18 @@ In this section you download the starter files for the console app and use a scr
     az extension add --name redisenterprise
     ```
 
-1. Run the appropriate command in the terminal to launch the script.
+1. Run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
 
-    This option creates the resource group if it doesn't already exist, and starts a deployment of Azure Managed Redis. The process is completed as a background task in Azure.
+    This option creates the resource group if it doesn't already exist, then deploys Azure Managed Redis. The script waits for the deployment to finish and reports the result in the terminal.
 
-1. After the following messages appear in the console, select **Enter** to return to the menu and then select **4** to exit the script. You run the script again later to check on the deployment status and also to create the *.env* file for the project.
+1. Leave the deployment script running and continue to the next section to complete the app code while Azure Managed Redis provisions. Check the terminal periodically for completion or error messages.
 
-    *The Azure Managed Redis resource is being created and takes 5-10 minutes to complete.*
-
-    *You can check the deployment status from the menu later in the exercise.*
-
-
-## Configure the Python environment
-
-In this section, you create the Python environment and install the dependencies.
-
-1. Run the following command in the VS Code terminal to create the Python environment.
-
-    ```
-    python -m venv .venv
-    ```
-
-1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
-
-    **Bash**
-    ```bash
-    source .venv/bin/activate
-    ```
-
-    **PowerShell**
-    ```powershell
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-1. Run the following command in the VS Code terminal to install the dependencies.
-
-    ```
-    pip install -r requirements.txt
-    ```
 
 ## Complete the app
 
@@ -259,31 +215,43 @@ In this section, you add code to remove keys from Redis using the **delete** com
 
 ## Verify resource deployment
 
-In this section you run the deployment script again to verify if the Azure Managed Redis deployment is completed, and create the *.env* file with the endpoint and access key values.
+In this section you verify the Azure Managed Redis deployment, create the database, and create the environment variable files with the endpoint and access key values.
 
-1. Run the appropriate command in the terminal to start the deployment script. If you closed the previous terminal, select **Terminal > New Terminal** in the menu to open a new one.
+1. Return to the terminal running the deployment script. After the script reports that the Azure Managed Redis resource was created successfully, select **Enter** to return to the deployment menu.
+
+1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Succeeded**, proceed to the next step. If not, then wait a few minutes and try the option again.
+
+1. Enter **3** to run the **3. Create database and retrieve endpoint and access key** option. This creates the database, enables access key authentication, and retrieves the endpoint and access key. It then creates the *.env* and *.env.ps1* files with those values.
+
+1. Review the environment variable file for your shell to verify the values are present, then enter **4** to exit the deployment script.
+
+## Configure the Python environment
+
+In this section, you create the Python environment and install the dependencies after completing the Azure deployment.
+
+1. Run the following command in the VS Code terminal to create the Python environment.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
 
     **Bash**
     ```bash
-    bash azdeploy.sh
+    source .venv/bin/activate
     ```
 
     **PowerShell**
     ```powershell
-    ./azdeploy.ps1
+    .\.venv\Scripts\Activate.ps1
     ```
 
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
+1. Run the following command in the VS Code terminal to install the dependencies.
 
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
     ```
-
-1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Succeeded**, proceed to the next step. If not, then wait a few minutes and try the option again.
-
-1. After the deployment is complete, enter **3** to run the **3. Create database and retrieve endpoint and access key** option. This creates the database, enables access key authentication, and retrieves the endpoint and access key. It then creates the *.env* file with those values.
-
-1. Review the *.env* file to verify the values are present, then enter **4** to exit the deployment script.
+    pip install -r requirements.txt
+    ```
 
 ## Run the console app
 

@@ -54,10 +54,11 @@ These rules apply to `.sh`, `.ps1`, and `.py` alike. When porting between them, 
    - Redirect probe/query commands (`show`/`list` used for existence checks) with `2>/dev/null` (Bash), `2>$null` (PowerShell), or `capture_output=True` + discard stderr (Python) so a "not found" doesn't print a stack trace.
    - PowerShell wraps action commands in `Invoke-Quiet`; Bash uses `run_quiet`; Python uses `run_quiet(description, argv)` — all stay quiet on success and print the exit code plus captured output on failure.
    - **Python ports: set the CLI env var once, not the flag on every command.** Add this line right after the imports (before any subprocess call): `os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")`. Azure CLI honors this env var globally, so every `az` invocation — including `az_query` probes — behaves as if `--only-show-errors` were passed. `subprocess.run` inherits the process env on every OS/shell (Linux, macOS, Windows PowerShell 5.1/7+, cmd, Git Bash). Do NOT pass `--only-show-errors` in argv lists; the env var replaces it.
-5. **Handle create failures and retries robustly.**
-   - Make resource creation **block** until it reaches a terminal state (omit `--no-wait`) so the script can detect success or failure inline.
+5. **Handle create failures and retries robustly without changing the exercise flow.**
+    - Prefer a blocking create so the script can detect and explain terminal failures inline. For a long-running deployment, structure the exercise so students leave the deployment terminal running and complete code or other work in VS Code while it provisions.
+    - Read the exercise instructions before changing whether a create command blocks. Preserve `--no-wait` only when the exercise genuinely requires the deployment command to return control to the same terminal before provisioning finishes. If practical, reorder independent exercise work before removing or adding `--no-wait`.
    - Before creating, inspect the existing `provisioningState`: `Succeeded` → already exists, return; `Failed`/`Canceled` → delete the stale resource, poll until it is fully gone before recreating (a delete can report success before Azure finishes removing the resource, which otherwise causes a name conflict); empty/null → create; anything else → still provisioning, return.
-   - On a create failure, print clear, actionable guidance (capacity/region issues and how to change the region and retry).
+    - On a blocking create failure, print clear, actionable guidance (capacity/region issues and how to change the region and retry). For a background create, provide that guidance when the later status or retry path observes a failed terminal state.
 6. **When asked to update a copied script:**
    - First read the source script to understand existing patterns.
    - Only modify service-specific logic (create, configure, status-check functions).
@@ -197,6 +198,7 @@ Run these after any authoring or porting change. The Python port has extra steps
 - [ ] Every executable goes through `shutil.which()`.
 - [ ] Running from a wrong cwd still works (the preflight `chdir` handles it) OR emits the friendly "kept the exercise folder intact" error when the anchor file is missing next to the script.
 - [ ] Running without `az login` prints "Error: Not authenticated with Azure. Please run: az login" and exits 1.
+- [ ] Create commands preserve the blocking or background behavior described by the exercise instructions.
 - [ ] If `write_env_files()` is called: run a temp-dir unit check (write a dict with values containing `"`, `\`, `$`, backtick) and confirm both files are UTF-8 no BOM, LF-only, and use the right escape rules.
 
 **Agent must NOT**

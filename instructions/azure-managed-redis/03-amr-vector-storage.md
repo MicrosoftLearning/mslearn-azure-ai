@@ -50,7 +50,7 @@ In this section you download the starter files for the app and use a script to i
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -77,22 +77,10 @@ In this section you download the starter files for the app and use a script to i
     az extension add --upgrade --name redisenterprise
     ```
 
-1. Run the appropriate command in the terminal to launch the script.
+1. Run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
@@ -279,23 +267,13 @@ The **search_similar_products()** function converts the query embedding to bytes
 
 ## Verify resource deployment
 
-In this section you return to the deployment script to create the vector database, configure Microsoft Entra ID access, and generate the environment variable file with the Redis endpoint.
+In this section you return to the running deployment script to create the vector database, configure Microsoft Entra ID access, and generate the environment variable files with the Redis endpoint.
 
-1. Return to the terminal where the deployment script is running. After a successful deployment, you see the confirmation message and the menu. If you exited the script, run the appropriate command to start it again.
+1. Return to the terminal where the deployment script is running. After the script reports that the Azure Managed Redis resource was created successfully, select **Enter** to return to the deployment menu.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
-    ```
+1. Enter **2** to run the **2. Create database and configure access** option. This creates the vector-ready database with the RediSearch module, assigns a data access policy to your account, and creates the *.env* and *.env.ps1* files with **REDIS_HOST**.
 
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-1. Enter **2** to run the **2. Create database and configure access** option. This creates the vector-ready database with the RediSearch module, assigns a data access policy to your account, and creates the environment variable file with **REDIS_HOST**.
-
-1. (Optional) Enter **3** to run the **3. Check deployment status** option as a final check.
+1. Enter **3** to run the **3. Check deployment status** option as a final check.
 
 1. Enter **4** to exit the deployment script.
 
