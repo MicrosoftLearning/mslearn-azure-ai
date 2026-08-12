@@ -49,7 +49,7 @@ In this section you download the project starter files and use a script to deplo
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -76,22 +76,10 @@ In this section you download the project starter files and use a script to deplo
 
 In this section you run the deployment script to deploy the PostgreSQL server and configure authentication.
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script menu appears, enter **1** to launch the **Create PostgreSQL server with Entra authentication** option. This creates the server with Entra-only authentication enabled. **Note:** Deployment can take 5-10 minutes to complete.
@@ -436,7 +424,7 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 If you encounter issues during this exercise, try these steps:
 
 **psql connection fails**
-- Ensure the *.env* file was created by running the deployment script option **4**
+- Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **4**
 - Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables
 - The access token expires after approximately one hour; run the deployment script option **4** again to generate a new token
 - Verify the server is ready by running the deployment script option **3**
