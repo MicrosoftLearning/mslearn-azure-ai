@@ -55,7 +55,7 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. If the default AKS VM size is unavailable in your region, change **AKS_VM_SIZE** to one of the fallback sizes listed in the script. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```python
     rg = "<your-resource-group-name>"  # Resource Group name
@@ -228,11 +228,19 @@ In this section you apply the manifests to AKS. The following steps are performe
     kubectl apply -f k8s/service.yaml
     ```
 
-1. After you create the Service it can take a few minutes for the deployment to complete. The following command will monitor the service and update the external IP address of the pod when it's available. Note the external IP address, you need it later in the exercise. Enter **ctrl + c** to exit the command after the IP address appears.
+1. After you create the Service it can take a few minutes for the deployment to complete. The following command will monitor the service and update the external IP address of the pod when it's available. Enter **ctrl + c** to exit the command after the IP address appears.
 
     ```
     kubectl get svc aks-config-api-service -w
     ```
+
+1. Run the following command from the project root to launch the deployment script again.
+
+    ```
+    python azdeploy.py
+    ```
+
+1. Enter **5** to run the **Check deployment status** option. The script reads the LoadBalancer IP and writes it to *client/.env* as **API_ENDPOINT**. When the status check completes, enter **7** to exit the deployment script.
 
 ## Run the client app
 
@@ -268,13 +276,6 @@ In this section, you create the Python environment and install the dependencies.
     pip install -r requirements.txt
     ```
 
-1. Create a *.env* file in the client directory and add the following code. Replace **\<API_IP_address>** with the value you copied earlier in the exercise.
-
-    ```
-    # API endpoint - update this with the external IP from the LoadBalancer service
-    # Get the IP with: kubectl get services
-    API_ENDPOINT=http://<API_IP_address>
-    ```
 ### Perform operations with the app
 
 With the Python environment configured and dependencies installed, you can now run the client application to test the deployed API. The API logs all operations to the persistent volume, and the client provides a menu-driven interface to interact with various endpoints.
@@ -373,7 +374,8 @@ If you encounter issues while completing this exercise, try the following troubl
 - After updating ConfigMap or Secret files, perform a rolling restart to reload the configuration: **kubectl rollout restart deployment aks-config-api**.
 
 **Verify client configuration**
-- Ensure you've created a *.env* file in the *client* folder with **API_ENDPOINT** set to the LoadBalancer's external IP (for example, **http://20.xxx.xxx.xxx**).
+- Check that *client/.env* exists and contains **API_ENDPOINT** set to the LoadBalancer's external IP (for example, **http://20.xxx.xxx.xxx**).
+- If the file is missing or shows a stale IP, run the deployment script and select option **5. Check deployment status** after the Service has an external IP to rewrite *client/.env*.
 - Verify you can reach the API endpoint by running **curl http://\<external-ip>/healthz** from the terminal.
 
 **Check Python environment and dependencies**

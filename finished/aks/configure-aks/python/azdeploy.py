@@ -81,6 +81,14 @@ def pause(prompt: str = "Press Enter to continue...") -> None:
         print()
 
 
+def write_client_env(api_endpoint: str) -> None:
+    """Write client/.env for python-dotenv (single file, KEY=value format)."""
+    client_dir = Path("client")
+    client_dir.mkdir(parents=True, exist_ok=True)
+    with open(client_dir / ".env", "w", encoding="utf-8", newline="\n") as f:
+        f.write(f"API_ENDPOINT={api_endpoint}\n")
+
+
 def require_az_login() -> str:
     """Return the signed-in user's object id, or exit if not logged in."""
     user_object_id = az_query(
@@ -421,6 +429,8 @@ def check_deployment_status(acr_name: str, aks_cluster: str) -> bool:
     )
     if service_ip:
         print(f"  Service: Exposed at {service_ip}")
+        write_client_env(f"http://{service_ip}")
+        print("  Client env file: client/.env updated with API_ENDPOINT")
     else:
         print("  Service: LoadBalancer IP pending or not created")
     return True

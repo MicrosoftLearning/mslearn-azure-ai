@@ -49,7 +49,7 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. If the default AKS VM size is unavailable in your region, change **AKS_VM_SIZE** to one of the fallback sizes listed in the script. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```python
     rg = "<your-resource-group-name>"  # Resource Group name
@@ -304,8 +304,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - Verify YAML indentation is correct (use spaces, not tabs) as incorrect indentation will cause deployment failures.
 - Confirm the ACR endpoint was properly substituted in the deployment manifest by the deployment script.
 
-**Verify client configuration**
-- Check that the *.env* file exists in the *client* folder and contains a valid **API_ENDPOINT** value.
+**Verify client connectivity**
 - Ensure the API endpoint uses the correct external IP from the LoadBalancer service.
 - Verify you can reach the API endpoint by running **curl http://\<external-ip>/healthz** from the terminal.
 

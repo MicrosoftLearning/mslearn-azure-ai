@@ -49,7 +49,7 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. If the default AKS VM size is unavailable in your region, change **AKS_VM_SIZE** to one of the fallback sizes listed in the script. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```python
     rg = "<your-resource-group-name>"  # Resource Group name

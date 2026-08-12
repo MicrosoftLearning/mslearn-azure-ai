@@ -152,7 +152,7 @@ Every exercise markdown file must follow this exact structure. The gold-standard
    - `## Configure the Python environment` — cd client, create venv, activate (Bash + PowerShell), pip install.
    - `## Run the app` — Start Flask, open browser, step-by-step UI walkthrough.
    - `## Clean up resources` — Exact verbiage (see "Clean Up Resources Section" above).
-   - `## Troubleshooting` — Common issues grouped by bold headings with bullet-point fixes.
+   - `## Troubleshooting` — Common issues grouped by bold headings with bullet-point fixes. Deployment-failure guidance (SKU or capacity unavailable in region, quota errors, region change and retry, deletion of failed resources) always lives here, not in an inline `> **Note:**` block next to the deployment step. If a deployment step needs to warn the student, keep it to a single sentence pointing to the Troubleshooting section.
 
 ### Client App Patterns
 

@@ -307,8 +307,8 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project folder and contains valid **REDIS_HOST** and **REDIS_KEY** values.
-- Ensure the *.env* file is in the same directory as *main.py*.
+- Check that both the *.env* and *.env.ps1* files exist in the project folder and contain valid **REDIS_HOST** and **REDIS_KEY** values.
+- Ensure both files are in the same directory as *main.py*.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the app.

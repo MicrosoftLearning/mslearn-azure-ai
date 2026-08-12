@@ -91,8 +91,6 @@ In this section you download the starter files for the app and use a script to i
 
     *Azure Managed Redis resource created successfully: amr-exercise-\<hash>*
 
-    > **Note:** If the deployment fails, it's most often due to a temporary lack of capacity for the SKU in your chosen region. Follow the on-screen guidance to exit the script, change the **location** variable near the top of the script to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose option 1. The failed resource is deleted automatically before the next attempt.
-
 ## Complete the app
 
 In this section you add code to the *client/vector_functions.py* file to complete vector storage and search operations. The Flask app in *client/app.py* calls these functions to execute the workflow from the browser. You don't need to edit *client/app.py*. You run the app later in the exercise.
@@ -408,6 +406,11 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that the Azure Managed Redis resource shows a **Provisioning State** of **Succeeded**.
 - Run the deployment script's **Check deployment status** option and confirm the cluster and database are ready before running the app.
 
+**Resolve deployment failures**
+- If the deployment fails, it's most often due to a temporary lack of capacity for the SKU in your chosen region.
+- Follow the on-screen guidance to exit the script, change the **location** variable near the top of the script to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose option 1.
+- The failed resource is deleted automatically before the next attempt.
+
 **Check authentication and access**
 - Confirm you are logged in to Azure CLI by running **az account show**.
 - Ensure the deployment script's **Create database and configure access** option completed successfully so your account has a data access policy on the database.
@@ -419,9 +422,9 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project root and contains the **REDIS_HOST** value.
-- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
-- If variables are empty, run **source .env** (Bash) or **. .\.env.ps1** (PowerShell) again.
+- Check that both the *.env* and *.env.ps1* files exist in the project root and contain the **REDIS_HOST** value.
+- Run **source .env** in Bash or **. .\.env.ps1** in PowerShell to load the environment variables into your terminal session.
+- If the variables are empty, run the command for your shell again.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the app.
