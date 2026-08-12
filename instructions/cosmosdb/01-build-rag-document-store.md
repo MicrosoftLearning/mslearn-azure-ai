@@ -48,7 +48,7 @@ In this section you download the project starter files and use a script to deplo
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -73,22 +73,10 @@ In this section you download the project starter files and use a script to deplo
 
 In this section you run the deployment script to deploy the Cosmos DB account.
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Make sure you are in the root directory of the project and run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script menu appears, enter **1** to launch the **Create Cosmos DB account** option. This creates the Cosmos DB for NoSQL account with a database and container. **Note:** Deployment can take 5-10 minutes to complete.
