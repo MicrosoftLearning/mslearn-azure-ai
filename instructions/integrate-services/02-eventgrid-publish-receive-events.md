@@ -50,7 +50,7 @@ In this section you download the starter files for the app and use a script to d
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -77,22 +77,10 @@ In this section you download the starter files for the app and use a script to d
     az extension add --name eventgrid --yes
     ```
 
-1. Run the appropriate command in the terminal to launch the script.
+1. Run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script is running, enter **1** to launch the **1. Create Event Grid namespace and topic** option.
@@ -426,9 +414,8 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project root and contains **EVENTGRID_ENDPOINT**, **EVENTGRID_TOPIC_NAME**, **RESOURCE_GROUP**, and **NAMESPACE_NAME** values.
-- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
-- If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
+- Check that both the *.env* and *.env.ps1* files exist in the project root and contain the **EVENTGRID_ENDPOINT**, **EVENTGRID_TOPIC_NAME**, **RESOURCE_GROUP**, and **NAMESPACE_NAME** values.
+- Run **source .env** in Bash or **. .\.env.ps1** in PowerShell to load the environment variables into your terminal session.
 
 **Check authentication**
 - Confirm you are logged in to Azure CLI by running **az account show**.

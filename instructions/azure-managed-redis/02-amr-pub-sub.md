@@ -431,7 +431,6 @@ If you encounter issues while completing this exercise, try the following troubl
 **Verify environment variables**
 - Check that both the *.env* and *.env.ps1* files exist in the project root and contain the **REDIS_HOST** value.
 - Run **source .env** in Bash or **. .\.env.ps1** in PowerShell to load the environment variables into your terminal session.
-- If the variables are empty, run the command for your shell again.
 
 **No messages appearing?**
 - Confirm you subscribed to the channel you're publishing to. Messages only arrive on channels or patterns you're subscribed to.
