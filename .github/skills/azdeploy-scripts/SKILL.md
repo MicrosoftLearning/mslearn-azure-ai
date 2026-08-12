@@ -106,7 +106,7 @@ The Python helper below implements both.
 
 ## Part 3 — Python port workflow
 
-Use this when the user asks to port an exercise's `azdeploy.sh` / `azdeploy.ps1` to a single `azdeploy.py`. Do not port more than one exercise per request unless explicitly asked.
+Use this when the user asks to port an exercise's `azdeploy.sh` / `azdeploy.ps1` to a single `azdeploy.py`. Port one exercise at a time (script + optional instruction update), then report progress before starting the next. When the user asks to convert a folder that contains multiple exercises, continue automatically through each exercise the same way — finish one set (script and, if requested, instruction file), report briefly, then move to the next set without stopping to ask.
 
 **Design rules**
 
