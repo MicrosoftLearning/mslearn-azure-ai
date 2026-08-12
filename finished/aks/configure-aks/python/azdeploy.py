@@ -9,8 +9,7 @@ rg = "rg-exercises"          # Resource Group name
 location = "canadacentral"   # Azure region for the resources
 
 # If the Standard_D2s_v7 SKU is not available in your region, try using Standard_D2s_v5, or Standard_D2s_v6 instead.
-# AKS_VM_SIZE = "Standard_D2s_v7" # Keeping for production
-AKS_VM_SIZE = "Standard_D2s_v5"
+AKS_VM_SIZE = "Standard_D2s_v7"
 
 # =============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.

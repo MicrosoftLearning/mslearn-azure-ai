@@ -9,8 +9,7 @@ rg = "rg-exercises"          # Resource Group name
 location = "eastus2"         # Azure region for the resources
 
 # If the Standard_D2s_v7 SKU is not available in your region, try using Standard_D2s_v5, or Standard_D2s_v6 instead.
-# AKS_VM_SIZE = "Standard_D2s_v7" # Keeping for production
-AKS_VM_SIZE = "Standard_D2s_v6"
+AKS_VM_SIZE = "Standard_D2s_v7"
 
 # =============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -178,7 +177,7 @@ def create_acr(acr_name: str) -> bool:
         print(f"ACR already exists: {acr_name}")
     print(f"ACR endpoint: {acr_name}.azurecr.io")
 
-    print("Updating deployment YAML files with ACR image...")
+    print("Updating deployment YAML files with the ACR image reference...")
     _update_deployment_yaml_images(acr_name)
     print("Deployment YAML files updated")
     return True
