@@ -33,7 +33,7 @@ To complete the exercise, you need:
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - The Kubernetes command-line tool, [kubectl](https://kubernetes.io/docs/tasks/tools/).
-- Optional: [Python 3.12](https://www.python.org/downloads/) or greater.
+- [Python 3.12](https://www.python.org/downloads/) or greater.
 
 ## Download project starter files and deploy Azure services
 
@@ -49,11 +49,11 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. If the default AKS VM size is unavailable in your region, change **AKS_VM_SIZE** to one of the fallback sizes listed in the script. **Note:** Do not change anything else in the script.
 
-    ```
-    "<your-resource-group-name>" # Resource Group name
-    "<your-azure-region>" # Azure region for the resources
+    ```python
+    rg = "<your-resource-group-name>"  # Resource Group name
+    location = "<your-azure-region>"   # Azure region for the resources
     ```
 
 1. In the menu bar select **Terminal > New Terminal** to open a terminal window in VS Code.
@@ -74,23 +74,13 @@ In this section you download the starter files for the console app and use a scr
     az provider register --namespace Microsoft.Storage
     ```
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Make sure you are in the root directory of the project and run the following command to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
+    ```
+    python azdeploy.py
     ```
 
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-    ```
+    > **Note:** Depending on your system configuration, the Python command might be **python3** instead of **python**.
 
 ### Deploy resources to Azure
 
@@ -104,7 +94,7 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. After the AKS cluster deployment has completed, enter **4** to launch the **Get AKS credentials for kubectl** option. This uses the **az aks get-credentials** command to retrieve credentials and configure **kubectl**.
 
-1. After the credentials have been set, enter **5** to launch the **Deploy applications to AKS** option. This deploys an API to the AKS cluster.
+1. After the credentials have been set, enter **5** to launch the **Deploy application to AKS** option. This deploys an API to the AKS cluster.
 
 1. After the app has been deployed, enter **6** to launch the **Check deployment status** option. This option reports if each of the resources have been successfully deployed.
 
@@ -352,7 +342,7 @@ If you encounter issues while setting up this exercise, try the following troubl
 
 **Resolve AKS cluster creation failures**
 - Quota validation can fail before an AKS resource is created, while failures later in provisioning can leave the cluster in a **Failed** or **Canceled** state.
-- If the error reports that **Standard_D2s_v5** is unavailable or that the region has insufficient capacity, exit with option **8**, change the **location** value near the top of the deployment script, and run option **3. Create AKS cluster** again.
+- If the error reports that **Standard_D2s_v7** is unavailable or that the region has insufficient capacity, exit with option **8**. Change **AKS_VM_SIZE** to one of the v5 or v6 fallback sizes listed near the top of the deployment script, or change the **location** value, and then run option **3. Create AKS cluster** again.
 - If the error reports insufficient quota, select a region where your subscription has available Dsv5-family quota or request a quota increase. Changing regions only helps when the other region has sufficient quota.
 - The AKS cluster uses the **location** configured in the script even when the resource group already exists in another region.
 - If option **6** reports **Failed** or **Canceled**, correct the underlying issue and run option **7. Delete failed AKS deployment** before retrying option **3**. If no AKS resource was created, no deletion is needed.
@@ -367,5 +357,5 @@ If you encounter issues while setting up this exercise, try the following troubl
 - Verify the AKS cluster is running by checking the Azure portal or running **az aks show --resource-group \<rg-name> --name \<aks-name> --query provisioningState**.
 
 **Resetting the exercise**
-- If you need to start the troubleshooting scenarios over, run the deployment script option **5. Deploy applications to AKS** to redeploy the original working configuration.
+- If you need to start the troubleshooting scenarios over, run the deployment script option **5. Deploy application to AKS** to redeploy the original working configuration.
 - This reapplies the base deployment and service files, resetting any changes made during the exercise.

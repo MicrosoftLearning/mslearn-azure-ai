@@ -33,7 +33,7 @@ To complete the exercise, you need:
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - The Kubernetes command-line tool, [kubectl](https://kubernetes.io/docs/tasks/tools/).
-- Optional: [Python 3.12](https://www.python.org/downloads/) or greater.
+- [Python 3.12](https://www.python.org/downloads/) or greater.
 
 ## Download project starter files and deploy Azure services
 
@@ -49,11 +49,11 @@ In this section you download the starter files for the console app and use a scr
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the resource group and location values at the top of the script to meet your needs, then save your changes. If the default AKS VM size is unavailable in your region, change **AKS_VM_SIZE** to one of the fallback sizes listed in the script. **Note:** Do not change anything else in the script.
 
-    ```
-    "<your-resource-group-name>" # Resource Group name
-    "<your-azure-region>" # Azure region for the resources
+    ```python
+    rg = "<your-resource-group-name>"  # Resource Group name
+    location = "<your-azure-region>"   # Azure region for the resources
     ```
 
     > **Note:** It is recommended to use one of the following three Azure regions for deployment: **eastus2**, **swedencentral**, or **australiaeast**. These regions support the deployment of the AI inference model used in the exercise.
@@ -77,23 +77,13 @@ In this section you download the starter files for the console app and use a scr
     az provider register --namespace Microsoft.Storage
     ```
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Make sure you are in the root directory of the project and run the following command to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
+    ```
+    python azdeploy.py
     ```
 
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-    ```
+    > **Note:** Depending on your system configuration, the Python command might be **python3** instead of **python**.
 
 ### Deploy resources to Azure
 
@@ -101,7 +91,7 @@ With the deployment script running, follow these steps to create the needed reso
 
 1. Enter **1** to launch the **1. Provision gpt-5-mini model in Microsoft Foundry** option. This option creates the resource group if it doesn't already exist, creates the resource in MIcrosoft Foundry, and deploys the **gpt-5-mini** model to the resource.
 
-  > **Important:** If there are errors during the model deployment, enter **7** to launch the **7. Delete/Purge Foundry deployment** option. This will delete the deployment and purge the resource name. Exit the menu, and change the region in the deployment script to one of the other recommended regions. Then restart the deployment script and run the model provisioning option again.
+    > **Important:** If there are errors during the model deployment, enter **7** to launch the **7. Delete/Purge Foundry deployment** option. This will delete the deployment and purge the resource name. Exit the menu, and change the region in the deployment script to one of the other recommended regions. Then restart the deployment script and run the model provisioning option again.
 
 1. After the model is deployed, enter **2** to launch **2. Create Azure Container Registry (ACR)**. This creates the resource where the API container will be stored, and later pulled into the AKS resource.
 
@@ -205,22 +195,10 @@ Next, you update the *service.yaml* file.
 
 In this section you use the deployment script to apply the manifests to AKS.
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Make sure you are in the root directory of the project and run the following command to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. Enter **6** to launch the **6. Deploy to AKS** option. This option performs several operations: it retrieves your AKS credentials and configures kubectl, assigns the **Cognitive Services OpenAI User** role to the AKS kubelet managed identity so the API can authenticate to Foundry using Microsoft Entra ID, updates the deployment manifest with your ACR endpoint and Foundry endpoint, and then uses **kubectl apply** to deploy both manifests to your AKS cluster. When the operation is complete, enter **9** to exit the deployment script.
@@ -310,7 +288,7 @@ If you encounter issues while completing this exercise, try the following troubl
 
 **Resolve AKS cluster creation failures**
 - Run the deployment script and select option **5. Check deployment status**. Quota validation can fail before an AKS resource is created, while failures later in provisioning can leave the cluster in a **Failed** or **Canceled** state.
-- If the error reports that **Standard_D2s_v5** is unavailable or that the region has insufficient capacity, exit with option **9**, change the **location** value near the top of the deployment script to another recommended region, and run option **4. Create AKS cluster** again.
+- If the error reports that **Standard_D2s_v7** is unavailable or that the region has insufficient capacity, exit with option **9**. Change **AKS_VM_SIZE** to one of the v5 or v6 fallback sizes listed near the top of the deployment script, or change the **location** value to another recommended region, and then run option **4. Create AKS cluster** again.
 - If the error reports insufficient quota, select a region where your subscription has available Dsv5-family quota or request a quota increase. Changing regions only helps when the other region has sufficient quota.
 - The AKS cluster uses the **location** configured in the script even when the resource group already exists in another region.
 - If option **5** reports **Failed** or **Canceled**, correct the underlying issue and run option **8. Delete failed AKS deployment** before retrying option **4**. If no AKS resource was created, no deletion is needed.
