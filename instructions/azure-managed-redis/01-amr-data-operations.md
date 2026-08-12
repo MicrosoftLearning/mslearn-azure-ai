@@ -98,23 +98,27 @@ In this section you add code to the *main.py* script to complete the console app
 
 ### Add the client connection
 
-In this section, you add code to establish a connection to Azure Managed Redis using the redis-py library. The code retrieves connection credentials from environment variables and creates a Redis client instance configured for secure SSL communication.
+In this section, you add code to establish a connection to Azure Managed Redis using the redis-py library. The code reads the Redis endpoint from an environment variable and uses **DefaultAzureCredential** through the **redis-entraid** credential provider so the client authenticates with Microsoft Entra ID and refreshes its token automatically.
 
 1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
     try:
-        # Azure Managed Redis with Non-Clustered policy uses standard Redis connection
+        # Azure Managed Redis using Microsoft Entra ID authentication
         redis_host = os.getenv("REDIS_HOST")
-        redis_key = os.getenv("REDIS_KEY")
 
-        # Non-clustered policy uses standard Redis client connection
+        # create_from_default_azure_credential uses DefaultAzureCredential to
+        # acquire and refresh a Microsoft Entra token for Redis.
+        credential_provider = create_from_default_azure_credential(
+            ("https://redis.azure.com/.default",),
+        )
+
         r = redis.Redis(
             host=redis_host,
             port=10000,  # Azure Managed Redis uses port 10000
             ssl=True,
             decode_responses=True, # Decode responses to strings
-            password=redis_key,
+            credential_provider=credential_provider,
             socket_timeout=30,  # Add timeout for better reliability
             socket_connect_timeout=30,
         )
@@ -215,13 +219,13 @@ In this section, you add code to remove keys from Redis using the **delete** com
 
 ## Verify resource deployment
 
-In this section you verify the Azure Managed Redis deployment, create the database, and create the environment variable files with the endpoint and access key values.
+In this section you verify the Azure Managed Redis deployment, create the database, configure Microsoft Entra ID access, and create the environment variable files with the Redis endpoint.
 
 1. Return to the terminal running the deployment script. After the script reports that the Azure Managed Redis resource was created successfully, select **Enter** to return to the deployment menu.
 
 1. When the deployment menu appears, enter **2** to run the **2. Check deployment status** option. If the status shows **Succeeded**, proceed to the next step. If not, then wait a few minutes and try the option again.
 
-1. Enter **3** to run the **3. Create database and retrieve endpoint and access key** option. This creates the database, enables access key authentication, and retrieves the endpoint and access key. It then creates the *.env* and *.env.ps1* files with those values.
+1. Enter **3** to run the **3. Create database and configure access** option. This creates the database, assigns a Microsoft Entra ID data access policy to your account so the app can connect using your identity, and creates the *.env* and *.env.ps1* files with the **REDIS_HOST** endpoint.
 
 1. Review the environment variable file for your shell to verify the values are present, then enter **4** to exit the deployment script.
 
@@ -256,6 +260,20 @@ In this section, you create the Python environment and install the dependencies 
 ## Run the console app
 
 In this section, you run the completed console application to perform various Redis data operations. The app provides a menu-driven interface that lets you store hash data, retrieve values, manage key expiration, and delete keys.
+
+1. Run the appropriate command to load the environment variables into your terminal session from the file created by the deployment script.
+
+    **Bash**
+    ```bash
+    source .env
+    ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
+
+    >**Note:** Keep the terminal open. If you close it and create a new terminal, you need to run this command again to reload the environment variables.
 
 1. Run the following command in the terminal to start the console app. Refer to the commands from earlier in the exercise to activate the environment, if needed, before running the command.
 
@@ -299,7 +317,7 @@ If you encounter issues while completing this exercise, try the following troubl
 **Verify Azure Managed Redis resource deployment**
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
 - Confirm that the Azure Managed Redis resource shows a **Provisioning State** of **Succeeded**.
-- Check that the resource has **Public network access** enabled and **Access keys authentication** set to **Enabled**.
+- Check that the resource has **Public network access** enabled.
 
 **Check code completeness and indentation**
 - Ensure all code blocks were added to the correct sections in *main.py* between the appropriate BEGIN/END comment markers.
@@ -307,8 +325,13 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that both the *.env* and *.env.ps1* files exist in the project folder and contain valid **REDIS_HOST** and **REDIS_KEY** values.
+- Check that both the *.env* and *.env.ps1* files exist in the project folder and contain a valid **REDIS_HOST** value.
 - Ensure both files are in the same directory as *main.py*.
+
+**Check authentication and access**
+- Confirm you are logged in to Azure CLI by running **az account show**.
+- Ensure the deployment script's **Create database and configure access** option completed successfully so your account has a data access policy on the database.
+- If the app reports an authentication error, wait a moment and try again, as the access policy assignment can take a short time to take effect.
 
 **Check Python environment and dependencies**
 - Confirm the virtual environment is activated before running the app.
