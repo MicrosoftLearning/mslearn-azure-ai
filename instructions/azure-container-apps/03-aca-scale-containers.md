@@ -71,6 +71,7 @@ In this section you download the project starter files and use a script to deplo
 
     ```azurecli
     az extension add --name containerapp
+    az extension add --name log-analytics
     ```
 
 1. Run the following commands to ensure your subscription has the necessary resource providers for the exercise.
