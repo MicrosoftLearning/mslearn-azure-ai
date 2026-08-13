@@ -6,7 +6,7 @@
 # location = "<your-azure-region>"   # Azure region for the resources
 
 rg = "rg-exercises"  # Resource Group name
-location = "canadacentral"  # Azure region for the resources
+location = "eastus2"  # Azure region for the resources
 
 # =============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 DATABASE_NAME = "ragstore"
@@ -39,14 +40,28 @@ def _resolve_exe(name: str) -> str:
     return resolved
 
 
-def run_quiet(description: str, argv: list[str]) -> bool:
+def _run_capture(argv: list[str]) -> subprocess.CompletedProcess[str]:
     argv = [_resolve_exe(argv[0]), *argv[1:]]
-    result = subprocess.run(argv, capture_output=True, text=True, check=False)
+    return subprocess.run(argv, capture_output=True, text=True, check=False)
+
+
+def _result_output(result: subprocess.CompletedProcess[str]) -> str:
+    return ((result.stdout or "") + (result.stderr or "")).strip()
+
+
+def _print_command_error(
+    description: str, result: subprocess.CompletedProcess[str]
+) -> None:
+    print(f"Error: {description} failed (exit code {result.returncode}).")
+    output = _result_output(result)
+    if output:
+        print(output)
+
+
+def run_quiet(description: str, argv: list[str]) -> bool:
+    result = _run_capture(argv)
     if result.returncode != 0:
-        print(f"Error: {description} failed (exit code {result.returncode}).")
-        combined = (result.stdout or "") + (result.stderr or "")
-        if combined.strip():
-            print(combined.rstrip())
+        _print_command_error(description, result)
         return False
     return True
 
@@ -132,31 +147,140 @@ def create_resource_group() -> bool:
     return True
 
 
+def _cosmosdb_account_state(account_name: str) -> str:
+    return az_query(
+        [
+            "az", "cosmosdb", "show",
+            "--resource-group", rg,
+            "--name", account_name,
+            "--query", "provisioningState",
+            "-o", "tsv",
+        ]
+    )
+
+
+def _wait_for_cosmosdb_account_name_release(account_name: str) -> bool:
+    waited = 0
+    while True:
+        name_exists = az_query(
+            [
+                "az", "cosmosdb", "check-name-exists",
+                "--name", account_name,
+                "-o", "tsv",
+            ]
+        ).lower()
+        if name_exists == "false":
+            return True
+        if name_exists != "true":
+            print("Error: Unable to verify that the Cosmos DB account name was released.")
+            print("Please wait a few minutes, then run option 1 again.")
+            return False
+        if waited >= 300:
+            print("Error: Timed out waiting for the Cosmos DB account name to be released.")
+            print("Please wait a few minutes, then run option 1 again.")
+            return False
+        if waited == 0:
+            print("Waiting for Azure to release the globally unique account name...")
+        time.sleep(10)
+        waited += 10
+        print(f"  Still waiting... {waited} seconds elapsed")
+
+
+def _create_cosmosdb_account_resource(account_name: str) -> bool:
+    argv = [
+        "az", "cosmosdb", "create",
+        "--resource-group", rg,
+        "--name", account_name,
+        "--locations", f"regionName={location}",
+        "--capabilities", "EnableServerless",
+        "--default-consistency-level", "Session",
+    ]
+    waited = 0
+    while True:
+        if waited > 0:
+            print(f"Retrying deployment to '{location}'...", flush=True)
+        result = _run_capture(argv)
+        if result.returncode == 0:
+            if waited > 0:
+                print(
+                    "Previous region assignment released. "
+                    f"Deployment to '{location}' succeeded."
+                )
+            return True
+
+        output = _result_output(result)
+        if "InvalidResourceLocation" not in output:
+            _print_command_error("Create Cosmos DB account", result)
+            print()
+            print("The deployment failed. This is most often caused by a temporary")
+            print(f"lack of capacity in the '{location}' region.")
+            print()
+            print("To resolve this:")
+            print("  1. Choose option 5 to exit the script.")
+            print("  2. Near the top of this script, change the 'location' variable")
+            print("     to a different Azure region.")
+            print("  3. Run the script again and choose option 1. The failed account")
+            print("     is deleted automatically before the next attempt.")
+            return False
+
+        if waited >= 120:
+            _print_command_error("Create Cosmos DB account", result)
+            print()
+            print("Error: Azure did not release the account's previous region in time.")
+            print("Please wait a few minutes, then run option 1 again.")
+            return False
+
+        if waited == 0:
+            print("Azure is still releasing the account's previous region assignment.")
+            print("Retrying account creation every 10 seconds...")
+        time.sleep(10)
+        waited += 10
+        print(f"  Still waiting... {waited} seconds elapsed")
+
+
 def create_cosmosdb_account(account_name: str) -> bool:
     if not create_resource_group():
         return False
     print()
-    print(f"Creating Azure Cosmos DB for NoSQL account '{account_name}'...")
-    print("This may take several minutes...")
 
-    existing = az_query(
-        ["az", "cosmosdb", "show", "--resource-group", rg, "--name", account_name,
-         "--query", "name", "-o", "tsv"]
-    )
-    if existing:
-        print(f"Cosmos DB account already exists: {account_name}")
-    else:
+    account_state = _cosmosdb_account_state(account_name)
+    if account_state == "Succeeded":
+        print(
+            f"Cosmos DB account already exists: {account_name} "
+            f"(State: {account_state})"
+        )
+    elif account_state in ("Failed", "Canceled"):
+        print(f"A previous deployment of '{account_name}' is in a {account_state} state.")
+        print("Deleting the failed account before trying again...")
         if not run_quiet(
-            "Create Cosmos DB account",
+            "Delete failed Cosmos DB account",
             [
-                "az", "cosmosdb", "create",
+                "az", "cosmosdb", "delete",
                 "--resource-group", rg,
                 "--name", account_name,
-                "--locations", f"regionName={location}",
-                "--capabilities", "EnableServerless",
-                "--default-consistency-level", "Session",
+                "--yes",
             ],
         ):
+            return False
+        if not _wait_for_cosmosdb_account_name_release(account_name):
+            return False
+        print("Failed account deleted.")
+        print()
+    elif account_state:
+        print(
+            f"Cosmos DB account '{account_name}' is still provisioning "
+            f"(State: {account_state})."
+        )
+        print("Please wait for it to finish, then check the deployment status from the menu.")
+        return True
+
+    if account_state != "Succeeded":
+        print(
+            f"Creating Azure Cosmos DB for NoSQL account '{account_name}' "
+            f"in '{location}'..."
+        )
+        print("This may take several minutes...")
+        if not _create_cosmosdb_account_resource(account_name):
             return False
         print("Cosmos DB account created successfully")
 
