@@ -6,7 +6,7 @@
 # location = "<your-azure-region>"   # Azure region for the resources
 
 rg = "rg-exercises"  # Resource Group name
-location = "eastus2"  # Azure region for the resources
+location = "canadacentral"  # Azure region for the resources
 
 # =============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -22,7 +22,7 @@ from pathlib import Path
 CONTAINER_APP_NAME = "ai-api"
 CONTAINER_IMAGE = "ai-api:v1"
 TARGET_PORT = "8000"
-MODEL_NAME = "gpt-4o-mini"
+MODEL_NAME = "gpt-5.4-mini"
 EMBEDDINGS_API_KEY = "demo-key-12345"
 
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
