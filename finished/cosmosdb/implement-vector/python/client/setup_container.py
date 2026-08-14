@@ -29,16 +29,6 @@ def get_database():
 def create_vector_container():
     """
     Create a container with vector embedding and indexing policies.
-
-    The vector embedding policy defines:
-    - path: JSON path where vector embeddings are stored
-    - dataType: Data type for vector components (float32)
-    - distanceFunction: Similarity metric (cosine: 0=identical, 2=opposite)
-    - dimensions: Number of dimensions in each vector (256)
-
-    The indexing policy includes:
-    - Standard indexing for all paths except embeddings
-    - DiskANN vector index for efficient similarity search
     """
     database = get_database()
     container_name = os.environ.get("COSMOS_CONTAINER", "vectors")

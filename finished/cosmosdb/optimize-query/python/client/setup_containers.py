@@ -35,13 +35,6 @@ def get_database():
 def create_flat_container():
     """
     Create a container with a flat vector index.
-
-    The flat index performs exact nearest neighbor search by comparing
-    the query vector against every vector in the dataset. This provides
-    100% recall but has O(n) complexity, making it suitable for:
-    - Small datasets (< 10,000 vectors)
-    - Scenarios requiring exact results
-    - Baseline performance comparisons
     """
     database = get_database()
     container_name = "vectors-flat"
