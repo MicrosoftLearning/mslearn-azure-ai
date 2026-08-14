@@ -136,7 +136,7 @@ In this section, you add code to work with Redis hash data structures using the 
 
     ```python
     def store_hash_data(r, key, value) -> None:
-        """Store hash data in Redis"""
+        """Store a hash data in Redis"""
         clear_screen()
         print(f"Storing hash data for key: {key}")
         result = r.hset(key, mapping=value) # Store hash data
@@ -183,7 +183,7 @@ In this section, you add code to manage key expiration using the **expire** and 
         input("\nPress Enter to continue...")
 
     def retrieve_expiration(r, key) -> None:
-        """Retrieve the TTL of a key"""
+        """Retrieve TTL of a key"""
         clear_screen()
         print(f"Retrieving the current TTL of {key}...")
         ttl = r.ttl(key) # Get current TTL
