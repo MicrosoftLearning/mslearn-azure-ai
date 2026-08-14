@@ -244,13 +244,11 @@ In this section you enable the pgvector extension and create the products table 
 
 1. Wait for the PostgreSQL server to display the deployment is complete in the terminal.
 
-1. In the deployment script menu, enter **2** to configure Microsoft Entra authentication. This sets your Azure account as the database administrator.
+1. In the deployment script menu, enter **2** to launch the **Check deployment status** option. This verifies the server is ready.
 
-1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
+1. Enter **3** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
 
-1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
-
-1. Enter **5** to exit the deployment script.
+1. Enter **4** to exit the deployment script.
 
 1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -411,13 +409,13 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 If you encounter issues during this exercise, try these steps:
 
 **psql connection fails**
-- Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **4**
+- Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **3**
 - Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables
-- The access token expires after approximately one hour; run the deployment script option **4** again to generate a new token
-- Verify the server is ready by running the deployment script option **3**
+- The access token expires after approximately one hour; run the deployment script option **3** again to generate a new token
+- Verify the server is ready by running the deployment script option **2**
 
 **Access denied or authentication errors**
-- Ensure the Microsoft Entra administrator was configured by running the deployment script option **2**
+- The Microsoft Entra administrator is configured automatically when option **1** creates the server. If access is still denied, verify the administrator by running option **2**, and if it is missing, delete the resource group and rerun option **1** to redeploy.
 - Verify **PGPASSWORD** is set correctly in your terminal session
 - Ensure you're using the correct **DB_USER** value (your Azure account email)
 
