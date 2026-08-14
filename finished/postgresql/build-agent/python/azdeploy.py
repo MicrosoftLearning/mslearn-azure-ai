@@ -149,21 +149,39 @@ def create_resource_group() -> bool:
     return True
 
 
+def _server_state(server_name: str) -> str:
+    """Return the server's current state, or '' if it doesn't exist.
+
+    Uses `az resource show` (an ARM read) instead of `az postgres flexible-server
+    show` because ARM stays responsive even when the server is mid-operation,
+    when the data-plane command can exit non-zero and hide an existing server.
+    """
+    return az_query([
+        "az", "resource", "show",
+        "--resource-group", rg,
+        "--name", server_name,
+        "--resource-type", "Microsoft.DBforPostgreSQL/flexibleServers",
+        "--query", "properties.state", "-o", "tsv",
+    ])
+
+
 def create_postgres_server(server_name: str, user_object_id: str) -> bool:
     if not create_resource_group():
         return False
     print()
-    print(f"Creating Azure Database for PostgreSQL Flexible Server '{server_name}'...")
-    print("This may take several minutes...")
 
-    existing = az_query(
-        ["az", "postgres", "flexible-server", "show",
-         "--resource-group", rg, "--name", server_name,
-         "--query", "name", "-o", "tsv"]
-    )
-    if existing:
+    existing_state = _server_state(server_name)
+    if existing_state == "Ready":
         print(f"PostgreSQL server already exists: {server_name}")
         return True
+    if existing_state:
+        print(f"PostgreSQL server '{server_name}' already exists (state: {existing_state}).")
+        print("The server is currently busy processing another operation.")
+        print("Wait a few minutes, then use option 2 to check status.")
+        return True
+
+    print(f"Creating Azure Database for PostgreSQL Flexible Server '{server_name}'...")
+    print("This may take several minutes...")
 
     user_upn = az_query(
         ["az", "ad", "signed-in-user", "show",
