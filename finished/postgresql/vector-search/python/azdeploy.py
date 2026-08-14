@@ -19,6 +19,7 @@ import shutil
 import string
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 DB_NAME = "postgres"
@@ -165,19 +166,20 @@ def _server_state(server_name: str) -> str:
     ])
 
 
-def _configure_vector_extension(server_name: str) -> None:
-    print("Configuring vector extension...")
-    if run_quiet(
-        "Allow-list vector extension",
-        [
-            "az", "postgres", "flexible-server", "parameter", "set",
-            "--resource-group", rg,
-            "--server-name", server_name,
-            "--name", "azure.extensions",
-            "--value", "vector",
-        ],
-    ):
-        print("Vector extension allowed")
+def _server_exists(server_name: str) -> bool:
+    """Return True if the server exists as an ARM resource.
+
+    Uses the resource id, which ARM populates as soon as the PUT is accepted,
+    even before `properties.state` becomes meaningful. This catches an
+    in-flight create started by a previous run that our state probe would miss.
+    """
+    return bool(az_query([
+        "az", "resource", "show",
+        "--resource-group", rg,
+        "--name", server_name,
+        "--resource-type", "Microsoft.DBforPostgreSQL/flexibleServers",
+        "--query", "id", "-o", "tsv",
+    ]))
 
 
 def create_postgres_server(server_name: str, user_object_id: str) -> bool:
@@ -185,16 +187,15 @@ def create_postgres_server(server_name: str, user_object_id: str) -> bool:
         return False
     print()
 
-    existing_state = _server_state(server_name)
-    if existing_state and existing_state != "Ready":
-        print(f"PostgreSQL server '{server_name}' already exists (state: {existing_state}).")
-        print("The server is currently busy processing another operation.")
-        print("Wait a few minutes, then use option 2 to check status.")
-        return True
-
-    if existing_state == "Ready":
-        print(f"PostgreSQL server already exists: {server_name}")
-        _configure_vector_extension(server_name)
+    if _server_exists(server_name):
+        state = _server_state(server_name) or "Provisioning"
+        if state == "Ready":
+            print(f"PostgreSQL server already exists: {server_name}")
+            return True
+        print(f"PostgreSQL server '{server_name}' already exists (state: {state}).")
+        print("Azure is still processing an operation on this server, most likely")
+        print("a create that was started by an earlier attempt.")
+        print("Wait a few minutes, then use option 3 to check status.")
         return True
 
     print(f"Creating Azure Database for PostgreSQL Flexible Server '{server_name}'...")
@@ -234,8 +235,69 @@ def create_postgres_server(server_name: str, user_object_id: str) -> bool:
         return False
     print("PostgreSQL server created successfully")
     print(f"  Microsoft Entra administrator: {user_upn}")
+    return True
 
-    _configure_vector_extension(server_name)
+
+def _wait_for_ready(server_name: str, timeout_seconds: int = 600, poll_seconds: int = 15) -> bool:
+    """Poll the server state until it returns to 'Ready' or the timeout elapses."""
+    deadline = time.monotonic() + timeout_seconds
+    last_state = ""
+    while time.monotonic() < deadline:
+        state = _server_state(server_name)
+        if state == "Ready":
+            return True
+        if state and state != last_state:
+            print(f"  Server state: {state} (waiting...)")
+            last_state = state
+        time.sleep(poll_seconds)
+    print(f"Error: Timed out waiting for server '{server_name}' to return to Ready.")
+    print("Use option 3 to check the current status, then try option 2 again.")
+    return False
+
+
+def configure_vector_parameter(server_name: str) -> bool:
+    print("Configuring the vector extension allow-list...")
+
+    state = _server_state(server_name)
+    if not state:
+        print(f"Error: PostgreSQL server '{server_name}' not found.")
+        print("Please run option 1 to create the PostgreSQL server, then try again.")
+        return False
+
+    if state != "Ready":
+        print(f"Server is not Ready (current state: {state}). Waiting for it to become Ready...")
+        if not _wait_for_ready(server_name):
+            return False
+
+    current = az_query([
+        "az", "postgres", "flexible-server", "parameter", "show",
+        "--resource-group", rg,
+        "--server-name", server_name,
+        "--name", "azure.extensions",
+        "--query", "value", "-o", "tsv",
+    ])
+    allowed = {item.strip().lower() for item in current.split(",") if item.strip()}
+    if "vector" in allowed:
+        print("Vector extension is already allow-listed. No changes needed.")
+        return True
+
+    print("Adding the vector extension to the server's allow-list.")
+    print("The server will restart to apply the change. This can take 1-2 minutes...")
+    if not run_quiet(
+        "Allow-list vector extension",
+        [
+            "az", "postgres", "flexible-server", "parameter", "set",
+            "--resource-group", rg,
+            "--server-name", server_name,
+            "--name", "azure.extensions",
+            "--value", "vector",
+        ],
+    ):
+        return False
+
+    if not _wait_for_ready(server_name):
+        return False
+    print("Vector extension allow-listed and server is ready.")
     return True
 
 
@@ -266,6 +328,19 @@ def check_deployment_status(server_name: str) -> bool:
         print(f"  Entra administrator: {admin_name}")
     else:
         print("  WARNING: Entra administrator not configured")
+
+    allowed_value = az_query([
+        "az", "postgres", "flexible-server", "parameter", "show",
+        "--resource-group", rg,
+        "--server-name", server_name,
+        "--name", "azure.extensions",
+        "--query", "value", "-o", "tsv",
+    ])
+    allowed = {item.strip().lower() for item in allowed_value.split(",") if item.strip()}
+    if "vector" in allowed:
+        print("  Vector extension: allow-listed")
+    else:
+        print("  Vector extension: not allow-listed (run option 2 to configure)")
     return True
 
 
@@ -283,7 +358,7 @@ def retrieve_connection_info(server_name: str) -> bool:
         return False
     if state != "Ready":
         print(f"Error: PostgreSQL server is not ready (current state: {state}).")
-        print("Please wait for deployment to complete. Use option 2 to check status.")
+        print("Please wait for deployment to complete. Use option 3 to check status.")
         return False
 
     admin_name = az_query(
@@ -345,9 +420,10 @@ def show_menu(server_name: str) -> None:
     print(f"Location: {location}")
     print("=====================================================================")
     print("1. Create PostgreSQL server with Entra authentication")
-    print("2. Check deployment status")
-    print("3. Retrieve connection info and access token")
-    print("4. Exit")
+    print("2. Configure vector extension allow-list")
+    print("3. Check deployment status")
+    print("4. Retrieve connection info and access token")
+    print("5. Exit")
     print("=====================================================================")
 
 
@@ -369,8 +445,8 @@ def main() -> None:
 
     while True:
         show_menu(server_name)
-        choice = input("Please select an option (1-4): ").strip()
-        if choice in {"1", "2", "3", "4"}:
+        choice = input("Please select an option (1-5): ").strip()
+        if choice in {"1", "2", "3", "4", "5"}:
             clear_screen()
 
         if choice == "1":
@@ -380,21 +456,26 @@ def main() -> None:
             pause()
         elif choice == "2":
             print()
-            check_deployment_status(server_name)
+            configure_vector_parameter(server_name)
             print()
             pause()
         elif choice == "3":
             print()
-            retrieve_connection_info(server_name)
+            check_deployment_status(server_name)
             print()
             pause()
         elif choice == "4":
+            print()
+            retrieve_connection_info(server_name)
+            print()
+            pause()
+        elif choice == "5":
             print("Exiting...")
             clear_screen()
             sys.exit(0)
         else:
             print()
-            print("Invalid option. Please select 1-4.")
+            print("Invalid option. Please select 1-5.")
             print()
             pause()
 
