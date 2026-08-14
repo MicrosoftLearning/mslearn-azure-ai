@@ -22,6 +22,7 @@ def get_connection():
 # BEGIN CREATE CONVERSATION FUNCTION
 
 
+
 # END CREATE CONVERSATION FUNCTION
 
 def store_message(conversation_id: int, role: str, content: str, metadata: dict = None) -> dict:
@@ -44,6 +45,7 @@ def store_message(conversation_id: int, role: str, content: str, metadata: dict 
             }
 
 # BEGIN RETRIEVE CONVERSATION HISTORY FUNCTION
+
 
 
 # END RETRIEVE CONVERSATION HISTORY FUNCTION

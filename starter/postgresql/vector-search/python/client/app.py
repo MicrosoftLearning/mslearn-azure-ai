@@ -2,10 +2,13 @@
 Flask application demonstrating vector similarity search with PostgreSQL and pgvector.
 """
 import json
+import logging
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 import psycopg
 from azure.identity import DefaultAzureCredential
+
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -94,4 +97,6 @@ def index():
 # END ADD PRODUCT SECTION
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    # Local-only dashboard
+    print("Dashboard running at http://127.0.0.1:5000", flush=True)
+    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)

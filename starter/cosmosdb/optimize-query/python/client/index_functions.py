@@ -62,54 +62,9 @@ def get_all_containers():
 
 
 # BEGIN STORE VECTOR DOCUMENT FUNCTION
-def store_vector_document(
-    container_name: str,
-    document_id: str,
-    chunk_id: str,
-    content: str,
-    embedding: list,
-    metadata: dict = None
-) -> dict:
-    """
-    Store a document with its vector embedding in a specific container.
 
-    Args:
-        container_name: Name of the container (vectors-flat, vectors-quantized, vectors-diskann)
-        document_id: Unique identifier for the source document (partition key)
-        chunk_id: Unique identifier for this chunk within the document
-        content: Text content of the document
-        embedding: 256-dimensional vector embedding
-        metadata: Optional metadata dictionary
 
-    Returns:
-        Dictionary with chunk_id, document_id, and ru_charge
-    """
-    container = get_container(container_name)
 
-    # Build the document structure with embedding for vector search
-    # The 'id' field is required by Cosmos DB and must be unique within the partition
-    # The 'documentId' field is our partition key for efficient retrieval
-    document = {
-        "id": chunk_id,
-        "documentId": document_id,
-        "content": content,
-        "embedding": embedding,  # 256-dimensional vector for similarity search
-        "metadata": metadata or {},
-        "createdAt": datetime.utcnow().isoformat(),
-        "chunkIndex": metadata.get("chunkIndex", 0) if metadata else 0
-    }
-
-    # upsert_item inserts if new, updates if exists (based on id + partition key)
-    response = container.upsert_item(body=document)
-
-    # Request Units (RUs) measure the cost of database operations
-    ru_charge = response.get_response_headers()['x-ms-request-charge']
-
-    return {
-        "chunk_id": chunk_id,
-        "document_id": document_id,
-        "ru_charge": float(ru_charge)
-    }
 # END STORE VECTOR DOCUMENT FUNCTION
 
 
@@ -208,89 +163,9 @@ def bulk_load_documents(documents: list, progress_callback=None) -> dict:
 
 
 # BEGIN FILTERED VECTOR SEARCH FUNCTION
-def filtered_vector_search(
-    container_name: str,
-    query_embedding: list,
-    category: str = None,
-    top_n: int = 5
-) -> dict:
-    """
-    Combine vector similarity search with metadata filtering.
 
-    This hybrid approach applies a metadata filter before ranking results
-    by vector similarity. Filtering reduces the search space and can
-    improve performance for targeted queries.
 
-    Args:
-        container_name: Name of the container to search
-        query_embedding: 256-dimensional query vector
-        category: Optional category filter
-        top_n: Number of results to return
 
-    Returns:
-        Dictionary containing results, ru_charge, and execution_time_ms
-    """
-    container = get_container(container_name)
-
-    start_time = time.time()
-
-    # Build WHERE clause for metadata filtering
-    where_clause = ""
-    parameters = [
-        {"name": "@topN", "value": top_n},
-        {"name": "@queryVector", "value": query_embedding}
-    ]
-
-    if category:
-        where_clause = "WHERE c.metadata.category = @category"
-        parameters.append({"name": "@category", "value": category})
-
-    # Filtered vector search: apply filter, then rank by similarity
-    query = f"""
-        SELECT TOP @topN
-            c.id,
-            c.documentId,
-            c.content,
-            c.metadata,
-            VectorDistance(c.embedding, @queryVector) AS similarityScore
-        FROM c
-        {where_clause}
-        ORDER BY VectorDistance(c.embedding, @queryVector)
-    """
-
-    items = list(container.query_items(
-        query=query,
-        parameters=parameters,
-        enable_cross_partition_query=True
-    ))
-
-    end_time = time.time()
-    execution_time_ms = (end_time - start_time) * 1000
-
-    ru_charge = 0.0
-    try:
-        ru_charge = float(container.client_connection.last_response_headers.get(
-            'x-ms-request-charge', 0
-        ))
-    except Exception:
-        pass
-
-    results = [
-        {
-            "chunk_id": item["id"],
-            "document_id": item["documentId"],
-            "content": item["content"],
-            "metadata": item["metadata"],
-            "similarity_score": item["similarityScore"]
-        }
-        for item in items
-    ]
-
-    return {
-        "results": results,
-        "ru_charge": ru_charge,
-        "execution_time_ms": round(execution_time_ms, 2)
-    }
 # END FILTERED VECTOR SEARCH FUNCTION
 
 
