@@ -118,6 +118,8 @@ In this section, you add code to retrieve two secrets from the vault and return 
 
 The function calls **get_secret()** for each secret name, which returns both the secret value and a properties object containing metadata. It handles **ResourceNotFoundError** for missing secrets and **HttpResponseError** for authorization or network issues. The truncated value prevents full credentials from appearing in the UI while still confirming the secret was retrieved.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Locate the **# BEGIN RETRIEVE SECRETS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python
