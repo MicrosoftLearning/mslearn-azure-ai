@@ -140,7 +140,7 @@ In this section you complete the *agent_tools.py* file by adding functions that 
                         "role": row[1],
                         "content": row[2],
                         "created_at": row[3].isoformat(),
-                        "metadata": row[4]- Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **4**
+                        "metadata": row[4]
                     }
                     for row in reversed(rows)  # Return in chronological order
                 ]
