@@ -166,6 +166,7 @@ In this section you complete the *agent_tools.py* file by adding functions that 
                     """,
                     (conversation_id, task_name, status, psycopg.types.json.Json(checkpoint_data))
                 )
+                # Note: The ON CONFLICT requires a unique constraint we need to add
                 row = cur.fetchone()
                 conn.commit()
                 return {
