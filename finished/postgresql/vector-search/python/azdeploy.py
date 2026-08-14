@@ -131,7 +131,7 @@ def create_resource_group() -> bool:
     return True
 
 
-def create_postgres_server(server_name: str) -> bool:
+def create_postgres_server(server_name: str, user_object_id: str) -> bool:
     if not create_resource_group():
         return False
     print()
@@ -147,6 +147,15 @@ def create_postgres_server(server_name: str) -> bool:
         print(f"PostgreSQL server already exists: {server_name}")
         return True
 
+    user_upn = az_query(
+        ["az", "ad", "signed-in-user", "show",
+         "--query", "userPrincipalName", "-o", "tsv"]
+    )
+    if not user_upn:
+        print("Error: Unable to retrieve signed-in user information.")
+        print("Please ensure you are logged in with 'az login'.")
+        return False
+
     if not run_quiet(
         "Create PostgreSQL Flexible Server",
         [
@@ -161,10 +170,14 @@ def create_postgres_server(server_name: str) -> bool:
             "--public-access", "0.0.0.0-255.255.255.255",
             "--microsoft-entra-auth", "Enabled",
             "--password-auth", "Disabled",
+            "--admin-object-id", user_object_id,
+            "--admin-display-name", user_upn,
+            "--admin-type", "User",
         ],
     ):
         return False
     print("PostgreSQL server created successfully")
+    print(f"  Microsoft Entra administrator: {user_upn}")
 
     print("Configuring vector extension...")
     if run_quiet(
@@ -179,7 +192,6 @@ def create_postgres_server(server_name: str) -> bool:
     ):
         print("Vector extension allowed")
 
-    print("  Use option 2 to configure Microsoft Entra administrator.")
     return True
 
 
@@ -363,7 +375,7 @@ def main() -> None:
 
         if choice == "1":
             print()
-            create_postgres_server(server_name)
+            create_postgres_server(server_name, user_object_id)
             print()
             pause()
         elif choice == "2":
