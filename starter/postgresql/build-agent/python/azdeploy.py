@@ -11,7 +11,9 @@ location = "<your-azure-region>"   # Azure region for the resources
 
 import hashlib
 import os
+import secrets
 import shutil
+import string
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +23,22 @@ DB_NAME = "postgres"
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
 
 _EXE_CACHE: dict[str, str] = {}
+
+
+def _throwaway_admin_password() -> str:
+    # Password auth is disabled on the server, so this value is never used to
+    # authenticate. It exists only to satisfy the CLI's create-time validation
+    # across versions. It meets Azure's complexity rules: length 32 with at
+    # least one uppercase, lowercase, digit, and non-alphanumeric character.
+    upper = secrets.choice(string.ascii_uppercase)
+    lower = secrets.choice(string.ascii_lowercase)
+    digit = secrets.choice(string.digits)
+    symbol = secrets.choice("!@#$%^&*()-_=+")
+    pool = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    remaining = [secrets.choice(pool) for _ in range(28)]
+    chars = [upper, lower, digit, symbol, *remaining]
+    secrets.SystemRandom().shuffle(chars)
+    return "".join(chars)
 
 
 def _resolve_exe(name: str) -> str:
@@ -128,21 +146,48 @@ def create_resource_group() -> bool:
     return True
 
 
-def create_postgres_server(server_name: str) -> bool:
+def _server_state(server_name: str) -> str:
+    """Return the server's current state, or '' if it doesn't exist.
+
+    Uses `az resource show` (an ARM read) instead of `az postgres flexible-server
+    show` because ARM stays responsive even when the server is mid-operation,
+    when the data-plane command can exit non-zero and hide an existing server.
+    """
+    return az_query([
+        "az", "resource", "show",
+        "--resource-group", rg,
+        "--name", server_name,
+        "--resource-type", "Microsoft.DBforPostgreSQL/flexibleServers",
+        "--query", "properties.state", "-o", "tsv",
+    ])
+
+
+def create_postgres_server(server_name: str, user_object_id: str) -> bool:
     if not create_resource_group():
         return False
     print()
+
+    existing_state = _server_state(server_name)
+    if existing_state == "Ready":
+        print(f"PostgreSQL server already exists: {server_name}")
+        return True
+    if existing_state:
+        print(f"PostgreSQL server '{server_name}' already exists (state: {existing_state}).")
+        print("The server is currently busy processing another operation.")
+        print("Wait a few minutes, then use option 2 to check status.")
+        return True
+
     print(f"Creating Azure Database for PostgreSQL Flexible Server '{server_name}'...")
     print("This may take several minutes...")
 
-    existing = az_query(
-        ["az", "postgres", "flexible-server", "show",
-         "--resource-group", rg, "--name", server_name,
-         "--query", "name", "-o", "tsv"]
+    user_upn = az_query(
+        ["az", "ad", "signed-in-user", "show",
+         "--query", "userPrincipalName", "-o", "tsv"]
     )
-    if existing:
-        print(f"PostgreSQL server already exists: {server_name}")
-        return True
+    if not user_upn:
+        print("Error: Unable to retrieve signed-in user information.")
+        print("Please ensure you are logged in with 'az login'.")
+        return False
 
     if not run_quiet(
         "Create PostgreSQL Flexible Server",
@@ -158,54 +203,17 @@ def create_postgres_server(server_name: str) -> bool:
             "--public-access", "0.0.0.0-255.255.255.255",
             "--microsoft-entra-auth", "Enabled",
             "--password-auth", "Disabled",
+            "--admin-user", "pgadmin",
+            "--admin-password", _throwaway_admin_password(),
+            "--admin-object-id", user_object_id,
+            "--admin-display-name", user_upn,
+            "--admin-type", "User",
+            "--yes",
         ],
     ):
         return False
     print("PostgreSQL server created successfully")
-    print("  Use option 2 to configure Microsoft Entra administrator.")
-    return True
-
-
-def configure_entra_admin(server_name: str, user_object_id: str) -> bool:
-    print("Configuring Microsoft Entra administrator...")
-
-    state = az_query(
-        ["az", "postgres", "flexible-server", "show",
-         "--resource-group", rg, "--name", server_name,
-         "--query", "state", "-o", "tsv"]
-    )
-    if not state:
-        print(f"Error: PostgreSQL server '{server_name}' not found.")
-        print("Please run option 1 to create the PostgreSQL server, then try again.")
-        return False
-    if state != "Ready":
-        print(f"Error: PostgreSQL server is not ready (current state: {state}).")
-        print("Please wait for deployment to complete. Use option 3 to check status.")
-        return False
-
-    user_upn = az_query(
-        ["az", "ad", "signed-in-user", "show",
-         "--query", "userPrincipalName", "-o", "tsv"]
-    )
-    if not user_upn:
-        print("Error: Unable to retrieve signed-in user information.")
-        print("Please ensure you are logged in with 'az login'.")
-        return False
-
-    print(f"Setting '{user_upn}' as Entra administrator...")
-
-    if not run_quiet(
-        "Configure Entra administrator",
-        [
-            "az", "postgres", "flexible-server", "microsoft-entra-admin", "create",
-            "--resource-group", rg,
-            "--server-name", server_name,
-            "--display-name", user_upn,
-            "--object-id", user_object_id,
-        ],
-    ):
-        return False
-    print(f"Microsoft Entra administrator configured: {user_upn}")
+    print(f"  Microsoft Entra administrator: {user_upn}")
     return True
 
 
@@ -253,7 +261,7 @@ def retrieve_connection_info(server_name: str) -> bool:
         return False
     if state != "Ready":
         print(f"Error: PostgreSQL server is not ready (current state: {state}).")
-        print("Please wait for deployment to complete. Use option 3 to check status.")
+        print("Please wait for deployment to complete. Use option 2 to check status.")
         return False
 
     admin_name = az_query(
@@ -263,7 +271,7 @@ def retrieve_connection_info(server_name: str) -> bool:
     )
     if not admin_name:
         print(f"Error: Microsoft Entra administrator not configured on '{server_name}'.")
-        print("Please run option 2 to configure the Entra administrator, then try again.")
+        print("Please run option 1 to create the PostgreSQL server, then try again.")
         return False
 
     user_upn = az_query(
@@ -315,10 +323,9 @@ def show_menu(server_name: str) -> None:
     print(f"Location: {location}")
     print("=====================================================================")
     print("1. Create PostgreSQL server with Entra authentication")
-    print("2. Configure Microsoft Entra administrator")
-    print("3. Check deployment status")
-    print("4. Retrieve connection info and access token")
-    print("5. Exit")
+    print("2. Check deployment status")
+    print("3. Retrieve connection info and access token")
+    print("4. Exit")
     print("=====================================================================")
 
 
@@ -340,37 +347,32 @@ def main() -> None:
 
     while True:
         show_menu(server_name)
-        choice = input("Please select an option (1-5): ").strip()
-        if choice in {"1", "2", "3", "4", "5"}:
+        choice = input("Please select an option (1-4): ").strip()
+        if choice in {"1", "2", "3", "4"}:
             clear_screen()
 
         if choice == "1":
             print()
-            create_postgres_server(server_name)
+            create_postgres_server(server_name, user_object_id)
             print()
             pause()
         elif choice == "2":
             print()
-            configure_entra_admin(server_name, user_object_id)
+            check_deployment_status(server_name)
             print()
             pause()
         elif choice == "3":
             print()
-            check_deployment_status(server_name)
-            print()
-            pause()
-        elif choice == "4":
-            print()
             retrieve_connection_info(server_name)
             print()
             pause()
-        elif choice == "5":
+        elif choice == "4":
             print("Exiting...")
             clear_screen()
             sys.exit(0)
         else:
             print()
-            print("Invalid option. Please select 1-5.")
+            print("Invalid option. Please select 1-4.")
             print()
             pause()
 

@@ -11,9 +11,12 @@ location = "<your-azure-region>"   # Azure region for the resources
 
 import hashlib
 import os
+import secrets
 import shutil
+import string
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 DB_NAME = "postgres"
@@ -21,6 +24,22 @@ DB_NAME = "postgres"
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
 
 _EXE_CACHE: dict[str, str] = {}
+
+
+def _throwaway_admin_password() -> str:
+    # Password auth is disabled on the server, so this value is never used to
+    # authenticate. It exists only to satisfy the CLI's create-time validation
+    # across versions. It meets Azure's complexity rules: length 32 with at
+    # least one uppercase, lowercase, digit, and non-alphanumeric character.
+    upper = secrets.choice(string.ascii_uppercase)
+    lower = secrets.choice(string.ascii_lowercase)
+    digit = secrets.choice(string.digits)
+    symbol = secrets.choice("!@#$%^&*()-_=+")
+    pool = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    remaining = [secrets.choice(pool) for _ in range(28)]
+    chars = [upper, lower, digit, symbol, *remaining]
+    secrets.SystemRandom().shuffle(chars)
+    return "".join(chars)
 
 
 def _resolve_exe(name: str) -> str:
@@ -128,21 +147,65 @@ def create_resource_group() -> bool:
     return True
 
 
-def create_postgres_server(server_name: str) -> bool:
+def _server_state(server_name: str) -> str:
+    """Return the server's current state, or '' if it doesn't exist.
+
+    Uses `az resource show` (an ARM read) instead of `az postgres flexible-server
+    show` because ARM stays responsive even when the server is mid-operation,
+    when the data-plane command can exit non-zero and hide an existing server.
+    """
+    return az_query([
+        "az", "resource", "show",
+        "--resource-group", rg,
+        "--name", server_name,
+        "--resource-type", "Microsoft.DBforPostgreSQL/flexibleServers",
+        "--query", "properties.state", "-o", "tsv",
+    ])
+
+
+def _server_exists(server_name: str) -> bool:
+    """Return True if the server exists as an ARM resource.
+
+    Uses the resource id, which ARM populates as soon as the PUT is accepted,
+    even before `properties.state` becomes meaningful. This catches an
+    in-flight create started by a previous run that our state probe would miss.
+    """
+    return bool(az_query([
+        "az", "resource", "show",
+        "--resource-group", rg,
+        "--name", server_name,
+        "--resource-type", "Microsoft.DBforPostgreSQL/flexibleServers",
+        "--query", "id", "-o", "tsv",
+    ]))
+
+
+def create_postgres_server(server_name: str, user_object_id: str) -> bool:
     if not create_resource_group():
         return False
     print()
+
+    if _server_exists(server_name):
+        state = _server_state(server_name) or "Provisioning"
+        if state == "Ready":
+            print(f"PostgreSQL server already exists: {server_name}")
+            return True
+        print(f"PostgreSQL server '{server_name}' already exists (state: {state}).")
+        print("Azure is still processing an operation on this server, most likely")
+        print("a create that was started by an earlier attempt.")
+        print("Wait a few minutes, then use option 3 to check status.")
+        return True
+
     print(f"Creating Azure Database for PostgreSQL Flexible Server '{server_name}'...")
     print("This may take several minutes...")
 
-    existing = az_query(
-        ["az", "postgres", "flexible-server", "show",
-         "--resource-group", rg, "--name", server_name,
-         "--query", "name", "-o", "tsv"]
+    user_upn = az_query(
+        ["az", "ad", "signed-in-user", "show",
+         "--query", "userPrincipalName", "-o", "tsv"]
     )
-    if existing:
-        print(f"PostgreSQL server already exists: {server_name}")
-        return True
+    if not user_upn:
+        print("Error: Unable to retrieve signed-in user information.")
+        print("Please ensure you are logged in with 'az login'.")
+        return False
 
     if not run_quiet(
         "Create PostgreSQL Flexible Server",
@@ -158,13 +221,66 @@ def create_postgres_server(server_name: str) -> bool:
             "--public-access", "0.0.0.0-255.255.255.255",
             "--microsoft-entra-auth", "Enabled",
             "--password-auth", "Disabled",
+            "--admin-user", "pgadmin",
+            "--admin-password", _throwaway_admin_password(),
+            "--admin-object-id", user_object_id,
+            "--admin-display-name", user_upn,
+            "--admin-type", "User",
+            "--yes",
         ],
     ):
         return False
     print("PostgreSQL server created successfully")
+    print(f"  Microsoft Entra administrator: {user_upn}")
+    return True
 
-    print("Configuring vector extension...")
-    if run_quiet(
+
+def _wait_for_ready(server_name: str, timeout_seconds: int = 600, poll_seconds: int = 15) -> bool:
+    """Poll the server state until it returns to 'Ready' or the timeout elapses."""
+    deadline = time.monotonic() + timeout_seconds
+    last_state = ""
+    while time.monotonic() < deadline:
+        state = _server_state(server_name)
+        if state == "Ready":
+            return True
+        if state and state != last_state:
+            print(f"  Server state: {state} (waiting...)")
+            last_state = state
+        time.sleep(poll_seconds)
+    print(f"Error: Timed out waiting for server '{server_name}' to return to Ready.")
+    print("Use option 3 to check the current status, then try option 2 again.")
+    return False
+
+
+def configure_vector_parameter(server_name: str) -> bool:
+    print("Configuring the vector extension allow-list...")
+
+    state = _server_state(server_name)
+    if not state:
+        print(f"Error: PostgreSQL server '{server_name}' not found.")
+        print("Please run option 1 to create the PostgreSQL server, then try again.")
+        return False
+
+    if state != "Ready":
+        print(f"Server is not Ready (current state: {state}). Waiting for it to become Ready...")
+        if not _wait_for_ready(server_name):
+            return False
+
+    current = az_query([
+        "az", "postgres", "flexible-server", "parameter", "show",
+        "--resource-group", rg,
+        "--server-name", server_name,
+        "--name", "azure.extensions",
+        "--query", "value", "-o", "tsv",
+    ])
+    allowed = {item.strip().lower() for item in current.split(",") if item.strip()}
+    if "vector" in allowed:
+        print("Vector extension is already allow-listed. No changes needed.")
+        return True
+
+    print("Adding the vector extension to the server's allow-list.")
+    print("The server will restart to apply the change. This can take 1-2 minutes...")
+    if not run_quiet(
         "Allow-list vector extension",
         [
             "az", "postgres", "flexible-server", "parameter", "set",
@@ -174,52 +290,11 @@ def create_postgres_server(server_name: str) -> bool:
             "--value", "vector",
         ],
     ):
-        print("Vector extension allowed")
-
-    print("  Use option 2 to configure Microsoft Entra administrator.")
-    return True
-
-
-def configure_entra_admin(server_name: str, user_object_id: str) -> bool:
-    print("Configuring Microsoft Entra administrator...")
-
-    state = az_query(
-        ["az", "postgres", "flexible-server", "show",
-         "--resource-group", rg, "--name", server_name,
-         "--query", "state", "-o", "tsv"]
-    )
-    if not state:
-        print(f"Error: PostgreSQL server '{server_name}' not found.")
-        print("Please run option 1 to create the PostgreSQL server, then try again.")
-        return False
-    if state != "Ready":
-        print(f"Error: PostgreSQL server is not ready (current state: {state}).")
-        print("Please wait for deployment to complete. Use option 3 to check status.")
         return False
 
-    user_upn = az_query(
-        ["az", "ad", "signed-in-user", "show",
-         "--query", "userPrincipalName", "-o", "tsv"]
-    )
-    if not user_upn:
-        print("Error: Unable to retrieve signed-in user information.")
-        print("Please ensure you are logged in with 'az login'.")
+    if not _wait_for_ready(server_name):
         return False
-
-    print(f"Setting '{user_upn}' as Entra administrator...")
-
-    if not run_quiet(
-        "Configure Entra administrator",
-        [
-            "az", "postgres", "flexible-server", "microsoft-entra-admin", "create",
-            "--resource-group", rg,
-            "--server-name", server_name,
-            "--display-name", user_upn,
-            "--object-id", user_object_id,
-        ],
-    ):
-        return False
-    print(f"Microsoft Entra administrator configured: {user_upn}")
+    print("Vector extension allow-listed and server is ready.")
     return True
 
 
@@ -250,6 +325,19 @@ def check_deployment_status(server_name: str) -> bool:
         print(f"  Entra administrator: {admin_name}")
     else:
         print("  WARNING: Entra administrator not configured")
+
+    allowed_value = az_query([
+        "az", "postgres", "flexible-server", "parameter", "show",
+        "--resource-group", rg,
+        "--server-name", server_name,
+        "--name", "azure.extensions",
+        "--query", "value", "-o", "tsv",
+    ])
+    allowed = {item.strip().lower() for item in allowed_value.split(",") if item.strip()}
+    if "vector" in allowed:
+        print("  Vector extension: allow-listed")
+    else:
+        print("  Vector extension: not allow-listed (run option 2 to configure)")
     return True
 
 
@@ -277,7 +365,7 @@ def retrieve_connection_info(server_name: str) -> bool:
     )
     if not admin_name:
         print(f"Error: Microsoft Entra administrator not configured on '{server_name}'.")
-        print("Please run option 2 to configure the Entra administrator, then try again.")
+        print("Please run option 1 to create the PostgreSQL server, then try again.")
         return False
 
     user_upn = az_query(
@@ -329,7 +417,7 @@ def show_menu(server_name: str) -> None:
     print(f"Location: {location}")
     print("=====================================================================")
     print("1. Create PostgreSQL server with Entra authentication")
-    print("2. Configure Microsoft Entra administrator")
+    print("2. Configure vector extension allow-list")
     print("3. Check deployment status")
     print("4. Retrieve connection info and access token")
     print("5. Exit")
@@ -337,7 +425,6 @@ def show_menu(server_name: str) -> None:
 
 
 def _preflight() -> None:
-    # Anchor cwd to the script folder so .env writes land next to azdeploy.py.
     script_dir = Path(__file__).resolve().parent
     os.chdir(script_dir)
 
@@ -355,12 +442,12 @@ def main() -> None:
 
         if choice == "1":
             print()
-            create_postgres_server(server_name)
+            create_postgres_server(server_name, user_object_id)
             print()
             pause()
         elif choice == "2":
             print()
-            configure_entra_admin(server_name, user_object_id)
+            configure_vector_parameter(server_name)
             print()
             pause()
         elif choice == "3":
