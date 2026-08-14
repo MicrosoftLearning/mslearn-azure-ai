@@ -242,56 +242,184 @@ In this section you review the *setup_containers.py* script that creates contain
 1. Search for the **BEGIN CREATE FLAT CONTAINER FUNCTION** comment and review the code. Notice how the flat index is configured:
 
     ```python
-    # Flat index: exact search, compares query against all vectors
-    # Higher RU cost for large datasets but guaranteed best results
-    indexing_policy = {
-        "indexingMode": "consistent",
-        "automatic": True,
-        "includedPaths": [
-            {"path": "/*"}
-        ],
-        "excludedPaths": [
-            {"path": "/embedding/*"}
-        ],
-        "vectorIndexes": [
-            {
-                "path": "/embedding",
-                "type": "flat"
-            }
-        ]
-    }
+    def create_flat_container():
+        """
+        Create a container with a flat vector index.
+        """
+        database = get_database()
+        container_name = "vectors-flat"
+
+        # Vector embedding policy defines how Cosmos DB handles vector data
+        vector_embedding_policy = {
+            "vectorEmbeddings": [
+                {
+                    "path": "/embedding",
+                    "dataType": "float32",
+                    "distanceFunction": "cosine",
+                    "dimensions": 256
+                }
+            ]
+        }
+
+        # Flat index: exact search, compares query against all vectors
+        # Higher RU cost for large datasets but guaranteed best results
+        indexing_policy = {
+            "indexingMode": "consistent",
+            "automatic": True,
+            "includedPaths": [
+                {"path": "/*"}
+            ],
+            "excludedPaths": [
+                {"path": "/embedding/*"}
+            ],
+            "vectorIndexes": [
+                {
+                    "path": "/embedding",
+                    "type": "flat"
+                }
+            ]
+        }
+
+        print(f"Creating container '{container_name}' with flat vector index...")
+
+        container = database.create_container_if_not_exists(
+            id=container_name,
+            partition_key=PartitionKey(path="/documentId"),
+            indexing_policy=indexing_policy,
+            vector_embedding_policy=vector_embedding_policy
+        )
+
+        print(f"✓ Container '{container_name}' created with flat index")
+        print("  - Index type: flat (exact nearest neighbor)")
+        print("  - Best for: small datasets, exact results required")
+
+        return container
     ```
 
 1. Search for the **BEGIN CREATE QUANTIZED CONTAINER FUNCTION** comment and review the quantizedFlat configuration:
 
     ```python
-    # QuantizedFlat index: compressed vectors for memory efficiency
-    # Lower memory footprint with slight accuracy trade-off
-    indexing_policy = {
-        ...
-        "vectorIndexes": [
-            {
-                "path": "/embedding",
-                "type": "quantizedFlat"
-            }
-        ]
-    }
+    def create_quantized_container():
+        """
+        Create a container with a quantized flat vector index.
+
+        The quantizedFlat index compresses vectors using scalar quantization,
+        reducing memory usage while maintaining good search quality. It still
+        performs exact search but on compressed representations. Suitable for:
+        - Medium datasets (10,000 - 100,000 vectors)
+        - Memory-constrained environments
+        - Balance between performance and accuracy
+        """
+        database = get_database()
+        container_name = "vectors-quantized"
+
+        vector_embedding_policy = {
+            "vectorEmbeddings": [
+                {
+                    "path": "/embedding",
+                    "dataType": "float32",
+                    "distanceFunction": "cosine",
+                    "dimensions": 256
+                }
+            ]
+        }
+
+        # QuantizedFlat index: compressed vectors for memory efficiency
+        # Lower memory footprint with slight accuracy trade-off
+        indexing_policy = {
+            "indexingMode": "consistent",
+            "automatic": True,
+            "includedPaths": [
+                {"path": "/*"}
+            ],
+            "excludedPaths": [
+                {"path": "/embedding/*"}
+            ],
+            "vectorIndexes": [
+                {
+                    "path": "/embedding",
+                    "type": "quantizedFlat"
+                }
+            ]
+        }
+
+        print(f"Creating container '{container_name}' with quantizedFlat vector index...")
+
+        container = database.create_container_if_not_exists(
+            id=container_name,
+            partition_key=PartitionKey(path="/documentId"),
+            indexing_policy=indexing_policy,
+            vector_embedding_policy=vector_embedding_policy
+        )
+
+        print(f"✓ Container '{container_name}' created with quantizedFlat index")
+        print("  - Index type: quantizedFlat (compressed exact search)")
+        print("  - Best for: medium datasets, memory efficiency")
+
+        return container
     ```
 
 1. Search for the **BEGIN CREATE DISKANN CONTAINER FUNCTION** comment and review the diskANN configuration:
 
     ```python
-    # DiskANN index: approximate nearest neighbor with graph-based search
-    # Best performance for large datasets, slight accuracy trade-off
-    indexing_policy = {
-        ...
-        "vectorIndexes": [
-            {
-                "path": "/embedding",
-                "type": "diskANN"
-            }
-        ]
-    }
+    def create_diskann_container():
+        """
+        Create a container with a DiskANN vector index.
+
+        DiskANN (Disk-based Approximate Nearest Neighbor) uses a graph-based
+        algorithm for efficient similarity search. It provides excellent
+        performance with high recall rates (typically 95%+). Recommended for:
+        - Large datasets (> 100,000 vectors)
+        - Production workloads
+        - Low-latency requirements
+        """
+        database = get_database()
+        container_name = "vectors-diskann"
+
+        vector_embedding_policy = {
+            "vectorEmbeddings": [
+                {
+                    "path": "/embedding",
+                    "dataType": "float32",
+                    "distanceFunction": "cosine",
+                    "dimensions": 256
+                }
+            ]
+        }
+
+        # DiskANN index: approximate nearest neighbor with graph-based search
+        # Best performance for large datasets, slight accuracy trade-off
+        indexing_policy = {
+            "indexingMode": "consistent",
+            "automatic": True,
+            "includedPaths": [
+                {"path": "/*"}
+            ],
+            "excludedPaths": [
+                {"path": "/embedding/*"}
+            ],
+            "vectorIndexes": [
+                {
+                    "path": "/embedding",
+                    "type": "diskANN"
+                }
+            ]
+        }
+
+        print(f"Creating container '{container_name}' with diskANN vector index...")
+
+        container = database.create_container_if_not_exists(
+            id=container_name,
+            partition_key=PartitionKey(path="/documentId"),
+            indexing_policy=indexing_policy,
+            vector_embedding_policy=vector_embedding_policy
+        )
+
+        print(f"✓ Container '{container_name}' created with diskANN index")
+        print("  - Index type: diskANN (approximate nearest neighbor)")
+        print("  - Best for: large datasets, production workloads")
+
+        return container
     ```
 
 1. Take a moment to understand the key differences between index types:
