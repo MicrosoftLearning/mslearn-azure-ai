@@ -91,6 +91,8 @@ In this section you complete the *app.py* file by adding route handlers that int
 
 1. Open the *client/app.py* file in VS Code.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Search for the **BEGIN LOAD DATA SECTION** comment and add the following code directly after the comment. This route loads products from a JSON file and inserts them into the database with their embeddings.
 
     ```python

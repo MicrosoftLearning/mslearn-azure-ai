@@ -113,6 +113,8 @@ In this section you complete both the *deployment.yaml* and *service.yaml* files
 
 1. Open the *k8s/deployment.yaml* file to begin completing the file.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Locate the **# BEGIN: Container specification** comment and add the following YAML section to the manifest under the comment. Ensure YAML indentation is correct.
 
     ```yml

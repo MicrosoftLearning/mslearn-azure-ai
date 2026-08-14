@@ -127,6 +127,8 @@ In this section, you add code to publish five content moderation events to the E
 
 The function loads event definitions from the *moderation_events.json* file, which contains the CloudEvent envelope fields (**type**, **source**, **subject**) and **data** payload for each event. At publish time, the function adds a unique **id** and a current UTC **timestamp** to each event, then creates **CloudEvent** objects and publishes them with the **send()** method in a single request. The **EventGridPublisherClient** is constructed with a **namespace_topic** parameter that targets the namespace topic endpoint, and uses **DefaultAzureCredential** for Microsoft Entra authentication.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Locate the **# BEGIN PUBLISH EVENTS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python

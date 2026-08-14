@@ -91,6 +91,8 @@ In this section you complete the *agent_tools.py* file by adding functions that 
 
 1. Open the *agent-backend/agent_tools.py* file in VS Code.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Search for the **BEGIN CREATE CONVERSATION FUNCTION** comment and add the following code directly after the comment. This function creates a new conversation record with a unique session ID and stores optional metadata as JSONB.
 
     ```python

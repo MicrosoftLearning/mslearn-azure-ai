@@ -100,6 +100,8 @@ In this section you add code to the *main.py* script to complete the console app
 
 In this section, you add code to establish a connection to Azure Managed Redis using the redis-py library. The code reads the Redis endpoint from an environment variable and uses **DefaultAzureCredential** through the **redis-entraid** credential provider so the client authenticates with Microsoft Entra ID and refreshes its token automatically.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python

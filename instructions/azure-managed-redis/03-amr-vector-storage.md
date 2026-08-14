@@ -105,6 +105,8 @@ In this section you add code to create a Redis client that authenticates with Mi
 
 The **get_client()** function reads the Redis endpoint from the **REDIS_HOST** environment variable and calls **create_from_default_azure_credential()** to build a credential provider. The provider uses **DefaultAzureCredential** to acquire a Microsoft Entra token and refreshes it automatically in the background.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python

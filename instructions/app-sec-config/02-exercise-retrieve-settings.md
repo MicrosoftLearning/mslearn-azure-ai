@@ -121,6 +121,8 @@ In this section, you add code to load all configuration settings from the App Co
 
 The function calls **load()** with two **SettingSelector** entries: the first selects all unlabeled settings (using the null label filter **\0**), and the second selects all Production-labeled settings. Because the Production selector appears second, its values override the defaults for any matching keys. The **AzureAppConfigurationKeyVaultOptions** parameter tells the provider to resolve Key Vault references automatically using the same credential, so the application receives the actual secret value rather than a reference URI.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Locate the **# BEGIN LOAD SETTINGS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python

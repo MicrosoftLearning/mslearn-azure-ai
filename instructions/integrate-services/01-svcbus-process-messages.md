@@ -118,6 +118,8 @@ In this section, you add code to send three messages to the queue. Two messages 
 
 The function opens a **ServiceBusClient** using **DefaultAzureCredential** and creates a queue sender with **get_queue_sender()**. It constructs three **ServiceBusMessage** objects, each with a **message_id** for deduplication, a **correlation_id** for tracking, and **application_properties** for custom metadata. Two messages contain valid JSON payloads and one contains intentionally malformed JSON. The **send_messages()** method sends each message individually to the queue.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Locate the **# BEGIN SEND MESSAGES FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
     ```python

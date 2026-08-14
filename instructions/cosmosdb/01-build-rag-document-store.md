@@ -89,6 +89,8 @@ In this section you complete the *rag_functions.py* file by adding functions tha
 
 1. Open the *client/rag_functions.py* file in VS Code.
 
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+
 1. Search for the **BEGIN STORE DOCUMENT CHUNK FUNCTION** comment and add the following code directly after the comment. This function stores a document chunk with its metadata, using upsert to handle both inserts and updates.
 
     ```python
