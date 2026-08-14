@@ -352,12 +352,6 @@ In this section you install the Python dependencies and run the Flask web applic
     python app.py
     ```
 
-    You should see output indicating the Flask server is running:
-    ```
-    * Running on all addresses (0.0.0.0)
-    * Running on http://127.0.0.1:5000
-    ```
-
 1. Open a web browser and navigate to `http://127.0.0.1:5000`. You should see the Vector Search Demo page with an empty product list.
 
 ## Load products and perform similarity searches
