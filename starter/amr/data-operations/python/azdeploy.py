@@ -251,7 +251,9 @@ def check_deployment_status(cache_name: str) -> bool:
     return True
 
 
-def create_database_and_get_key(cache_name: str) -> bool:
+def create_database_and_configure_access(
+    cache_name: str, user_object_id: str
+) -> bool:
     cluster_state = az_query(
         [
             "az", "redisenterprise", "show",
@@ -276,19 +278,9 @@ def create_database_and_get_key(cache_name: str) -> bool:
         ]
     )
     if db_state:
-        print(f"Database already exists (State: {db_state}). Enabling access key auth...")
-        if not run_quiet(
-            "Enable database access key authentication",
-            [
-                "az", "redisenterprise", "database", "update",
-                "--resource-group", rg,
-                "--cluster-name", cache_name,
-                "--access-keys-auth", "Enabled",
-            ],
-        ):
-            return False
+        print(f"Database already exists (State: {db_state}).")
     else:
-        print("Creating database with access key authentication enabled...")
+        print("Creating database...")
         if not run_quiet(
             "Create database",
             [
@@ -299,12 +291,41 @@ def create_database_and_get_key(cache_name: str) -> bool:
                 "--clustering-policy", "NoCluster",
                 "--eviction-policy", "AllKeysLRU",
                 "--port", "10000",
-                "--access-keys-auth", "Enabled",
             ],
         ):
             return False
 
-    print("Retrieving endpoint and access key...")
+    assignment_name = "useraccess"
+    assignment_state = az_query(
+        [
+            "az", "redisenterprise", "database", "access-policy-assignment", "show",
+            "--resource-group", rg,
+            "--cluster-name", cache_name,
+            "--database-name", "default",
+            "--access-policy-assignment-name", assignment_name,
+            "--query", "provisioningState",
+            "-o", "tsv",
+        ]
+    )
+    if assignment_state:
+        print("Microsoft Entra access is already assigned for the current user.")
+    else:
+        print("Assigning Microsoft Entra access for the current user...")
+        if not run_quiet(
+            "Assign access policy",
+            [
+                "az", "redisenterprise", "database", "access-policy-assignment", "create",
+                "--resource-group", rg,
+                "--cluster-name", cache_name,
+                "--database-name", "default",
+                "--access-policy-assignment-name", assignment_name,
+                "--access-policy-name", "default",
+                "--object-id", user_object_id,
+            ],
+        ):
+            return False
+
+    print("Retrieving endpoint...")
     hostname = az_query(
         [
             "az", "redisenterprise", "show",
@@ -314,30 +335,21 @@ def create_database_and_get_key(cache_name: str) -> bool:
             "-o", "tsv",
         ]
     )
-    primary_key = az_query(
-        [
-            "az", "redisenterprise", "database", "list-keys",
-            "--cluster-name", cache_name,
-            "--resource-group", rg,
-            "--query", "primaryKey",
-            "-o", "tsv",
-        ]
-    )
-    if not hostname or not primary_key:
+    if not hostname:
         print()
-        print("Error: Unable to retrieve endpoint or access key.")
+        print("Error: Unable to retrieve the endpoint.")
         print("Please check the deployment status to ensure the resource is fully provisioned.")
         return False
 
-    write_env_files({"REDIS_HOST": hostname, "REDIS_KEY": primary_key})
+    write_env_files({"REDIS_HOST": hostname})
     clear_screen()
     print()
     print("Redis Connection Information")
     print("===========================================================")
     print(f"Endpoint: {hostname}")
-    print(f"Primary Key: {primary_key}")
+    print("Authentication: Microsoft Entra ID (current user)")
     print()
-    print("Values have been saved to .env and .env.ps1 files")
+    print("The endpoint has been saved to the .env and .env.ps1 files")
     return True
 
 
@@ -352,7 +364,7 @@ def show_menu(cache_name: str) -> None:
     print("=====================================================================")
     print("1. Create Azure Managed Redis resource")
     print("2. Check deployment status")
-    print("3. Create database and retrieve endpoint and access key")
+    print("3. Create database and configure access")
     print("4. Exit")
     print("=====================================================================")
 
@@ -370,7 +382,8 @@ def _preflight() -> None:
 
 def main() -> None:
     _preflight()
-    cache_name = derived_cache_name(require_az_login())
+    user_object_id = require_az_login()
+    cache_name = derived_cache_name(user_object_id)
 
     while True:
         show_menu(cache_name)
@@ -390,7 +403,7 @@ def main() -> None:
             pause()
         elif choice == "3":
             print()
-            create_database_and_get_key(cache_name)
+            create_database_and_configure_access(cache_name, user_object_id)
             print()
             pause()
         elif choice == "4":
