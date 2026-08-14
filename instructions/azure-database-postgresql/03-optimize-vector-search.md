@@ -125,11 +125,13 @@ For this exercise, you test both index types and measure the trade-offs firsthan
 
 In this section you return to the deployment script to retrieve the connection information for the PostgreSQL server.
 
-1. When the **Create PostgreSQL server with Entra authentication** operation has completed, enter **2** to launch the **Check deployment status** option. This verifies the server is ready.
+1. When the **Create PostgreSQL server with Entra authentication** operation has completed, enter **2** to launch the **Configure vector extension allow-list** option. This adds the **vector** extension to the server's **azure.extensions** allow-list so you can enable pgvector in the next section. The server restarts to apply the change. **Note:** The restart can take 1-2 minutes to complete.
 
-1. Enter **3** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
+1. Enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
 
-1. Enter **4** to exit the deployment script.
+1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
+
+1. Enter **5** to exit the deployment script.
 
 1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -145,7 +147,7 @@ In this section you return to the deployment script to retrieve the connection i
 
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to load the environment variables again.
 
-    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **3** to generate a new token, then export the variables again.
+    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
 
 ## Create the database schema and test data
 
@@ -422,13 +424,13 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 If you encounter issues during this exercise, try these steps:
 
 **psql connection fails**
-- Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **3**
+- Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **4**
 - Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables
-- The access token expires after approximately one hour; run the deployment script option **3** again to generate a new token
-- Verify the server is ready by running the deployment script option **2**
+- The access token expires after approximately one hour; run the deployment script option **4** again to generate a new token
+- Verify the server is ready by running the deployment script option **3**
 
 **Access denied or authentication errors**
-- The Microsoft Entra administrator is configured automatically when option **1** creates the server. If access is still denied, verify the administrator by running option **2**, and if it is missing, delete the resource group and rerun option **1** to redeploy.
+- The Microsoft Entra administrator is configured automatically when option **1** creates the server. If access is still denied, verify the administrator by running option **3**, and if it is missing, delete the resource group and rerun option **1** to redeploy.
 - Verify **PGPASSWORD** is set correctly in your terminal session
 - Ensure you're using the correct **DB_USER** value (your Azure account email)
 
