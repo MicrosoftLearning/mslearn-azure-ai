@@ -48,7 +48,7 @@ In this section you download the starter files for the app and use a script to i
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -75,22 +75,10 @@ In this section you download the starter files for the app and use a script to i
     az extension add --upgrade --name redisenterprise
     ```
 
-1. Run the appropriate command in the terminal to launch the script.
+1. Run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script is running, enter **1** to launch the **1. Create Azure Managed Redis resource** option.
@@ -100,8 +88,6 @@ In this section you download the starter files for the app and use a script to i
     When the deployment succeeds, a confirmation message like the following appears and the menu returns:
 
     *Azure Managed Redis resource created successfully: amr-exercise-\<hash>*
-
-    > **Note:** If the deployment fails, it's most often due to a temporary lack of capacity for the SKU in your chosen region. Follow the on-screen guidance to exit the script, change the **location** variable near the top of the script to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose option 1. The failed resource is deleted automatically before the next attempt.
 
 ## Complete the app
 
@@ -116,6 +102,8 @@ In this section you add code to the *pubsub_functions.py* file to complete the p
 In this section you add code to create a Redis client that authenticates with Microsoft Entra ID. Using Entra ID means the app never handles an access key.
 
 The **get_client()** function reads the Redis endpoint from the **REDIS_HOST** environment variable and calls **create_from_default_azure_credential()** to build a credential provider. The provider uses **DefaultAzureCredential** to acquire a Microsoft Entra token and refreshes it automatically in the background, so the long-lived listener connection stays authenticated. The client connects over TLS on port 10000 and decodes responses to strings.
+
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
@@ -324,23 +312,13 @@ The **subscribe_to_channel()** method calls **subscribe()** to register interest
 
 ## Verify resource deployment
 
-In this section you return to the running deployment script to confirm the Azure Managed Redis deployment finished, then create the database, configure Microsoft Entra ID access, and generate the *.env* file with the endpoint.
+In this section you return to the running deployment script to confirm the Azure Managed Redis deployment finished, then create the database, configure Microsoft Entra ID access, and generate the environment variable files with the endpoint.
 
-1. Return to the terminal where the deployment script is running. After a successful deployment, you see the confirmation message and the menu. If you exited the script, run the appropriate command to start it again.
+1. Return to the terminal where the deployment script is running. After the script reports that the Azure Managed Redis resource was created successfully, select **Enter** to return to the deployment menu.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
-    ```
+1. Enter **2** to run the **2. Create database and configure access** option. This creates the database with Microsoft Entra ID authentication, assigns a data access policy to your account so the app can connect using your identity, and creates the *.env* and *.env.ps1* files with the **REDIS_HOST** endpoint.
 
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-1. Enter **2** to run the **2. Create database and configure access** option. This creates the database with Microsoft Entra ID authentication, assigns a data access policy to your account so the app can connect using your identity, and creates the *.env* file with the **REDIS_HOST** endpoint.
-
-1. (Optional) Enter **3** to run the **3. Check deployment status** option as a last-minute check.
+1. Enter **3** to run the **3. Check deployment status** option as a last-minute check.
 
 1. Enter **4** to exit the deployment script.
 
@@ -438,7 +416,10 @@ If you encounter issues while completing this exercise, try the following troubl
 - Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
 - Confirm that the Azure Managed Redis resource shows a **Provisioning State** of **Succeeded**.
 - Run the deployment script's **Check deployment status** option and confirm the cluster and database are ready before creating the database and configuring access.
-
+**Resolve deployment failures**
+- If the deployment fails, it's most often due to a temporary lack of capacity for the SKU in your chosen region.
+- Follow the on-screen guidance to exit the script, change the **location** variable near the top of the script to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose option 1.
+- The failed resource is deleted automatically before the next attempt.
 **Check authentication and access**
 - Confirm you are logged in to Azure CLI by running **az account show**.
 - Ensure the deployment script's **Create database and configure access** option completed successfully so your account has a data access policy on the database.
@@ -450,9 +431,8 @@ If you encounter issues while completing this exercise, try the following troubl
 - Confirm that no code was accidentally removed or modified outside the designated sections.
 
 **Verify environment variables**
-- Check that the *.env* file exists in the project root and contains the **REDIS_HOST** value.
-- Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables into your terminal session.
-- If variables are empty, re-run **source .env** (Bash) or **. .\.env.ps1** (PowerShell).
+- Check that both the *.env* and *.env.ps1* files exist in the project root and contain the **REDIS_HOST** value.
+- Run **source .env** in Bash or **. .\.env.ps1** in PowerShell to load the environment variables into your terminal session.
 
 **No messages appearing?**
 - Confirm you subscribed to the channel you're publishing to. Messages only arrive on channels or patterns you're subscribed to.

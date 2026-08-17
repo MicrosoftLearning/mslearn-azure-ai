@@ -1,0 +1,155 @@
+{
+  "$schema_note": "Source of truth mapping finished/starter/instructions paths for every exercise. Update this file when a new exercise is added, an existing one is renamed, or a folder alias changes. The exercise-inventory skill reads this file to emit the current inventory.",
+  "topics": {
+    "aks": {
+      "instructions_dir": "azure-kubernetes-service",
+      "starter_topic": "aks",
+      "exercises": {
+        "deploy-aks": {
+          "starter_slug": "deploy-aks",
+          "instructions_file": "01-aks-deploy-container.md"
+        },
+        "configure-aks": {
+          "starter_slug": "configure-aks",
+          "instructions_file": "02-aks-configure-container.md"
+        },
+        "troubleshoot-aks": {
+          "starter_slug": "troubleshoot-aks",
+          "instructions_file": "03-aks-troubleshoot-container.md"
+        }
+      }
+    },
+    "amr": {
+      "instructions_dir": "azure-managed-redis",
+      "starter_topic": "amr",
+      "exercises": {
+        "data-operations": {
+          "starter_slug": "data-operations",
+          "instructions_file": "01-amr-data-operations.md"
+        },
+        "pub-sub": {
+          "starter_slug": "pub-sub",
+          "instructions_file": "02-amr-pub-sub.md"
+        },
+        "vector-query": {
+          "starter_slug": "vector-query",
+          "instructions_file": "03-amr-vector-storage.md"
+        }
+      }
+    },
+    "app-sec-config": {
+      "instructions_dir": "app-sec-config",
+      "starter_topic": "app-sec-config",
+      "exercises": {
+        "key-vault": {
+          "starter_slug": "key-vault",
+          "instructions_file": "01-aks-retrieve-secrets.md"
+        },
+        "app-config": {
+          "starter_slug": "app-config",
+          "instructions_file": "02-exercise-retrieve-settings.md"
+        }
+      }
+    },
+    "azure-container-apps": {
+      "instructions_dir": "azure-container-apps",
+      "starter_topic": "aca",
+      "exercises": {
+        "deploy-container-aca": {
+          "starter_slug": "aca-deploy",
+          "instructions_file": "01-aca-deploy-containers.md"
+        },
+        "manage-container-aca": {
+          "starter_slug": "aca-manage",
+          "instructions_file": "02-aca-manage-containers.md"
+        },
+        "scale-container-aca": {
+          "starter_slug": "aca-scale",
+          "instructions_file": "03-aca-scale-containers.md"
+        }
+      }
+    },
+    "container-hosting": {
+      "instructions_dir": "container-hosting",
+      "starter_topic": "container-hosting",
+      "exercises": {
+        "acr": {
+          "starter_slug": "acr",
+          "instructions_file": "01-acr-tasks.md"
+        },
+        "app-service": {
+          "starter_slug": "app-service",
+          "instructions_file": "02-app-svc-container.md"
+        }
+      }
+    },
+    "cosmosdb": {
+      "instructions_dir": "cosmosdb",
+      "starter_topic": "cosmosdb",
+      "exercises": {
+        "build-query": {
+          "starter_slug": "build-query",
+          "instructions_file": "01-build-rag-document-store.md"
+        },
+        "implement-vector": {
+          "starter_slug": "implement-vector",
+          "instructions_file": "02-build-semantic-search.md"
+        },
+        "optimize-query": {
+          "starter_slug": "optimize-query",
+          "instructions_file": "03-optimize-query-performance.md"
+        }
+      }
+    },
+    "instrument-observe": {
+      "instructions_dir": "instrument-observe",
+      "starter_topic": "instrument-observe",
+      "exercises": {
+        "instrument-app": {
+          "starter_slug": "instrument-app",
+          "instructions_file": "01-instrument-app-opentelemetry.md"
+        },
+        "analyze-logs": {
+          "starter_slug": "analyze-logs",
+          "instructions_file": "02-query-logs-kql.md"
+        }
+      }
+    },
+    "integrate-services": {
+      "instructions_dir": "integrate-services",
+      "starter_topic": "integrate-services",
+      "exercises": {
+        "service-bus": {
+          "starter_slug": "service-bus",
+          "instructions_file": "01-svcbus-process-messages.md"
+        },
+        "event-grid": {
+          "starter_slug": "event-grid",
+          "instructions_file": "02-eventgrid-publish-receive-events.md"
+        },
+        "azure-functions": {
+          "starter_slug": null,
+          "instructions_file": "03-azure-functions-mcp-server.md"
+        }
+      }
+    },
+    "postgresql": {
+      "instructions_dir": "azure-database-postgresql",
+      "starter_topic": "postgresql",
+      "exercises": {
+        "build-agent": {
+          "starter_slug": "build-agent",
+          "instructions_file": "01-build-agent-tool-backend.md"
+        },
+        "vector-search": {
+          "starter_slug": "vector-search",
+          "instructions_file": "02-implement-vector-search.md"
+        },
+        "optimize-vector-search": {
+          "starter_slug": "optimize-vector-search",
+          "instructions_file": "03-optimize-vector-search.md"
+        }
+      }
+    }
+  }
+}

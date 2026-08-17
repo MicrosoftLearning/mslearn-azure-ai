@@ -1,10 +1,7 @@
 import os
 import sys
 import redis
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from redis_entraid.cred_provider import create_from_default_azure_credential
 
 def clear_screen():
     """Clear console screen (cross-platform)"""
@@ -19,17 +16,21 @@ def connect_to_redis() -> redis.Redis:
     # BEGIN CONNECTION CODE SECTION
 
     try:
-        # Azure Managed Redis with Non-Clustered policy uses standard Redis connection
+        # Azure Managed Redis using Microsoft Entra ID authentication
         redis_host = os.getenv("REDIS_HOST")
-        redis_key = os.getenv("REDIS_KEY")
-        
-        # Non-clustered policy uses standard Redis client connection
+
+        # create_from_default_azure_credential uses DefaultAzureCredential to
+        # acquire and refresh a Microsoft Entra token for Redis.
+        credential_provider = create_from_default_azure_credential(
+            ("https://redis.azure.com/.default",),
+        )
+
         r = redis.Redis(
             host=redis_host,
             port=10000,  # Azure Managed Redis uses port 10000
             ssl=True,
             decode_responses=True, # Decode responses to strings
-            password=redis_key,
+            credential_provider=credential_provider,
             socket_timeout=30,  # Add timeout for better reliability
             socket_connect_timeout=30,
         )
@@ -46,7 +47,7 @@ def connect_to_redis() -> redis.Redis:
         sys.exit(1)
     except redis.AuthenticationError as e:
         print(f"Authentication error: {e}")
-        print("Make sure the access key is correct")
+        print("Make sure the current user has a Microsoft Entra ID access policy on the database")
         sys.exit(1)
     except redis.TimeoutError as e:
         print(f"Timeout error: {e}")
@@ -154,12 +155,12 @@ def main() -> None:
     # Sample key and value for hash data, can be modified as needed
     key="user:1001"
     value={"name": "Jane", "age": "28", "email": "jane@example.com"}
-    
+
     try:
         while True:
             show_menu()
             choice = input("\nPlease select an option (1-6): ")
-            
+
             if choice == "1":
                 store_hash_data(r, key, value)
             elif choice == "2":
@@ -177,7 +178,7 @@ def main() -> None:
             else:
                 print("\nInvalid option. Please select 1-6.")
                 input("\nPress Enter to continue...")
-        
+
     finally:
         # Clean up connection
         try:

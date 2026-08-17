@@ -2,6 +2,7 @@
 Flask application demonstrating vector search with Azure Cosmos DB for NoSQL.
 """
 import json
+import logging
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 
@@ -13,6 +14,8 @@ from vector_functions import (
     get_all_document_ids,
     get_container
 )
+
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -161,4 +164,6 @@ def search_filtered_vectors():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    # Local-only dashboard
+    print("Dashboard running at http://127.0.0.1:5000", flush=True)
+    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)

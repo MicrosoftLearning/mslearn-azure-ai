@@ -48,7 +48,7 @@ In this section you download the project starter files and use a script to deplo
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -73,22 +73,10 @@ In this section you download the project starter files and use a script to deplo
 
 In this section you run the deployment script to deploy the Cosmos DB account with vector search capability.
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Make sure you are in the root directory of the project and run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script menu appears, enter **1** to launch the **Create Cosmos DB account** option. This creates the Cosmos DB for NoSQL account with the **EnableNoSQLVectorSearch** capability and a database. **Note:** Deployment can take 5-10 minutes to complete.
@@ -104,6 +92,8 @@ In this section you complete the Python code for both the vector search function
 In this section you complete the *vector_functions.py* file by adding functions that perform vector similarity search. These functions use the **VectorDistance** function to calculate similarity between query vectors and ticket embeddings. A support application could use these functions to find similar tickets when a new issue is reported.
 
 1. Open the *client/vector_functions.py* file in VS Code.
+
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Search for the **BEGIN STORE VECTOR DOCUMENT FUNCTION** comment and add the following code directly after the comment. This function stores a support ticket with its vector embedding for similarity search.
 
@@ -273,40 +263,56 @@ In this section you review the *setup_container.py* script used to create a Cosm
 1. Search for the **BEGIN CREATE VECTOR CONTAINER FUNCTION** comment and review the code. Notice the two key policy configurations:
 
     ```python
-    # Define the vector embedding policy
-    # This tells Cosmos DB how to handle vector data at the /embedding path
-    vector_embedding_policy = {
-        "vectorEmbeddings": [
-            {
-                "path": "/embedding",
-                "dataType": "float32",
-                "distanceFunction": "cosine",
-                "dimensions": 256
-            }
-        ]
-    }
+    def create_vector_container():
+        """
+        Create a container with vector embedding and indexing policies.
+        """
+        database = get_database()
+        container_name = os.environ.get("COSMOS_CONTAINER", "vectors")
 
-    # Define the indexing policy with vector index
-    # - DiskANN provides efficient approximate nearest neighbor search
-    # - Exclude /embedding/* from standard indexing (vectors use their own index)
-    indexing_policy = {
-        "indexingMode": "consistent",
-        "automatic": True,
-        "includedPaths": [{"path": "/*"}],
-        "excludedPaths": [{"path": "/embedding/*"}],
-        "vectorIndexes": [
-            {"path": "/embedding", "type": "diskANN"}
-        ]
-    }
+        # Define the vector embedding policy
+        # This tells Cosmos DB how to handle vector data at the /embedding path
+        vector_embedding_policy = {
+            "vectorEmbeddings": [
+                {
+                    "path": "/embedding",
+                    "dataType": "float32",
+                    "distanceFunction": "cosine",
+                    "dimensions": 256
+                }
+            ]
+        }
 
-    # Create the container with vector policies
-    # partition_key determines how data is distributed across physical partitions
-    container = database.create_container_if_not_exists(
-        id=container_name,
-        partition_key=PartitionKey(path="/documentId"),
-        indexing_policy=indexing_policy,
-        vector_embedding_policy=vector_embedding_policy
-    )
+        # Define the indexing policy with vector index
+        # - DiskANN provides efficient approximate nearest neighbor search
+        # - Exclude /embedding/* from standard indexing (vectors use their own index)
+        indexing_policy = {
+            "indexingMode": "consistent",
+            "automatic": True,
+            "includedPaths": [
+                {"path": "/*"}
+            ],
+            "excludedPaths": [
+                {"path": "/embedding/*"}
+            ],
+            "vectorIndexes": [
+                {
+                    "path": "/embedding",
+                    "type": "diskANN"
+                }
+            ]
+        }
+
+        # Create the container with vector policies
+        # partition_key determines how data is distributed across physical partitions
+        container = database.create_container_if_not_exists(
+            id=container_name,
+            partition_key=PartitionKey(path="/documentId"),
+            indexing_policy=indexing_policy,
+            vector_embedding_policy=vector_embedding_policy
+        )
+
+        return container
     ```
 
 1. Take a moment to understand the key configuration elements:

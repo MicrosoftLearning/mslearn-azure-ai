@@ -50,7 +50,7 @@ In this section you download the project starter files and use a script to deplo
 
 1. Launch Visual Studio Code (VS Code) and select **File > Open Folder...** in the menu, then choose the folder containing the project files.
 
-1. The project contains deployment scripts for both Bash (*azdeploy.sh*) and PowerShell (*azdeploy.ps1*). Open the appropriate file for your environment and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
     ```
     "<your-resource-group-name>" # Resource Group name
@@ -75,22 +75,10 @@ In this section you download the project starter files and use a script to deplo
 
 In this section you run the deployment script to deploy the PostgreSQL.
 
-1. Make sure you are in the root directory of the project and run the appropriate command in the terminal to launch the deployment script.
+1. Run the following command in the terminal to launch the deployment script.
 
-    **Bash**
-    ```bash
-    bash azdeploy.sh
     ```
-
-    **PowerShell**
-    ```powershell
-    ./azdeploy.ps1
-    ```
-
-    > **Note:** If PowerShell blocks the script because it is not digitally signed, run the following command in the same terminal session, then run the deployment script again. This command changes the execution policy only for the current PowerShell process.
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    python azdeploy.py
     ```
 
 1. When the script menu appears, enter **1** to launch the **Create PostgreSQL server with Entra authentication** option. This creates the server with Entra-only authentication enabled. **Note:** Deployment can take 5-10 minutes to complete.
@@ -102,6 +90,8 @@ In this section you run the deployment script to deploy the PostgreSQL.
 In this section you complete the *agent_tools.py* file by adding functions that an AI agent can call to persist and retrieve state. These functions serve as the agent's interface to the database. The *test_workflow.py* script, which you run later in this exercise, imports these functions to demonstrate how an agent would use them.
 
 1. Open the *agent-backend/agent_tools.py* file in VS Code.
+
+>**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Search for the **BEGIN CREATE CONVERSATION FUNCTION** comment and add the following code directly after the comment. This function creates a new conversation record with a unique session ID and stores optional metadata as JSONB.
 
@@ -178,6 +168,7 @@ In this section you complete the *agent_tools.py* file by adding functions that 
                     """,
                     (conversation_id, task_name, status, psycopg.types.json.Json(checkpoint_data))
                 )
+                # Note: The ON CONFLICT requires a unique constraint we need to add
                 row = cur.fetchone()
                 conn.commit()
                 return {
@@ -194,15 +185,13 @@ Next, you finalize the Azure resource deployment.
 
 ## Complete the Azure resource deployment
 
-In this section you return to the deployment script to configure the Microsoft Entra administrator and retrieve the connection information for the PostgreSQL server.
+In this section you return to the deployment script to retrieve the connection information for the PostgreSQL server.
 
-1. When the **Create PostgreSQL server with Entra authentication** operation has completed, enter **2** to launch the **Configure Microsoft Entra administrator** option. This sets your Azure account as the database administrator.
+1. When the **Create PostgreSQL server with Entra authentication** operation has completed, enter **2** to launch the **Check deployment status** option. This verifies the server is ready.
 
-1. When the previous operation completes, enter **3** to launch the **Check deployment status** option. This verifies the server is ready.
+1. Enter **3** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
 
-1. Enter **4** to launch the **Retrieve connection info and access token** option. This creates a file with the necessary environment variables.
-
-1. Enter **5** to exit the deployment script.
+1. Enter **4** to exit the deployment script.
 
 1. Run the following command to load the environment variables into your terminal session from the file created in a previous step.
 
@@ -218,7 +207,7 @@ In this section you return to the deployment script to configure the Microsoft E
 
     >**Note:** Keep the terminal open. If you close it and create a new terminal, you might need to run the command to create the environment variable again.
 
-    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **4** to generate a new token, then export the variables again.
+    >**Note:** The access token expires after approximately one hour. If you need to reconnect later, run the script again and select option **3** to generate a new token, then export the variables again.
 
 Next, you create the schema to support the agent.
 
@@ -448,13 +437,13 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 If you encounter issues during this exercise, try these steps:
 
 **psql connection fails**
-- Ensure the *.env* file was created by running the deployment script option **4**
+- Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **3**
 - Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables
-- The access token expires after approximately one hour; run the deployment script option **4** again to generate a new token
-- Verify the server is ready by running the deployment script option **3**
+- The access token expires after approximately one hour; run the deployment script option **3** again to generate a new token
+- Verify the server is ready by running the deployment script option **2**
 
 **Access denied or authentication errors**
-- Ensure the Microsoft Entra administrator was configured by running the deployment script option **2**
+- The Microsoft Entra administrator is configured automatically when option **1** creates the server. If access is still denied, verify the administrator by running option **2**, and if it is missing, delete the resource group and rerun option **1** to redeploy.
 - Verify **PGPASSWORD** is set correctly in your terminal session
 - Ensure you're using the correct **DB_USER** value (your Azure account email)
 

@@ -2,6 +2,7 @@
 Flask application demonstrating RAG document storage with Azure Cosmos DB for NoSQL.
 """
 import json
+import logging
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 
@@ -14,6 +15,8 @@ from rag_functions import (
 )
 from test_workflow import run_test_workflow
 from query_executor import execute_query
+
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -193,4 +196,6 @@ def run_query():
 
 
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    # Local-only dashboard
+    print("Dashboard running at http://127.0.0.1:5000", flush=True)
+    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)
