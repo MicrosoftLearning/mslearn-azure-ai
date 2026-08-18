@@ -60,13 +60,54 @@ def get_all_containers():
         "diskANN": get_container(CONTAINER_DISKANN)
     }
 
+def store_vector_document(
+    container_name: str,
+    document_id: str,
+    chunk_id: str,
+    content: str,
+    embedding: list,
+    metadata: dict = None
+) -> dict:
+    """
+    Store a document with its vector embedding in a specific container.
 
-# BEGIN STORE VECTOR DOCUMENT FUNCTION
+    Args:
+        container_name: Name of the container (vectors-flat, vectors-quantized, vectors-diskann)
+        document_id: Unique identifier for the source document (partition key)
+        chunk_id: Unique identifier for this chunk within the document
+        content: Text content of the document
+        embedding: 256-dimensional vector embedding
+        metadata: Optional metadata dictionary
 
+    Returns:
+        Dictionary with chunk_id, document_id, and ru_charge
+    """
+    container = get_container(container_name)
 
+    # Build the document structure with embedding for vector search
+    # The 'id' field is required by Cosmos DB and must be unique within the partition
+    # The 'documentId' field is our partition key for efficient retrieval
+    document = {
+        "id": chunk_id,
+        "documentId": document_id,
+        "content": content,
+        "embedding": embedding,  # 256-dimensional vector for similarity search
+        "metadata": metadata or {},
+        "createdAt": datetime.utcnow().isoformat(),
+        "chunkIndex": metadata.get("chunkIndex", 0) if metadata else 0
+    }
 
-# END STORE VECTOR DOCUMENT FUNCTION
+    # upsert_item inserts if new, updates if exists (based on id + partition key)
+    response = container.upsert_item(body=document)
 
+    # Request Units (RUs) measure the cost of database operations
+    ru_charge = response.get_response_headers()['x-ms-request-charge']
+
+    return {
+        "chunk_id": chunk_id,
+        "document_id": document_id,
+        "ru_charge": float(ru_charge)
+    }
 
 def store_to_all_containers(
     document_id: str,
