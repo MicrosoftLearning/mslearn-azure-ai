@@ -61,7 +61,6 @@ def get_all_containers():
     }
 
 
-# BEGIN STORE VECTOR DOCUMENT FUNCTION
 def store_vector_document(
     container_name: str,
     document_id: str,
@@ -110,8 +109,6 @@ def store_vector_document(
         "document_id": document_id,
         "ru_charge": float(ru_charge)
     }
-# END STORE VECTOR DOCUMENT FUNCTION
-
 
 def store_to_all_containers(
     document_id: str,
