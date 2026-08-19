@@ -264,3 +264,51 @@ Now that you finished the exercise, you should delete the cloud resources you cr
     ```
 
 > **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
+
+## Troubleshooting
+
+If you encounter issues while completing this exercise, try the following troubleshooting steps:
+
+**Verify resource deployment**
+- Navigate to the [Azure portal](https://portal.azure.com) and locate your resource group.
+- Confirm that the Azure Container Registry, App Service plan, and web app show a **Provisioning State** of **Succeeded**.
+- Run the deployment script's **Check deployment status** option and confirm the registry, both container images, plan, web app, and managed identity are all available before applying the sitecontainers specification.
+
+**Resolve deployment failures**
+- If option 1 or option 2 fails, it's most often due to a temporary lack of capacity for the Basic ACR SKU or the P1V3 App Service plan in your chosen region.
+- Exit the script, change the **location** variable near the top of *azdeploy.py* to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose the failed option.
+- The failed resource is deleted automatically before the next attempt.
+
+**Model-server build times out or fails**
+- The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 5-10 minutes.
+- If the build fails partway through, network instability during the model download is the most common cause. Run option 1 again to retry.
+- If the second build consistently fails, check the ACR build logs in the Azure portal under your registry's **Services** > **Tasks** > **Runs** blade for the specific error.
+
+**First container start returns 503 or Issues Detected**
+- The first container start pulls both images from ACR, loads the 2.7 GB Phi-3 model into memory, and starts both containers. This can take several minutes on the initial start.
+- During this window, **az webapp sitecontainers log** can return a 503 from the SCM endpoint, and the portal **Properties** > **Site status** page can briefly show **Issues Detected** with an **Unknown** state and empty last-error fields.
+- Wait a few minutes and retry the command. Do not click **Repair** on the site-status page while the containers are still starting; it restarts the app and resets model-load progress.
+- If the state remains **Unknown** or the log command keeps returning 503 after 10 minutes, open **Diagnose and solve problems** in the portal and run the **Linux Container Start Failure** and **Container Issues** detectors for a root cause.
+
+**AcrPull role assignment not yet effective**
+- If the web app reports an image pull error immediately after option 2 completes, the AcrPull role assignment to the system-assigned managed identity can take a short time to propagate.
+- Wait a couple of minutes, then run **az webapp restart --name $APP_NAME --resource-group $RESOURCE_GROUP** to trigger a new pull attempt.
+
+**Verify environment variables**
+- Check that both the *.env* and *.env.ps1* files exist in the project root and contain the **RESOURCE_GROUP**, **APP_NAME**, **ACR_NAME**, and **CHAT_API_URL** values.
+- Run **source .env** in Bash or **. .\.env.ps1** in PowerShell to load the environment variables into your terminal session before running Azure CLI commands or the local client.
+
+**Check the sitecontainers specification**
+- Confirm *sitecontainers-spec.json* exists next to *azdeploy.py* and that the registry name in each **image** field matches your registry (**$ACR_NAME.azurecr.io**).
+- If the file is missing or still contains the **\<registry-name>** placeholder, run option 2 in the deployment script again to regenerate it.
+- If **az webapp sitecontainers create** fails, run **az webapp sitecontainers list --name $APP_NAME --resource-group $RESOURCE_GROUP --output table** to see the current stored definitions.
+
+**Chat API readiness check reports the model isn't available**
+- The **/health/ready** operation reports the model dependency as available only after the model-server sidecar finishes loading Phi-3 and writes the shared manifest.
+- Retrieve the model-server log with **az webapp sitecontainers log --container-name model-server** and confirm the log reports the model loaded successfully and that the model server listens on port **11434**.
+- If the log shows the model is still loading, wait a few minutes and call **/health/ready** again.
+
+**Check Python environment and dependencies**
+- Confirm the virtual environment is activated before running the app; you should see **(.venv)** in your terminal prompt.
+- Verify that all packages from *requirements.txt* were installed successfully by running **pip list**.
+- If the local Flask app can't reach the chat API, confirm that **CHAT_API_URL** points to **https://\<your-app-name>.azurewebsites.net** and that the readiness operation returns a successful response.
