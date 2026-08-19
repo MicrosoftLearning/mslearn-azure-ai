@@ -11,7 +11,7 @@ import onnxruntime_genai as og
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-MODEL_NAME = "microsoft/Phi-3-mini-4k-instruct-onnx"
+MODEL_NAME = os.getenv("MODEL_NAME", "microsoft/Phi-3-mini-4k-instruct-onnx")
 MODEL_PATH = os.getenv("MODEL_PATH", "/opt/model/phi3")
 MANIFEST_PATH = Path(os.getenv("MODEL_MANIFEST_PATH", "/models/manifest.json"))
 

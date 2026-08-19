@@ -5,12 +5,11 @@
       "image": "acrsidecardf2d02f3.azurecr.io/chat-api:v1",
       "targetPort": "8000",
       "isMain": true,
-      "authType": "UserAssigned",
-      "userManagedIdentityClientId": "13e4d085-404d-42cf-8297-3bf40b78e230",
+      "authType": "SystemIdentity",
       "environmentVariables": [
         {
           "name": "MODEL_ENDPOINT",
-          "value": "http://localhost:11434"
+          "value": "MODEL_ENDPOINT"
         }
       ],
       "volumeMounts": [
@@ -28,12 +27,11 @@
       "image": "acrsidecardf2d02f3.azurecr.io/model-server:v1",
       "targetPort": "11434",
       "isMain": false,
-      "authType": "UserAssigned",
-      "userManagedIdentityClientId": "13e4d085-404d-42cf-8297-3bf40b78e230",
+      "authType": "SystemIdentity",
       "environmentVariables": [
         {
           "name": "MODEL_NAME",
-          "value": "microsoft/Phi-3-mini-4k-instruct-onnx"
+          "value": "MODEL_NAME"
         }
       ],
       "volumeMounts": [

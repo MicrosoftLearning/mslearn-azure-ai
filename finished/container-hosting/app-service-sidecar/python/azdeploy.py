@@ -134,15 +134,12 @@ def write_env_files(env_vars: dict[str, str], directory: str = ".") -> None:
         f.writelines(ps_lines)
 
 
-def write_sitecontainers_spec(acr_name: str, identity_client_id: str) -> None:
+def write_sitecontainers_spec(acr_name: str) -> None:
     """Resolve the immutable template without deploying the containers."""
     template_path = Path("sitecontainers-spec.template.json")
     template = template_path.read_text(encoding="utf-8")
-    resolved = (
-        template.replace("<registry-name>", acr_name)
-        .replace("<identity-client-id>", identity_client_id)
-    )
-    if "<registry-name>" in resolved or "<identity-client-id>" in resolved:
+    resolved = template.replace("<registry-name>", acr_name)
+    if "<registry-name>" in resolved:
         raise ValueError("Container specification placeholders were not fully resolved.")
 
     spec = json.loads(resolved)
@@ -153,13 +150,12 @@ def write_sitecontainers_spec(acr_name: str, identity_client_id: str) -> None:
     )
 
 
-def _derived_names(user_object_id: str) -> tuple[str, str, str, str]:
+def _derived_names(user_object_id: str) -> tuple[str, str, str]:
     user_hash = hashlib.sha1(user_object_id.encode("utf-8")).hexdigest()[:8]
     return (
         f"acrsidecar{user_hash}",
         f"plan-ai-sidecar-{user_hash}",
         f"app-ai-sidecar-{user_hash}",
-        f"id-ai-sidecar-{user_hash}",
     )
 
 
@@ -175,7 +171,7 @@ def show_menu(acr_name: str, app_plan: str, app_name: str) -> None:
     print(f"Web App: {app_name}")
     print("=====================================================================")
     print("1. Create Azure Container Registry and build both images")
-    print("2. Create App Service resources and configure managed identity")
+    print("2. Create App Service resources and configure system identity")
     print("3. Check deployment status")
     print("4. Exit")
     print("=====================================================================")
@@ -281,7 +277,7 @@ def create_acr_and_build_images(acr_name: str) -> bool:
     print()
     print(f"Building and pushing {SIDECAR_IMAGE}...")
     print("The first build downloads the 2.7 GB Phi-3 CPU INT4 model.")
-    print("This build can take 10-20 minutes. Keep this terminal open.")
+    print("This build can take 5-10 minutes. Keep this terminal open.")
     build_started = time.monotonic()
     build_succeeded = run_quiet(
         "Build and push the Phi-3 model server image",
@@ -448,7 +444,6 @@ def create_app_service_resources(
     acr_name: str,
     app_plan: str,
     app_name: str,
-    identity_name: str,
 ) -> bool:
     if not _prepare_app_service_plan(app_plan):
         return False
@@ -461,19 +456,17 @@ def create_app_service_resources(
             "az", "webapp", "config", "appsettings", "set",
             "--resource-group", rg,
             "--name", app_name,
-            "--settings", "WEBSITES_CONTAINER_START_TIME_LIMIT=1800",
+            "--settings",
+            "WEBSITES_CONTAINER_START_TIME_LIMIT=1800",
+            "MODEL_ENDPOINT=http://localhost:11434",
+            "MODEL_NAME=microsoft/Phi-3-mini-4k-instruct-onnx",
         ],
     ):
         return False
     print()
-    identity_client_id = configure_managed_identity(
-        acr_name,
-        app_name,
-        identity_name,
-    )
-    if not identity_client_id:
+    if not configure_system_identity(acr_name, app_name):
         return False
-    write_sitecontainers_spec(acr_name, identity_client_id)
+    write_sitecontainers_spec(acr_name)
     print("Resolved container specification saved to: sitecontainers-spec.json")
     write_env_files(
         {
@@ -482,8 +475,6 @@ def create_app_service_resources(
             "ACR_NAME": acr_name,
             "APP_PLAN": app_plan,
             "APP_NAME": app_name,
-            "IDENTITY_NAME": identity_name,
-            "IDENTITY_CLIENT_ID": identity_client_id,
             "MAIN_IMAGE": f"{acr_name}.azurecr.io/{MAIN_IMAGE}",
             "SIDECAR_IMAGE": f"{acr_name}.azurecr.io/{SIDECAR_IMAGE}",
             "CHAT_API_URL": f"https://{app_name}.azurewebsites.net",
@@ -492,55 +483,6 @@ def create_app_service_resources(
     )
     print("Environment variables saved to: .env and .env.ps1")
     return True
-
-
-def _create_identity(identity_name: str) -> tuple[str, str, str] | None:
-    identity_id = az_query(
-        [
-            "az", "identity", "show",
-            "--resource-group", rg,
-            "--name", identity_name,
-            "--query", "id",
-            "-o", "tsv",
-        ]
-    )
-    if not identity_id:
-        print(f"Creating user-assigned managed identity '{identity_name}'...")
-        if not run_quiet(
-            "Create user-assigned managed identity",
-            [
-                "az", "identity", "create",
-                "--resource-group", rg,
-                "--name", identity_name,
-                "--location", location,
-            ],
-        ):
-            return None
-        identity_id = az_query(
-            [
-                "az", "identity", "show",
-                "--resource-group", rg,
-                "--name", identity_name,
-                "--query", "id",
-                "-o", "tsv",
-            ]
-        )
-        print(f"Managed identity created: {identity_name}")
-    else:
-        print(f"Managed identity already exists: {identity_name}")
-
-    identity_values = az_query(
-        [
-            "az", "identity", "show",
-            "--ids", identity_id,
-            "--query", "[clientId,principalId]",
-            "-o", "tsv",
-        ]
-    ).split()
-    if len(identity_values) != 2:
-        print("Error: Could not retrieve the managed identity properties.")
-        return None
-    return identity_id, identity_values[0], identity_values[1]
 
 
 def _assign_acr_pull(acr_name: str, principal_id: str) -> bool:
@@ -586,11 +528,7 @@ def _assign_acr_pull(acr_name: str, principal_id: str) -> bool:
     return True
 
 
-def configure_managed_identity(
-    acr_name: str,
-    app_name: str,
-    identity_name: str,
-) -> str | None:
+def configure_system_identity(acr_name: str, app_name: str) -> bool:
     if not az_query(
         [
             "az", "webapp", "show",
@@ -601,39 +539,54 @@ def configure_managed_identity(
         ]
     ):
         print("Error: The web app was not found. Complete option 2 first.")
-        return None
+        return False
 
-    identity = _create_identity(identity_name)
-    if identity is None:
-        return None
-    identity_id, identity_client_id, principal_id = identity
-
-    print("Assigning the managed identity to the web app...")
-    if not run_quiet(
-        "Assign managed identity to web app",
+    principal_id = az_query(
         [
-            "az", "webapp", "identity", "assign",
+            "az", "webapp", "identity", "show",
             "--resource-group", rg,
             "--name", app_name,
-            "--identities", identity_id,
-        ],
-    ):
-        return None
-    print("Managed identity assigned to the web app.")
+            "--query", "principalId",
+            "-o", "tsv",
+        ]
+    )
+    if not principal_id:
+        print("Enabling the system-assigned managed identity...")
+        if not run_quiet(
+            "Enable system-assigned managed identity",
+            [
+                "az", "webapp", "identity", "assign",
+                "--resource-group", rg,
+                "--name", app_name,
+            ],
+        ):
+            return False
+        principal_id = az_query(
+            [
+                "az", "webapp", "identity", "show",
+                "--resource-group", rg,
+                "--name", app_name,
+                "--query", "principalId",
+                "-o", "tsv",
+            ]
+        )
+        if not principal_id:
+            print("Error: Could not retrieve the system-assigned identity principal ID.")
+            return False
+        print("System-assigned managed identity enabled.")
+    else:
+        print("System-assigned managed identity is already enabled.")
 
     if not _assign_acr_pull(acr_name, principal_id):
-        return None
+        return False
 
-    print(f"Managed identity client ID: {identity_client_id}")
-    print("Use this client ID when you define the site containers.")
-    return identity_client_id
+    return True
 
 
 def check_deployment_status(
     acr_name: str,
     app_plan: str,
     app_name: str,
-    identity_name: str,
 ) -> bool:
     print("Checking deployment status...")
     print()
@@ -718,27 +671,19 @@ def check_deployment_status(
         print(f"  URL: https://{app_name}.azurewebsites.net")
 
     print()
-    identity_id = az_query(
+    principal_id = az_query(
         [
-            "az", "identity", "show",
+            "az", "webapp", "identity", "show",
             "--resource-group", rg,
-            "--name", identity_name,
-            "--query", "id",
+            "--name", app_name,
+            "--query", "principalId",
             "-o", "tsv",
         ]
     )
-    print(f"Managed Identity ({identity_name}):")
-    print(f"  Status: {'Configured' if identity_id else 'Not created'}")
-    if identity_id:
-        identity_client_id = az_query(
-            [
-                "az", "identity", "show",
-                "--ids", identity_id,
-                "--query", "clientId",
-                "-o", "tsv",
-            ]
-        )
-        print(f"  Client ID: {identity_client_id}")
+    print("System-assigned Managed Identity:")
+    print(f"  Status: {'Configured' if principal_id else 'Not configured'}")
+    if principal_id:
+        print(f"  Principal ID: {principal_id}")
     return True
 
 
@@ -748,7 +693,6 @@ def _preflight() -> None:
         script_dir / "api" / "Dockerfile",
         script_dir / "model-server" / "Dockerfile",
         script_dir / "client" / "app.py",
-        script_dir / "sitecontainers.py",
         script_dir / "sitecontainers-spec.template.json",
     ]
     if not all(anchor.is_file() for anchor in anchors):
@@ -763,7 +707,7 @@ def _preflight() -> None:
 def main() -> None:
     _preflight()
     user_object_id = require_az_login()
-    acr_name, app_plan, app_name, identity_name = _derived_names(user_object_id)
+    acr_name, app_plan, app_name = _derived_names(user_object_id)
 
     while True:
         show_menu(acr_name, app_plan, app_name)
@@ -787,13 +731,12 @@ def main() -> None:
                     acr_name,
                     app_plan,
                     app_name,
-                    identity_name,
                 )
             print()
             pause()
         elif choice == "3":
             print()
-            check_deployment_status(acr_name, app_plan, app_name, identity_name)
+            check_deployment_status(acr_name, app_plan, app_name)
             print()
             pause()
         elif choice == "4":

@@ -11,18 +11,9 @@ lab:
 
 In this exercise, you deploy a Python chat API as the main App Service container and a local model server as a sidecar. The deployment script builds both images in Azure Container Registry. A separate Flask client runs on your development computer and calls the public chat API. You configure managed-identity image pulls, `localhost` communication, a shared temporary volume, and container-specific diagnostics.
 
-> [!NOTE]
-> The model-server image runs the Microsoft Phi-3 Mini 4K Instruct CPU INT4 ONNX model with Microsoft ONNX Runtime GenAI. The model is approximately 2.7 GB and is distributed under the MIT license. The deployment script pins the model repository revision and includes its license in the image.
-
-> [!IMPORTANT]
-> The deployment uses a P1v3 App Service plan because the main API and model sidecar share the plan's 2 vCPUs and 8 GB of memory. The plan incurs charges while it exists. Complete the exercise in one session, which should take approximately 30-45 minutes after deployment, and delete the resource group immediately afterward. If P1v3 capacity is unavailable in the selected region, choose another region and run the deployment again. P0v3 has less memory and is not recommended for the initial deployment.
-
-> [!NOTE]
-> The first model-server image build downloads the Phi-3 model and can take 10-20 minutes. The first container start also takes several minutes while App Service pulls the image and ONNX Runtime loads the model. Keep the deployment terminal open during the build and use the readiness endpoint before sending an inference request.
-
 ## Download project starter files and deploy Azure resources
 
-In this section you download the project starter files and run the deployment script. The script creates the resource group, builds both container images in Azure Container Registry, creates the P1V3 App Service plan and sidecar-enabled web app, and configures a user-assigned managed identity with permission to pull the private images.
+In this section you download the project starter files and run the deployment script. The script creates the resource group, builds both container images in Azure Container Registry, creates the P1V3 App Service plan and sidecar-enabled web app, and grants the web app's system-assigned managed identity permission to pull the private images.
 
 1. Open a browser and enter the following URL to download the starter files. The file is saved in your default download location.
 
@@ -34,7 +25,7 @@ In this section you download the project starter files and run the deployment sc
 
 1. Open the extracted folder in Visual Studio Code.
 
-1. Open *azdeploy.py*, change the **rg** and **location** values at the top of the file, and save your changes. Do not change anything below the **DON'T CHANGE ANYTHING BELOW THIS LINE** comment.
+1. 1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
 1. Open a new terminal in Visual Studio Code.
 
@@ -59,9 +50,9 @@ In this section you download the project starter files and run the deployment sc
 
 1. Enter **1** to select **Create Azure Container Registry and build both images**. This option creates the registry and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
 
-    The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 10-20 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
+    The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 5-10 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
 
-1. Enter **2** to select **Create App Service resources and configure managed identity**. This option creates the P1V3 plan and sidecar-enabled web app. It also creates and assigns the user-assigned managed identity, grants it the **AcrPull** role, updates the values in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
+1. Enter **2** to select **Create App Service resources and configure system identity**. This option creates the P1V3 plan and sidecar-enabled web app. It also enables the web app's system-assigned managed identity, grants it the **AcrPull** role, updates the registry name in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
 
 1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, plan, web app, and managed identity are available.
 
@@ -83,9 +74,9 @@ The exercise images use port **8000** for the main API and port **11434** for th
 
 ## Define the main and sidecar containers
 
-In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8000**, while the model server remains internal on port **11434**. Both containers use the user-assigned managed identity to pull their private images.
+In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8000**, while the model server remains internal on port **11434**. Both containers use the web app's system-assigned managed identity to pull their private images.
 
-The project includes *sitecontainers-spec.template.json* with placeholders for subscription-specific values. The deployment script preserves that template and generates *sitecontainers-spec.json* with your registry name and managed identity client ID, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
+The project includes *sitecontainers-spec.template.json* with a placeholder for the registry name. The deployment script preserves that template and generates *sitecontainers-spec.json* with your registry name, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
 
 1. Open *sitecontainers-spec.json* in Visual Studio Code.
 
@@ -94,31 +85,55 @@ The project includes *sitecontainers-spec.template.json* with placeholders for s
     - **image** points to the **chat-api:v1** image in your Azure Container Registry.
     - **targetPort** is **8000**, which is the port that receives external App Service traffic.
     - **isMain** is **true**, which designates this container as the public application.
-    - **authType** is **UserAssigned**, and **userManagedIdentityClientId** contains the client ID of the managed identity created by the deployment script.
-    - **MODEL_ENDPOINT** is **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
+    - **authType** is **SystemIdentity**, which instructs App Service to use the web app's system-assigned managed identity to pull the image.
+    - **MODEL_ENDPOINT** references the app setting of the same name. App Service resolves its value to **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
     - The **models/current** volume is mounted at **/app/models** as read-only.
 
 1. Review the **model-server** container definition and identify the following settings:
 
     - **image** points to the **model-server:v1** image in your Azure Container Registry.
     - **targetPort** is **11434** and **isMain** is **false**, so the model server remains an internal sidecar.
-    - The container uses the same user-assigned managed identity as the main API.
-    - **MODEL_NAME** identifies the Microsoft Phi-3 Mini ONNX model.
+    - The container uses the same system-assigned managed identity as the main API.
+    - **MODEL_NAME** references the app setting of the same name, which identifies the Microsoft Phi-3 Mini ONNX model.
     - The **models/current** volume is mounted at **/models** with write access so the sidecar can create the model manifest.
 
-1. Run the following command to apply the main and sidecar container definitions. The helper uses Azure CLI with a supported App Service API version to create the runtime relationship between the public chat API and its internal model sidecar.
+1. Run the following command to apply the main and sidecar container definitions. This creates the runtime relationship between the public chat API and its internal model sidecar.
 
+    ```bash
+    az webapp sitecontainers create \
+        --name "$APP_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --sitecontainers-spec-file ./sitecontainers-spec.json
     ```
-    python sitecontainers.py apply
+
+    If you use PowerShell, run the following command instead:
+
+    ```powershell
+    az webapp sitecontainers create `
+        --name $env:APP_NAME `
+        --resource-group $env:RESOURCE_GROUP `
+        --sitecontainers-spec-file ./sitecontainers-spec.json
     ```
 
 1. Run the following command to verify the stored container definitions. This confirms that App Service saved both containers with their assigned roles and target ports.
 
-    ```
-    python sitecontainers.py list
+    ```bash
+    az webapp sitecontainers list \
+        --name "$APP_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --output table
     ```
 
-1. Confirm that **main-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use the expected managed identity client ID.
+    If you use PowerShell, run the following command instead:
+
+    ```powershell
+    az webapp sitecontainers list `
+        --name $env:APP_NAME `
+        --resource-group $env:RESOURCE_GROUP `
+        --output table
+    ```
+
+1. Confirm that **main-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use **SystemIdentity** authentication.
 
 ## Verify the model sidecar is ready
 
@@ -198,7 +213,9 @@ In this section you create a Python virtual environment and install the dependen
     python -m venv .venv
     ```
 
-1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
+1. Run the following command to activate the Python environment.
+
+    > **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
 
     **Bash**
     ```bash
