@@ -106,44 +106,16 @@ The project includes *sitecontainers-spec.template.json* with placeholders for s
     - **MODEL_NAME** identifies the Microsoft Phi-3 Mini ONNX model.
     - The **models/current** volume is mounted at **/models** with write access so the sidecar can create the model manifest.
 
-1. Run the following command to apply the main and sidecar container definitions. This creates the runtime relationship between the public chat API and its internal model sidecar.
+1. Run the following command to apply the main and sidecar container definitions. The helper uses Azure CLI with a supported App Service API version to create the runtime relationship between the public chat API and its internal model sidecar.
 
-    **Bash**
-
-    ```bash
-    az webapp sitecontainers create \
-      --name "$APP_NAME" \
-      --resource-group "$RESOURCE_GROUP" \
-      --sitecontainers-spec-file ./sitecontainers-spec.json
     ```
-
-    **PowerShell**
-
-    ```powershell
-    az webapp sitecontainers create `
-      --name $env:APP_NAME `
-      --resource-group $env:RESOURCE_GROUP `
-      --sitecontainers-spec-file .\sitecontainers-spec.json
+    python sitecontainers.py apply
     ```
 
 1. Run the following command to verify the stored container definitions. This confirms that App Service saved both containers with their assigned roles and target ports.
 
-    **Bash**
-
-    ```bash
-    az webapp sitecontainers list \
-      --name "$APP_NAME" \
-      --resource-group "$RESOURCE_GROUP" \
-      --output table
     ```
-
-    **PowerShell**
-
-    ```powershell
-    az webapp sitecontainers list `
-      --name $env:APP_NAME `
-      --resource-group $env:RESOURCE_GROUP `
-      --output table
+    python sitecontainers.py list
     ```
 
 1. Confirm that **main-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use the expected managed identity client ID.

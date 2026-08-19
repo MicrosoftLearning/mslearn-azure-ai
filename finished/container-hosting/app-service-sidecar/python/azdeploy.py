@@ -282,7 +282,8 @@ def create_acr_and_build_images(acr_name: str) -> bool:
     print(f"Building and pushing {SIDECAR_IMAGE}...")
     print("The first build downloads the 2.7 GB Phi-3 CPU INT4 model.")
     print("This build can take 10-20 minutes. Keep this terminal open.")
-    if not run_quiet(
+    build_started = time.monotonic()
+    build_succeeded = run_quiet(
         "Build and push the Phi-3 model server image",
         [
             "az", "acr", "build",
@@ -293,51 +294,78 @@ def create_acr_and_build_images(acr_name: str) -> bool:
             "--no-logs",
             "model-server/",
         ],
-    ):
+    )
+    elapsed_seconds = round(time.monotonic() - build_started)
+    elapsed_minutes, remaining_seconds = divmod(elapsed_seconds, 60)
+    print(
+        "Phi-3 model server build duration: "
+        f"{elapsed_minutes}m {remaining_seconds:02d}s"
+    )
+    if not build_succeeded:
         return False
     print(f"Image built and pushed: {acr_name}.azurecr.io/{SIDECAR_IMAGE}")
     return True
 
 
 def _prepare_app_service_plan(app_plan: str) -> bool:
-    state = az_query(
+    existing = az_query(
         [
             "az", "appservice", "plan", "show",
             "--resource-group", rg,
             "--name", app_plan,
-            "--query", "provisioningState",
+            "--query", "name",
             "-o", "tsv",
         ]
     )
-    if state == "Succeeded":
-        print(f"App Service plan already exists: {app_plan}")
-        return True
-    if state in {"Failed", "Canceled"}:
-        print(f"Removing App Service plan in terminal state '{state}'...")
-        if not run_quiet(
-            "Delete failed App Service plan",
-            [
-                "az", "appservice", "plan", "delete",
-                "--resource-group", rg,
-                "--name", app_plan,
-                "--yes",
-            ],
-        ):
-            return False
-        if not _wait_until_absent(
-            "App Service plan",
+    if existing:
+        state = az_query(
             [
                 "az", "appservice", "plan", "show",
                 "--resource-group", rg,
                 "--name", app_plan,
-                "--query", "name",
+                "--query", "provisioningState",
                 "-o", "tsv",
-            ],
-        ):
+            ]
+        )
+        if not state:
+            state = az_query(
+                [
+                    "az", "appservice", "plan", "show",
+                    "--resource-group", rg,
+                    "--name", app_plan,
+                    "--query", "status",
+                    "-o", "tsv",
+                ]
+            )
+        if state in {"Failed", "Canceled"}:
+            print(f"Removing App Service plan in terminal state '{state}'...")
+            if not run_quiet(
+                "Delete failed App Service plan",
+                [
+                    "az", "appservice", "plan", "delete",
+                    "--resource-group", rg,
+                    "--name", app_plan,
+                    "--yes",
+                ],
+            ):
+                return False
+            if not _wait_until_absent(
+                "App Service plan",
+                [
+                    "az", "appservice", "plan", "show",
+                    "--resource-group", rg,
+                    "--name", app_plan,
+                    "--query", "name",
+                    "-o", "tsv",
+                ],
+            ):
+                return False
+        elif state and state not in {"Succeeded", "Ready"}:
+            print(f"App Service plan is still provisioning (status: {state}).")
             return False
-    elif state:
-        print(f"App Service plan is still provisioning (status: {state}).")
-        return False
+        else:
+            print(f"App Service plan already exists: {app_plan}")
+            return True
 
     print(f"Creating App Service plan '{app_plan}'...")
     if not run_quiet(
@@ -630,19 +658,49 @@ def check_deployment_status(
             print(f"  {image}: {state}")
 
     print()
-    plan_status = az_query(
+    plan_name = az_query(
         [
             "az", "appservice", "plan", "show",
             "--resource-group", rg,
             "--name", app_plan,
-            "--query", "provisioningState",
+            "--query", "name",
             "-o", "tsv",
         ]
     )
     print(f"App Service Plan ({app_plan}):")
-    print(f"  Status: {plan_status or 'Not created'}")
-    if plan_status:
-        print(f"  SKU: {APP_SERVICE_SKU}")
+    if not plan_name:
+        print("  Status: Not created")
+    else:
+        plan_status = az_query(
+            [
+                "az", "appservice", "plan", "show",
+                "--resource-group", rg,
+                "--name", app_plan,
+                "--query", "provisioningState",
+                "-o", "tsv",
+            ]
+        )
+        if not plan_status:
+            plan_status = az_query(
+                [
+                    "az", "appservice", "plan", "show",
+                    "--resource-group", rg,
+                    "--name", app_plan,
+                    "--query", "status",
+                    "-o", "tsv",
+                ]
+            )
+        print(f"  Status: {plan_status or 'Exists'}")
+        plan_sku = az_query(
+            [
+                "az", "appservice", "plan", "show",
+                "--resource-group", rg,
+                "--name", app_plan,
+                "--query", "sku.name",
+                "-o", "tsv",
+            ]
+        )
+        print(f"  SKU: {plan_sku or APP_SERVICE_SKU}")
 
     print()
     app_state = az_query(
@@ -658,20 +716,6 @@ def check_deployment_status(
     print(f"  State: {app_state or 'Not created'}")
     if app_state:
         print(f"  URL: https://{app_name}.azurewebsites.net")
-        container_names = az_query(
-            [
-                "az", "webapp", "sitecontainers", "list",
-                "--resource-group", rg,
-                "--name", app_name,
-                "--query", "[].name",
-                "-o", "tsv",
-            ]
-        )
-        print(f"  Main API: {'Configured' if 'main-api' in container_names else 'Not configured'}")
-        print(
-            "  Model sidecar: "
-            f"{'Configured' if 'model-server' in container_names else 'Not configured'}"
-        )
 
     print()
     identity_id = az_query(
@@ -704,6 +748,7 @@ def _preflight() -> None:
         script_dir / "api" / "Dockerfile",
         script_dir / "model-server" / "Dockerfile",
         script_dir / "client" / "app.py",
+        script_dir / "sitecontainers.py",
         script_dir / "sitecontainers-spec.template.json",
     ]
     if not all(anchor.is_file() for anchor in anchors):
