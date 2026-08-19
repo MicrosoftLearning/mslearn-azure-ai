@@ -85,7 +85,7 @@ The exercise images use port **8000** for the main API and port **11434** for th
 
 In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8000**, while the model server remains internal on port **11434**. Both containers use the user-assigned managed identity to pull their private images.
 
-The deployment script resolves the registry name and managed identity client ID in *sitecontainers-spec.json*, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
+The project includes *sitecontainers-spec.template.json* with placeholders for subscription-specific values. The deployment script preserves that template and generates *sitecontainers-spec.json* with your registry name and managed identity client ID, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
 
 1. Open *sitecontainers-spec.json* in Visual Studio Code.
 

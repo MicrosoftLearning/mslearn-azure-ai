@@ -135,55 +135,17 @@ def write_env_files(env_vars: dict[str, str], directory: str = ".") -> None:
 
 
 def write_sitecontainers_spec(acr_name: str, identity_client_id: str) -> None:
-    """Write the resolved container specification without deploying it."""
-    spec = [
-        {
-            "name": "main-api",
-            "properties": {
-                "image": f"{acr_name}.azurecr.io/{MAIN_IMAGE}",
-                "targetPort": "8000",
-                "isMain": True,
-                "authType": "UserAssigned",
-                "userManagedIdentityClientId": identity_client_id,
-                "environmentVariables": [
-                    {
-                        "name": "MODEL_ENDPOINT",
-                        "value": "http://localhost:11434",
-                    }
-                ],
-                "volumeMounts": [
-                    {
-                        "volumeSubPath": "models/current",
-                        "containerMountPath": "/app/models",
-                        "readOnly": True,
-                    }
-                ],
-            },
-        },
-        {
-            "name": "model-server",
-            "properties": {
-                "image": f"{acr_name}.azurecr.io/{SIDECAR_IMAGE}",
-                "targetPort": "11434",
-                "isMain": False,
-                "authType": "UserAssigned",
-                "userManagedIdentityClientId": identity_client_id,
-                "environmentVariables": [
-                    {
-                        "name": "MODEL_NAME",
-                        "value": "microsoft/Phi-3-mini-4k-instruct-onnx",
-                    }
-                ],
-                "volumeMounts": [
-                    {
-                        "volumeSubPath": "models/current",
-                        "containerMountPath": "/models",
-                        "readOnly": False,
-                    }
-                ],
-            },
-        },
-    ]
+    """Resolve the immutable template without deploying the containers."""
+    template_path = Path("sitecontainers-spec.template.json")
+    template = template_path.read_text(encoding="utf-8")
+    resolved = (
+        template.replace("<registry-name>", acr_name)
+        .replace("<identity-client-id>", identity_client_id)
+    )
+    if "<registry-name>" in resolved or "<identity-client-id>" in resolved:
+        raise ValueError("Container specification placeholders were not fully resolved.")
+
+    spec = json.loads(resolved)
     Path("sitecontainers-spec.json").write_text(
         json.dumps(spec, indent=2) + "\n",
         encoding="utf-8",
@@ -742,6 +704,7 @@ def _preflight() -> None:
         script_dir / "api" / "Dockerfile",
         script_dir / "model-server" / "Dockerfile",
         script_dir / "client" / "app.py",
+        script_dir / "sitecontainers-spec.template.json",
     ]
     if not all(anchor.is_file() for anchor in anchors):
         print(
