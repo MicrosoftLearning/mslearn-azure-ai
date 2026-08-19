@@ -60,12 +60,12 @@ In this section you download the project starter files and run the deployment sc
 
 1. Run the following command to load the resource values in Bash. The command exports the values from *.env* so the remaining Azure CLI commands and the local client can use them.
 
+    **Bash**
     ```bash
     source .env
     ```
 
-    If you use PowerShell, run the following command instead:
-
+    **PowerShell**
     ```powershell
     . .\.env.ps1
     ```
@@ -99,6 +99,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
 
 1. Run the following command to apply the main and sidecar container definitions. This creates the runtime relationship between the public chat API and its internal model sidecar.
 
+    **Bash**
     ```bash
     az webapp sitecontainers create \
         --name "$APP_NAME" \
@@ -106,8 +107,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
         --sitecontainers-spec-file ./sitecontainers-spec.json
     ```
 
-    If you use PowerShell, run the following command instead:
-
+    **PowerShell**
     ```powershell
     az webapp sitecontainers create `
         --name $env:APP_NAME `
@@ -117,6 +117,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
 
 1. Run the following command to verify the stored container definitions. This confirms that App Service saved both containers with their assigned roles and target ports.
 
+    **Bash**
     ```bash
     az webapp sitecontainers list \
         --name "$APP_NAME" \
@@ -124,8 +125,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
         --output table
     ```
 
-    If you use PowerShell, run the following command instead:
-
+    **PowerShell**
     ```powershell
     az webapp sitecontainers list `
         --name $env:APP_NAME `
@@ -142,7 +142,6 @@ In this section you verify that App Service pulled both images and that the Phi-
 1. Run the following command to retrieve the model-server log. The container-specific log distinguishes model loading and startup issues from errors in the main API.
 
     **Bash**
-
     ```bash
     az webapp sitecontainers log \
       --name "$APP_NAME" \
@@ -151,7 +150,6 @@ In this section you verify that App Service pulled both images and that the Phi-
     ```
 
     **PowerShell**
-
     ```powershell
     az webapp sitecontainers log `
       --name $env:APP_NAME `
@@ -164,13 +162,11 @@ In this section you verify that App Service pulled both images and that the Phi-
 1. Run the following command to call the API readiness operation. This confirms that the main API can reach the model sidecar through the shared network namespace. The response should report that the local model dependency is available without exposing model configuration or internal paths.
 
     **Bash**
-
     ```bash
     curl --fail-with-body "${CHAT_API_URL}/health/ready"
     ```
 
     **PowerShell**
-
     ```powershell
     Invoke-RestMethod -Uri "$env:CHAT_API_URL/health/ready"
     ```
@@ -182,13 +178,11 @@ In this section you verify that the main API and model sidecar access the same s
 1. Run the following command to request the non-sensitive model manifest fields. A successful response proves that the sidecar wrote the manifest and the main API read it through the shared volume.
 
     **Bash**
-
     ```bash
     curl --fail-with-body "${CHAT_API_URL}/model-info"
     ```
 
     **PowerShell**
-
     ```powershell
     Invoke-RestMethod -Uri "$env:CHAT_API_URL/model-info"
     ```
@@ -229,7 +223,7 @@ In this section you create a Python virtual environment and install the dependen
 
 1. Run the following command to install the Python dependencies. This installs the **flask** and **requests** libraries.
 
-    ```bash
+    ```
     pip install -r requirements.txt
     ```
 
@@ -243,7 +237,7 @@ In this section you start the local Flask web application and verify end-to-end 
 
 1. Run the following command to start the Flask application.
 
-    ```bash
+    ```
     python app.py
     ```
 
