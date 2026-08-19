@@ -6,7 +6,7 @@
 # location = "<your-azure-region>"   # Azure region for the resources
 
 rg = "rg-exercises"          # Resource Group name
-location = "canadacentral"         # Azure region for the resources
+location = "australiaeast"         # Azure region for the resources
 
 # =============================================================================
 # DON'T CHANGE ANYTHING BELOW THIS LINE.
@@ -21,7 +21,7 @@ import sys
 import time
 from pathlib import Path
 
-APP_SERVICE_SKU = "P1mv3"
+APP_SERVICE_SKU = "P2mv3"
 CHAT_API_IMAGE = "chat-api:v1"
 SIDECAR_IMAGE = "model-server:v1"
 
