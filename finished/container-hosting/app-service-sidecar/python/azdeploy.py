@@ -13,6 +13,7 @@ location = "canadacentral"         # Azure region for the resources
 # =============================================================================
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -131,6 +132,63 @@ def write_env_files(env_vars: dict[str, str], directory: str = ".") -> None:
         f.writelines(bash_lines)
     with open(target_dir / ".env.ps1", "w", encoding="utf-8", newline="\n") as f:
         f.writelines(ps_lines)
+
+
+def write_sitecontainers_spec(acr_name: str, identity_client_id: str) -> None:
+    """Write the resolved container specification without deploying it."""
+    spec = [
+        {
+            "name": "main-api",
+            "properties": {
+                "image": f"{acr_name}.azurecr.io/{MAIN_IMAGE}",
+                "targetPort": "8000",
+                "isMain": True,
+                "authType": "UserAssigned",
+                "userManagedIdentityClientId": identity_client_id,
+                "environmentVariables": [
+                    {
+                        "name": "MODEL_ENDPOINT",
+                        "value": "http://localhost:11434",
+                    }
+                ],
+                "volumeMounts": [
+                    {
+                        "volumeSubPath": "models/current",
+                        "containerMountPath": "/app/models",
+                        "readOnly": True,
+                    }
+                ],
+            },
+        },
+        {
+            "name": "model-server",
+            "properties": {
+                "image": f"{acr_name}.azurecr.io/{SIDECAR_IMAGE}",
+                "targetPort": "11434",
+                "isMain": False,
+                "authType": "UserAssigned",
+                "userManagedIdentityClientId": identity_client_id,
+                "environmentVariables": [
+                    {
+                        "name": "MODEL_NAME",
+                        "value": "microsoft/Phi-3-mini-4k-instruct-onnx",
+                    }
+                ],
+                "volumeMounts": [
+                    {
+                        "volumeSubPath": "models/current",
+                        "containerMountPath": "/models",
+                        "readOnly": False,
+                    }
+                ],
+            },
+        },
+    ]
+    Path("sitecontainers-spec.json").write_text(
+        json.dumps(spec, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def _derived_names(user_object_id: str) -> tuple[str, str, str, str]:
@@ -425,6 +483,8 @@ def create_app_service_resources(
     )
     if not identity_client_id:
         return False
+    write_sitecontainers_spec(acr_name, identity_client_id)
+    print("Resolved container specification saved to: sitecontainers-spec.json")
     write_env_files(
         {
             "RESOURCE_GROUP": rg,

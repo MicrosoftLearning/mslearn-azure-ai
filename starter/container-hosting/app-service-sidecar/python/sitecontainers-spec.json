@@ -1,0 +1,48 @@
+[
+  {
+    "name": "main-api",
+    "properties": {
+      "image": "<registry-name>.azurecr.io/chat-api:v1",
+      "targetPort": "8000",
+      "isMain": true,
+      "authType": "UserAssigned",
+      "userManagedIdentityClientId": "<identity-client-id>",
+      "environmentVariables": [
+        {
+          "name": "MODEL_ENDPOINT",
+          "value": "http://localhost:11434"
+        }
+      ],
+      "volumeMounts": [
+        {
+          "volumeSubPath": "models/current",
+          "containerMountPath": "/app/models",
+          "readOnly": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "model-server",
+    "properties": {
+      "image": "<registry-name>.azurecr.io/model-server:v1",
+      "targetPort": "11434",
+      "isMain": false,
+      "authType": "UserAssigned",
+      "userManagedIdentityClientId": "<identity-client-id>",
+      "environmentVariables": [
+        {
+          "name": "MODEL_NAME",
+          "value": "microsoft/Phi-3-mini-4k-instruct-onnx"
+        }
+      ],
+      "volumeMounts": [
+        {
+          "volumeSubPath": "models/current",
+          "containerMountPath": "/models",
+          "readOnly": false
+        }
+      ]
+    }
+  }
+]

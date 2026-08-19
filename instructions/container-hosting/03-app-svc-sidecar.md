@@ -61,7 +61,7 @@ In this section you download the project starter files and run the deployment sc
 
     The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 10-20 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
 
-1. Enter **2** to select **Create App Service resources and configure managed identity**. This option creates the P1V3 plan and sidecar-enabled web app. It also creates and assigns the user-assigned managed identity, grants it the **AcrPull** role, and writes the resource values to *.env* and *.env.ps1*.
+1. Enter **2** to select **Create App Service resources and configure managed identity**. This option creates the P1V3 plan and sidecar-enabled web app. It also creates and assigns the user-assigned managed identity, grants it the **AcrPull** role, updates the values in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
 
 1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, plan, web app, and managed identity are available.
 
@@ -83,173 +83,184 @@ The exercise images use port **8000** for the main API and port **11434** for th
 
 ## Define the main and sidecar containers
 
-You can place both container definitions in one JSON specification. The main API receives external traffic on port `8000`. The model server remains internal on port `11434`, and both definitions use managed identity for private image pulls.
+In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8000**, while the model server remains internal on port **11434**. Both containers use the user-assigned managed identity to pull their private images.
 
-You can create a file named `sitecontainers-spec.json` from the following pattern. Replace **\<registry-name>** with the value of **ACR_NAME** and **\<identity-client-id>** with the value of **IDENTITY_CLIENT_ID** from the environment file. JSON doesn't expand shell variables automatically.
+The deployment script resolves the registry name and managed identity client ID in *sitecontainers-spec.json*, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
 
-```json
-[
-  {
-    "name": "main-api",
-    "properties": {
-      "image": "<registry-name>.azurecr.io/chat-api:v1",
-      "targetPort": "8000",
-      "isMain": true,
-      "authType": "UserAssigned",
-      "userManagedIdentityClientId": "<identity-client-id>",
-      "environmentVariables": [
-        {
-          "name": "MODEL_ENDPOINT",
-          "value": "http://localhost:11434"
-        }
-      ],
-      "volumeMounts": [
-        {
-          "volumeSubPath": "models/current",
-          "containerMountPath": "/app/models",
-          "readOnly": true
-        }
-      ]
-    }
-  },
-  {
-    "name": "model-server",
-    "properties": {
-      "image": "<registry-name>.azurecr.io/model-server:v1",
-      "targetPort": "11434",
-      "isMain": false,
-      "authType": "UserAssigned",
-      "userManagedIdentityClientId": "<identity-client-id>",
-      "environmentVariables": [
-        {
-          "name": "MODEL_NAME",
-          "value": "microsoft/Phi-3-mini-4k-instruct-onnx"
-        }
-      ],
-      "volumeMounts": [
-        {
-          "volumeSubPath": "models/current",
-          "containerMountPath": "/models",
-          "readOnly": false
-        }
-      ]
-    }
-  }
-]
-```
+1. Open *sitecontainers-spec.json* in Visual Studio Code.
 
-You can apply the complete specification with one command:
+1. Review the **main-api** container definition and identify the following settings:
 
-```bash
-az webapp sitecontainers create \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --sitecontainers-spec-file ./sitecontainers-spec.json
-```
+    - **image** points to the **chat-api:v1** image in your Azure Container Registry.
+    - **targetPort** is **8000**, which is the port that receives external App Service traffic.
+    - **isMain** is **true**, which designates this container as the public application.
+    - **authType** is **UserAssigned**, and **userManagedIdentityClientId** contains the client ID of the managed identity created by the deployment script.
+    - **MODEL_ENDPOINT** is **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
+    - The **models/current** volume is mounted at **/app/models** as read-only.
 
-You can verify that App Service stores one main container and one sidecar:
+1. Review the **model-server** container definition and identify the following settings:
 
-```bash
-az webapp sitecontainers list \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --output table
-```
+    - **image** points to the **model-server:v1** image in your Azure Container Registry.
+    - **targetPort** is **11434** and **isMain** is **false**, so the model server remains an internal sidecar.
+    - The container uses the same user-assigned managed identity as the main API.
+    - **MODEL_NAME** identifies the Microsoft Phi-3 Mini ONNX model.
+    - The **models/current** volume is mounted at **/models** with write access so the sidecar can create the model manifest.
 
-Confirm that `main-api` has the main role and that the two target ports are different. You should also compare the image tags and managed identity client ID with the values you intended to deploy.
+1. Run the following command to **apply the main and sidecar container definitions**. This command configures both containers in one App Service operation.
 
-## Configure the local chat client
-
-The local Flask client provides the browser chat experience without adding a third container to the App Service application. The client reads the **CHAT_API_URL** value that you loaded from *.env* or *.env.ps1*, so it calls the web app created for your exercise.
-
-1. Run the following command to **change to the client directory**.
+    **Bash**
 
     ```bash
+    az webapp sitecontainers create \
+      --name "$APP_NAME" \
+      --resource-group "$RESOURCE_GROUP" \
+      --sitecontainers-spec-file ./sitecontainers-spec.json
+    ```
+
+    **PowerShell**
+
+    ```powershell
+    az webapp sitecontainers create `
+      --name $env:APP_NAME `
+      --resource-group $env:RESOURCE_GROUP `
+      --sitecontainers-spec-file .\sitecontainers-spec.json
+    ```
+
+1. Run the following command to **verify the stored container definitions**.
+
+    **Bash**
+
+    ```bash
+    az webapp sitecontainers list \
+      --name "$APP_NAME" \
+      --resource-group "$RESOURCE_GROUP" \
+      --output table
+    ```
+
+    **PowerShell**
+
+    ```powershell
+    az webapp sitecontainers list `
+      --name $env:APP_NAME `
+      --resource-group $env:RESOURCE_GROUP `
+      --output table
+    ```
+
+1. Confirm that **main-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use the expected managed identity client ID.
+
+## Verify the model sidecar is ready
+
+In this section you verify that App Service pulled both images and that the Phi-3 model sidecar finished loading before you start the local chat client. The first container start can take several minutes.
+
+1. Run the following command to **retrieve the model-server log**.
+
+    **Bash**
+
+    ```bash
+    az webapp sitecontainers log \
+      --name "$APP_NAME" \
+      --resource-group "$RESOURCE_GROUP" \
+      --container-name model-server
+    ```
+
+    **PowerShell**
+
+    ```powershell
+    az webapp sitecontainers log `
+      --name $env:APP_NAME `
+      --resource-group $env:RESOURCE_GROUP `
+      --container-name model-server
+    ```
+
+1. Confirm that the log reports the model loaded successfully and that the model server listens on port **11434**.
+
+1. Run the following command to **call the API readiness operation**.
+
+    **Bash**
+
+    ```bash
+    curl --fail-with-body "${CHAT_API_URL}/health/ready"
+    ```
+
+    **PowerShell**
+
+    ```powershell
+    Invoke-RestMethod -Uri "$env:CHAT_API_URL/health/ready"
+    ```
+
+The readiness response should report that the local model dependency is available. It shouldn't expose model configuration, internal paths, or other sensitive details.
+
+## Set up the Python environment
+
+In this section you create a Python virtual environment and install the dependencies needed for the local Flask client. The client provides the browser chat experience without adding a third container to the App Service application.
+
+1. Run the following command to navigate to the *client* directory.
+
+    ```
     cd client
     ```
 
-1. Run the following command to **create a Python virtual environment**.
+1. Run the following command to create a virtual environment for the Python application. Depending on your environment, the command might be **python** or **python3**.
 
-    ```bash
+    ```
     python -m venv .venv
     ```
 
-1. Run the following command to **activate the virtual environment in Bash**.
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
 
+    **Bash**
     ```bash
     source .venv/bin/activate
     ```
 
-    If you use PowerShell, run the following command instead:
-
+    **PowerShell**
     ```powershell
     .\.venv\Scripts\Activate.ps1
     ```
 
-1. Run the following command to **install the client dependencies**.
+1. Run the following command to install the Python dependencies. This installs the **flask** and **requests** libraries.
 
     ```bash
     pip install -r requirements.txt
     ```
 
-1. Run the following command to **start the local chat client**.
+Next, you start the local Flask application and use it to communicate with the chat API and model sidecar in Azure.
+
+## Run the chat client
+
+In this section you start the local Flask web application and verify end-to-end inference through the chat API and Phi-3 model sidecar. The client reads the **CHAT_API_URL** value that you loaded from *.env* or *.env.ps1*.
+
+1. Ensure you are still in the *client* directory with the virtual environment activated. You should see **(.venv)** in your terminal prompt.
+
+1. Run the following command to start the Flask application.
 
     ```bash
     python app.py
     ```
 
-## Verify end-to-end inference
+1. Open a browser and navigate to `http://127.0.0.1:5000`.
 
-Container startup can take longer when the sidecar loads a model. You can inspect the model-server log until the process reports that it listens on port `11434`. A successful startup confirms the image pull and process launch boundaries.
+1. Confirm that the page reports **Model ready**, and then send a short message. The browser keeps up to eight recent user and assistant messages in the current tab and sends the bounded history through the local Flask client to the chat API. The history is not stored by either server and is cleared when you reload the page.
 
-You can retrieve the model-server log with the container-specific command:
-
-```bash
-az webapp sitecontainers log \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --container-name model-server
-```
-
-You can retrieve the public chat API URL for direct diagnostic requests:
-
-```bash
-APP_URL="https://${APP_NAME}.azurewebsites.net"
-
-echo "$APP_URL"
-```
-
-Open `http://localhost:5000` in a browser, wait until the page reports **Model ready**, and send a short message. The browser keeps up to eight recent user and assistant messages in the current tab and sends the bounded history through the local Flask client to the chat API. The history is not stored by either server and is cleared when you reload the page.
-
-The response confirms several boundaries. App Service routes external traffic to the main container, the chat API connects to `localhost:11434`, and the model server returns a completion. The model-server log should show the corresponding request.
-
-You can also test the chat API directly:
-
-```bash
-curl --fail-with-body \
-  --request POST \
-  --header "Content-Type: application/json" \
-  --data '{"messages":[{"role":"user","content":"Explain Azure App Service sidecars in one sentence."}]}' \
-  "${APP_URL}/api/chat"
-```
-
-You can also call the API's limited readiness operation:
-
-```bash
-curl --fail-with-body "${APP_URL}/health/ready"
-```
-
-The readiness response should report that the local model dependency is available. It shouldn't expose model configuration, internal paths, or other sensitive details.
+The response confirms several boundaries. App Service routes external traffic to the main container, the chat API connects to **localhost:11434**, and the model server returns a completion.
 
 ## Verify the shared volume
 
 The model server writes a small manifest to `/models/manifest.json` after it loads the exercise model. The main API reads the same file through `/app/models/manifest.json`. The paths differ, but both mounts use the `models/current` volume subpath.
 
-You can request the API operation that reports the non-sensitive manifest fields:
+1. Run the following command to **request the non-sensitive model manifest fields**.
 
-```bash
-curl --fail-with-body "${APP_URL}/model-info"
-```
+    **Bash**
+
+    ```bash
+    curl --fail-with-body "${CHAT_API_URL}/model-info"
+    ```
+
+    **PowerShell**
+
+    ```powershell
+    Invoke-RestMethod -Uri "$env:CHAT_API_URL/model-info"
+    ```
 
 Confirm that the response identifies the exercise model and reports a ready state. If the API can't read the file, compare both container definitions. The `volumeSubPath` values must match, and the main API mount should remain read-only.
 
@@ -259,43 +270,74 @@ The volume is non-persistent. The exercise application can recreate the manifest
 
 You can now create a controlled connectivity failure by changing the main API's `MODEL_ENDPOINT` to port `11435` in `sitecontainers-spec.json`. Keep the model-server target port at `11434`. Reapplying the file creates a mismatch between the client endpoint and the listening process.
 
-You can apply the changed specification and test readiness again:
+1. Run the following command to **apply the changed specification**.
 
-```bash
-az webapp sitecontainers create \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --sitecontainers-spec-file ./sitecontainers-spec.json
-```
+    **Bash**
 
-```bash
-curl --fail-with-body "${APP_URL}/health/ready"
-```
+    ```bash
+    az webapp sitecontainers create \
+      --name "$APP_NAME" \
+      --resource-group "$RESOURCE_GROUP" \
+      --sitecontainers-spec-file ./sitecontainers-spec.json
+    ```
 
-The readiness operation should report that the model dependency is unavailable. You can inspect the main container log to find the connection refusal:
+    **PowerShell**
 
-```bash
-az webapp sitecontainers log \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --container-name main-api
-```
+    ```powershell
+    az webapp sitecontainers create `
+      --name $env:APP_NAME `
+      --resource-group $env:RESOURCE_GROUP `
+      --sitecontainers-spec-file .\sitecontainers-spec.json
+    ```
+
+1. Run the following command to **test readiness after injecting the failure**.
+
+    **Bash**
+
+    ```bash
+    curl --fail-with-body "${CHAT_API_URL}/health/ready"
+    ```
+
+    **PowerShell**
+
+    ```powershell
+    Invoke-RestMethod -Uri "$env:CHAT_API_URL/health/ready"
+    ```
+
+The readiness operation should report that the model dependency is unavailable.
+
+1. Run the following command to **inspect the main container log for the connection refusal**.
+
+    **Bash**
+
+    ```bash
+    az webapp sitecontainers log \
+      --name "$APP_NAME" \
+      --resource-group "$RESOURCE_GROUP" \
+      --container-name main-api
+    ```
+
+    **PowerShell**
+
+    ```powershell
+    az webapp sitecontainers log `
+      --name $env:APP_NAME `
+      --resource-group $env:RESOURCE_GROUP `
+      --container-name main-api
+    ```
 
 Use the diagnostic sequence from the preceding unit. You can confirm that both images pull, both processes start, and the model server listens on `11434`. Comparing the main API environment value with the sidecar target port isolates the mismatch.
 
 You can restore `MODEL_ENDPOINT` to `http://localhost:11434`, reapply the specification, and refresh the chat application. When the model status returns to **Model ready**, send another message. A successful response verifies that the configuration correction resolves the original failure.
 
-## Review metrics and remove resources
+## Clean up resources
 
-You can review App Service CPU, memory, response time, and request metrics after the tests. The measurements show the combined behavior of the main API and model-serving sidecar. Production plan selection requires representative concurrency and a longer observation window.
+Now that you finished the exercise, you should delete the cloud resources you created to avoid unnecessary resource usage.
 
-When you finish the exercise, you can remove the resource group if it contains only exercise resources:
+1. Run the following command in the VS Code terminal to delete the resource group, and all resources in the group. Replace **\<rg-name>** with the name you choose earlier in the exercise. The command will launch a background task in Azure to delete the resource group.
 
-```bash
-az group delete \
-  --name "$RESOURCE_GROUP" \
-  --yes \
-  --no-wait
-```
+    ```
+    az group delete --name <rg-name> --no-wait --yes
+    ```
 
-Resource deletion prevents continued App Service charges. The command doesn't wait for deletion to finish, so you can verify removal later in the Azure portal or with `az group show`.
+> **CAUTION:** Deleting a resource group deletes all resources contained within it. If you chose an existing resource group for this exercise, any existing resources outside the scope of this exercise will also be deleted.
