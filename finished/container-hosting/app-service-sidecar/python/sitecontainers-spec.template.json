@@ -1,6 +1,6 @@
 [
   {
-    "name": "main-api",
+    "name": "chat-api",
     "properties": {
       "image": "<registry-name>.azurecr.io/chat-api:v1",
       "targetPort": "8000",

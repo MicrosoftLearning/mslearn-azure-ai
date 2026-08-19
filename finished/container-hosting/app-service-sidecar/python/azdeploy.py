@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 APP_SERVICE_SKU = "P1V3"
-MAIN_IMAGE = "chat-api:v1"
+CHAT_API_IMAGE = "chat-api:v1"
 SIDECAR_IMAGE = "model-server:v1"
 
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
@@ -258,21 +258,21 @@ def create_acr_and_build_images(acr_name: str) -> bool:
         return False
 
     print()
-    print(f"Building and pushing {MAIN_IMAGE}...")
+    print(f"Building and pushing {CHAT_API_IMAGE}...")
     if not run_quiet(
         "Build and push the chat API image",
         [
             "az", "acr", "build",
             "--resource-group", rg,
             "--registry", acr_name,
-            "--image", MAIN_IMAGE,
+            "--image", CHAT_API_IMAGE,
             "--file", "api/Dockerfile",
             "--no-logs",
             "api/",
         ],
     ):
         return False
-    print(f"Image built and pushed: {acr_name}.azurecr.io/{MAIN_IMAGE}")
+    print(f"Image built and pushed: {acr_name}.azurecr.io/{CHAT_API_IMAGE}")
 
     print()
     print(f"Building and pushing {SIDECAR_IMAGE}...")
@@ -475,7 +475,7 @@ def create_app_service_resources(
             "ACR_NAME": acr_name,
             "APP_PLAN": app_plan,
             "APP_NAME": app_name,
-            "MAIN_IMAGE": f"{acr_name}.azurecr.io/{MAIN_IMAGE}",
+            "CHAT_API_IMAGE": f"{acr_name}.azurecr.io/{CHAT_API_IMAGE}",
             "SIDECAR_IMAGE": f"{acr_name}.azurecr.io/{SIDECAR_IMAGE}",
             "CHAT_API_URL": f"https://{app_name}.azurewebsites.net",
             "CHAT_API_TIMEOUT": "300",
@@ -606,7 +606,7 @@ def check_deployment_status(
         repositories = az_query(
             ["az", "acr", "repository", "list", "--name", acr_name, "-o", "tsv"]
         )
-        for image in (MAIN_IMAGE.split(":")[0], SIDECAR_IMAGE.split(":")[0]):
+        for image in (CHAT_API_IMAGE.split(":")[0], SIDECAR_IMAGE.split(":")[0]):
             state = "Available" if image in repositories.splitlines() else "Not found"
             print(f"  {image}: {state}")
 

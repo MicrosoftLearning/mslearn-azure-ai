@@ -80,7 +80,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
 
 1. Open *sitecontainers-spec.json* in Visual Studio Code.
 
-1. Review the **main-api** container definition and identify the following settings:
+1. Review the **chat-api** container definition and identify the following settings:
 
     - **image** points to the **chat-api:v1** image in your Azure Container Registry.
     - **targetPort** is **8000**, which is the port that receives external App Service traffic.
@@ -133,7 +133,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
         --output table
     ```
 
-1. Confirm that **main-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use **SystemIdentity** authentication.
+1. Confirm that **chat-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use **SystemIdentity** authentication.
 
 ## Verify the model sidecar is ready
 
