@@ -62,12 +62,46 @@ Steps that direct a student to run a command should:
 
 Example:
 ```
-1. Run the following command to load the environment variables into your terminal session. This command exports the variables from the *.env* file so they are available to subsequent commands and scripts.
+1. Run the following command to start the deployment script. The script provides a menu for provisioning the exercise resources in the required order.
 
+    ```
+    python azdeploy.py
+    ```
+```
+
+### Code Block Formatting
+
+Use unlabeled code fences for shell-agnostic commands and grouped **Bash** / **PowerShell** blocks only when the same step needs a different command per shell.
+
+**Cross-platform commands** — commands that work identically in Bash, PowerShell, cmd, and Git Bash (for example **python azdeploy.py**, **pip install -r requirements.txt**, **cd client**, **az login**, or any single **az** command that has no shell-specific syntax) use a plain unlabeled code fence with no language tag:
+
+```
+1. Run the following command to start the deployment script.
+
+    ```
+    python azdeploy.py
+    ```
+```
+
+Do not tag these fences with **bash** or **powershell** just because the student happens to be in a Bash terminal. The language tag implies the command is shell-specific, and cross-platform commands aren't.
+
+**Dual-shell commands** — commands whose syntax genuinely differs between shells (for example **source .env** vs **. .\.env.ps1**, or an **az** command that uses **$VAR** vs **$env:VAR** and **\\** vs **`** line continuations) use two labeled blocks under bold shell labels. Place the shell label immediately above the fence with no blank line between them, and separate the two blocks with a single blank line:
+
+```
+1. Run the following command to load the resource values into your terminal session.
+
+    **Bash**
     ```bash
     source .env
     ```
+
+    **PowerShell**
+    ```powershell
+    . .\.env.ps1
+    ```
 ```
+
+Both blocks belong to the same numbered step. Do not use prose like "If you use PowerShell, run the following command instead:" between the two blocks — the bold shell labels are the only separator needed.
 
 ### Section Introductions
 
