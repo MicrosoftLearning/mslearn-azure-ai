@@ -13,7 +13,7 @@ In this exercise, you deploy a Python chat API as the main App Service container
 
 ## Download project starter files and deploy Azure resources
 
-In this section you download the project starter files and run the deployment script. The script creates the resource group, builds both container images in Azure Container Registry, creates the P1mv3 App Service plan and sidecar-enabled web app, and grants the web app's system-assigned managed identity permission to pull the private images.
+In this section you download the project starter files and run the deployment script. The script creates the resource group, builds both container images in Azure Container Registry, creates the App Service plan and sidecar-enabled web app, and grants the web app's system-assigned managed identity permission to pull the private images.
 
 1. Open a browser and enter the following URL to download the starter files. The file is saved in your default download location.
 
@@ -52,7 +52,7 @@ In this section you download the project starter files and run the deployment sc
 
     The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 5-10 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
 
-1. Enter **2** to select **Create App Service resources and configure system identity**. This option creates the P1mv3 plan and sidecar-enabled web app. It also enables the web app's system-assigned managed identity, grants it the **AcrPull** role, updates the registry name in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
+1. Enter **2** to select **Create App Service resources and configure system identity**. This option creates the App Service plan and sidecar-enabled web app. It also enables the web app's system-assigned managed identity, grants it the **AcrPull** role, updates the registry name in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
 
 1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, plan, web app, and managed identity are available.
 
@@ -269,7 +269,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - Run the deployment script's **Check deployment status** option and confirm the registry, both container images, plan, web app, and managed identity are all available before applying the sitecontainers specification.
 
 **Resolve deployment failures**
-- If option 1 or option 2 fails, it's most often due to a temporary lack of capacity for the Basic ACR SKU or the P1mv3 App Service plan in your chosen region.
+- If option 1 or option 2 fails, it's most often due to a temporary lack of capacity for the container registry or App Service plan SKU in your chosen region.
 - Exit the script, change the **location** variable near the top of *azdeploy.py* to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose the failed option.
 - The failed resource is deleted automatically before the next attempt.
 
