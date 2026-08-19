@@ -3,10 +3,7 @@ import os
 from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
-
-load_dotenv(Path(__file__).with_name(".env"))
 
 CLIENT_DIR = Path(__file__).resolve().parent
 app = Flask(
@@ -29,7 +26,8 @@ logger = logging.getLogger(__name__)
 def api_url(path: str) -> str:
     if not CHAT_API_URL:
         raise RuntimeError(
-            "CHAT_API_URL is not configured. Run azdeploy.py to generate client/.env."
+            "CHAT_API_URL is not configured. Source .env or dot-source .env.ps1 "
+            "before starting the client."
         )
     return f"{CHAT_API_URL}{path}"
 

@@ -20,113 +20,72 @@ In this exercise, you deploy a Python chat API as the main App Service container
 > [!NOTE]
 > The first model-server image build downloads the Phi-3 model and can take 10-20 minutes. The first container start also takes several minutes while App Service pulls the image and ONNX Runtime loads the model. Keep the deployment terminal open during the build and use the readiness endpoint before sending an inference request.
 
-## Prepare the exercise values
+## Download project starter files and deploy Azure resources
 
-You can use Azure Cloud Shell or a local Bash terminal with Azure CLI. The following variables keep the commands consistent while making the resource names unique. Replace the placeholder values before you run the commands.
+In this section you download the project starter files and run the deployment script. The script creates the resource group, builds both container images in Azure Container Registry, creates the P1V3 App Service plan and sidecar-enabled web app, and configures a user-assigned managed identity with permission to pull the private images.
 
-You can define the exercise values with the following Bash fragment:
+1. Open a browser and enter the following URL to download the starter files. The file is saved in your default download location.
 
-```bash
-RESOURCE_GROUP="<resource-group>"
-LOCATION="<azure-region>"
-PLAN_NAME="<app-service-plan>"
-APP_NAME="<globally-unique-app-name>"
-ACR_NAME="<registry-name>"
-IDENTITY_NAME="<managed-identity-name>"
-MAIN_IMAGE="${ACR_NAME}.azurecr.io/chat-api:v1"
-SIDECAR_IMAGE="${ACR_NAME}.azurecr.io/model-server:v1"
-```
+    ```
+    https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/app-svc-sidecar-python.zip
+    ```
 
-You can confirm that your Azure CLI session uses the intended subscription before you create resources:
+1. Copy or move the downloaded file to a working folder, and then extract its contents.
 
-```bash
-az account show --output table
-```
+1. Open the extracted folder in Visual Studio Code.
 
-The exercise images use port `8000` for the main API and port `11434` for the model server. The main API reads `MODEL_ENDPOINT` and sends inference requests to the sidecar through `http://localhost:11434`.
+1. Open *azdeploy.py*, change the **rg** and **location** values at the top of the file, and save your changes. Do not change anything below the **DON'T CHANGE ANYTHING BELOW THIS LINE** comment.
 
-## Create the App Service resources
+1. Open a new terminal in Visual Studio Code.
 
-You can create a Linux App Service plan and a sidecar-enabled web app. The selected plan needs enough memory for the API and the local model server together. In a production design, you should select the plan from measured resource requirements rather than use an exercise default.
+1. Run the following command to **sign in to Azure**. Follow the prompts to select the subscription you want to use for the exercise.
 
-You can create the resource group and Linux plan with the following commands:
+    ```
+    az login
+    ```
 
-```bash
-az group create \
-  --name "$RESOURCE_GROUP" \
-  --location "$LOCATION"
+1. Run the following commands to **register the Azure resource providers used by the exercise**.
 
-az appservice plan create \
-  --name "$PLAN_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --location "$LOCATION" \
-  --is-linux \
-  --sku P1V3
-```
+    ```
+    az provider register --namespace Microsoft.ContainerRegistry
+    az provider register --namespace Microsoft.Web
+    ```
 
-You can then create the app with sidecar support:
+1. Run the following command to **start the deployment script**.
 
-```bash
-az webapp create \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --plan "$PLAN_NAME" \
-  --sitecontainers-app
-```
+    ```
+    python azdeploy.py
+    ```
 
-The app doesn't serve the AI API until you add a container with `isMain: true`. Sidecar support changes the app to the `sitecontainers` configuration model so each container can have its own definition.
+1. Enter **1** to select **Create Azure Container Registry and build both images**. This option creates the registry and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
 
-## Configure managed-identity image pulls
+    The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 10-20 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
 
-You can create a user-assigned managed identity, attach it to the web app, and grant it permission to pull from the exercise registry. The site container definitions use the identity's client ID. Azure role assignment uses the identity's principal ID.
+1. Enter **2** to select **Create App Service resources and configure managed identity**. This option creates the P1V3 plan and sidecar-enabled web app. It also creates and assigns the user-assigned managed identity, grants it the **AcrPull** role, and writes the resource values to *.env* and *.env.ps1*.
 
-You can create and assign the identity with the following commands:
+1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, plan, web app, and managed identity are available.
 
-```bash
-IDENTITY_ID=$(az identity create \
-  --name "$IDENTITY_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --query id \
-  --output tsv)
+1. Enter **4** to exit the deployment script.
 
-IDENTITY_CLIENT_ID=$(az identity show \
-  --ids "$IDENTITY_ID" \
-  --query clientId \
-  --output tsv)
+1. Run the following command to **load the resource values in Bash**. The command exports the values from *.env* so the remaining Azure CLI commands and the local client can use them.
 
-IDENTITY_PRINCIPAL_ID=$(az identity show \
-  --ids "$IDENTITY_ID" \
-  --query principalId \
-  --output tsv)
+    ```bash
+    source .env
+    ```
 
-az webapp identity assign \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --identities "$IDENTITY_ID"
-```
+    If you use PowerShell, run the following command instead:
 
-You can retrieve the registry resource ID and grant the `AcrPull` role:
+    ```powershell
+    . .\.env.ps1
+    ```
 
-```bash
-ACR_ID=$(az acr show \
-  --name "$ACR_NAME" \
-  --query id \
-  --output tsv)
-
-az role assignment create \
-  --assignee-object-id "$IDENTITY_PRINCIPAL_ID" \
-  --assignee-principal-type ServicePrincipal \
-  --role AcrPull \
-  --scope "$ACR_ID"
-```
-
-Role assignments can take time to propagate. If the first image pull fails immediately after this step, wait for propagation before changing the identity or using registry credentials.
+The exercise images use port **8000** for the main API and port **11434** for the model server. The main API reads **MODEL_ENDPOINT** and sends inference requests to the sidecar through **http://localhost:11434**. The web app doesn't serve the chat API until you define and apply a container with **isMain** set to **true**.
 
 ## Define the main and sidecar containers
 
 You can place both container definitions in one JSON specification. The main API receives external traffic on port `8000`. The model server remains internal on port `11434`, and both definitions use managed identity for private image pulls.
 
-You can create a file named `sitecontainers-spec.json` from the following pattern. Replace the angle-bracket placeholders with the values from your environment. JSON doesn't expand Bash variables automatically.
+You can create a file named `sitecontainers-spec.json` from the following pattern. Replace **\<registry-name>** with the value of **ACR_NAME** and **\<identity-client-id>** with the value of **IDENTITY_CLIENT_ID** from the environment file. JSON doesn't expand shell variables automatically.
 
 ```json
 [
@@ -201,7 +160,7 @@ Confirm that `main-api` has the main role and that the two target ports are diff
 
 ## Configure the local chat client
 
-The local Flask client provides the browser chat experience without adding a third container to the App Service application. The deployment script writes the public chat API URL to *client/.env*. The client loads this file with python-dotenv, so you don't need to source environment variables into the terminal.
+The local Flask client provides the browser chat experience without adding a third container to the App Service application. The client reads the **CHAT_API_URL** value that you loaded from *.env* or *.env.ps1*, so it calls the web app created for your exercise.
 
 1. Run the following command to **change to the client directory**.
 

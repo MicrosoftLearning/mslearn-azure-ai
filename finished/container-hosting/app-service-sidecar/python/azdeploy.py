@@ -13,7 +13,6 @@ location = "canadacentral"         # Azure region for the resources
 # =============================================================================
 
 import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -24,7 +23,6 @@ from pathlib import Path
 APP_SERVICE_SKU = "P1V3"
 MAIN_IMAGE = "chat-api:v1"
 SIDECAR_IMAGE = "model-server:v1"
-SITE_CONTAINERS_SPEC = "sitecontainers-spec.json"
 
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
 
@@ -102,15 +100,37 @@ def require_az_login() -> str:
     return user_object_id
 
 
-def write_client_env(app_name: str) -> None:
-    """Write app-loaded client configuration in dotenv format."""
-    env_path = Path("client") / ".env"
-    env_path.write_text(
-        f"CHAT_API_URL=https://{app_name}.azurewebsites.net\n"
-        "CHAT_API_TIMEOUT=300\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+def write_env_files(env_vars: dict[str, str], directory: str = ".") -> None:
+    """Write .env (bash) and .env.ps1 (PowerShell) side by side.
+
+    Writes UTF-8 without BOM and LF line endings so both bash `source` and
+    PowerShell dot-source read them correctly on every supported shell.
+    """
+    target_dir = Path(directory)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    def bash_escape(value: str) -> str:
+        return (
+            value.replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("$", "\\$")
+            .replace("`", "\\`")
+        )
+
+    def ps_escape(value: str) -> str:
+        return (
+            value.replace("`", "``")
+            .replace('"', '`"')
+            .replace("$", "`$")
+        )
+
+    bash_lines = [f'export {k}="{bash_escape(v)}"\n' for k, v in env_vars.items()]
+    ps_lines = [f'$env:{k} = "{ps_escape(v)}"\n' for k, v in env_vars.items()]
+
+    with open(target_dir / ".env", "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(bash_lines)
+    with open(target_dir / ".env.ps1", "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(ps_lines)
 
 
 def _derived_names(user_object_id: str) -> tuple[str, str, str, str]:
@@ -135,10 +155,9 @@ def show_menu(acr_name: str, app_plan: str, app_name: str) -> None:
     print(f"Web App: {app_name}")
     print("=====================================================================")
     print("1. Create Azure Container Registry and build both images")
-    print("2. Create App Service plan and sidecar-enabled web app")
-    print("3. Configure managed identity and deploy the containers")
-    print("4. Check deployment status")
-    print("5. Exit")
+    print("2. Create App Service resources and configure managed identity")
+    print("3. Check deployment status")
+    print("4. Exit")
     print("=====================================================================")
 
 
@@ -377,7 +396,12 @@ def _prepare_web_app(app_plan: str, app_name: str) -> bool:
     return True
 
 
-def create_app_service_resources(app_plan: str, app_name: str) -> bool:
+def create_app_service_resources(
+    acr_name: str,
+    app_plan: str,
+    app_name: str,
+    identity_name: str,
+) -> bool:
     if not _prepare_app_service_plan(app_plan):
         return False
     print()
@@ -393,8 +417,30 @@ def create_app_service_resources(app_plan: str, app_name: str) -> bool:
         ],
     ):
         return False
-    write_client_env(app_name)
-    print("Local client configuration saved to: client/.env")
+    print()
+    identity_client_id = configure_managed_identity(
+        acr_name,
+        app_name,
+        identity_name,
+    )
+    if not identity_client_id:
+        return False
+    write_env_files(
+        {
+            "RESOURCE_GROUP": rg,
+            "LOCATION": location,
+            "ACR_NAME": acr_name,
+            "APP_PLAN": app_plan,
+            "APP_NAME": app_name,
+            "IDENTITY_NAME": identity_name,
+            "IDENTITY_CLIENT_ID": identity_client_id,
+            "MAIN_IMAGE": f"{acr_name}.azurecr.io/{MAIN_IMAGE}",
+            "SIDECAR_IMAGE": f"{acr_name}.azurecr.io/{SIDECAR_IMAGE}",
+            "CHAT_API_URL": f"https://{app_name}.azurewebsites.net",
+            "CHAT_API_TIMEOUT": "300",
+        }
+    )
+    print("Environment variables saved to: .env and .env.ps1")
     return True
 
 
@@ -490,72 +536,11 @@ def _assign_acr_pull(acr_name: str, principal_id: str) -> bool:
     return True
 
 
-def write_sitecontainers_spec(
-    acr_name: str,
-    identity_client_id: str,
-) -> Path:
-    spec = [
-        {
-            "name": "main-api",
-            "properties": {
-                "image": f"{acr_name}.azurecr.io/{MAIN_IMAGE}",
-                "targetPort": "8000",
-                "isMain": True,
-                "authType": "UserAssigned",
-                "userManagedIdentityClientId": identity_client_id,
-                "environmentVariables": [
-                    {
-                        "name": "MODEL_ENDPOINT",
-                        "value": "http://localhost:11434",
-                    },
-                    {
-                        "name": "MODEL_REQUEST_TIMEOUT",
-                        "value": "180",
-                    },
-                ],
-                "volumeMounts": [
-                    {
-                        "volumeSubPath": "models/current",
-                        "containerMountPath": "/app/models",
-                        "readOnly": True,
-                    }
-                ],
-            },
-        },
-        {
-            "name": "model-server",
-            "properties": {
-                "image": f"{acr_name}.azurecr.io/{SIDECAR_IMAGE}",
-                "targetPort": "11434",
-                "isMain": False,
-                "authType": "UserAssigned",
-                "userManagedIdentityClientId": identity_client_id,
-                "environmentVariables": [
-                    {
-                        "name": "MODEL_NAME",
-                        "value": "microsoft/Phi-3-mini-4k-instruct-onnx",
-                    }
-                ],
-                "volumeMounts": [
-                    {
-                        "volumeSubPath": "models/current",
-                        "containerMountPath": "/models",
-                        "readOnly": False,
-                    }
-                ],
-            },
-        },
-    ]
-    spec_path = Path(SITE_CONTAINERS_SPEC)
-    spec_path.write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
-    return spec_path
-
-
-def configure_identity_and_containers(
+def configure_managed_identity(
     acr_name: str,
     app_name: str,
     identity_name: str,
-) -> bool:
+) -> str | None:
     if not az_query(
         [
             "az", "webapp", "show",
@@ -566,11 +551,11 @@ def configure_identity_and_containers(
         ]
     ):
         print("Error: The web app was not found. Complete option 2 first.")
-        return False
+        return None
 
     identity = _create_identity(identity_name)
     if identity is None:
-        return False
+        return None
     identity_id, identity_client_id, principal_id = identity
 
     print("Assigning the managed identity to the web app...")
@@ -583,28 +568,15 @@ def configure_identity_and_containers(
             "--identities", identity_id,
         ],
     ):
-        return False
+        return None
     print("Managed identity assigned to the web app.")
 
     if not _assign_acr_pull(acr_name, principal_id):
-        return False
+        return None
 
-    spec_path = write_sitecontainers_spec(acr_name, identity_client_id)
-    print(f"Container specification saved to: {spec_path}")
-    print("Deploying the main API and Phi-3 model sidecar...")
-    if not run_quiet(
-        "Deploy site containers",
-        [
-            "az", "webapp", "sitecontainers", "create",
-            "--resource-group", rg,
-            "--name", app_name,
-            "--sitecontainers-spec-file", str(spec_path),
-        ],
-    ):
-        return False
-    print("Site containers deployed.")
-    print("The model can take several minutes to load after the first image pull.")
-    return True
+    print(f"Managed identity client ID: {identity_client_id}")
+    print("Use this client ID when you define the site containers.")
+    return identity_client_id
 
 
 def check_deployment_status(
@@ -691,6 +663,16 @@ def check_deployment_status(
     )
     print(f"Managed Identity ({identity_name}):")
     print(f"  Status: {'Configured' if identity_id else 'Not created'}")
+    if identity_id:
+        identity_client_id = az_query(
+            [
+                "az", "identity", "show",
+                "--ids", identity_id,
+                "--query", "clientId",
+                "-o", "tsv",
+            ]
+        )
+        print(f"  Client ID: {identity_client_id}")
     return True
 
 
@@ -717,9 +699,9 @@ def main() -> None:
 
     while True:
         show_menu(acr_name, app_plan, app_name)
-        choice = input("Please select an option (1-5): ").strip()
+        choice = input("Please select an option (1-4): ").strip()
 
-        if choice in {"1", "2", "3", "4", "5"}:
+        if choice in {"1", "2", "3", "4"}:
             clear_screen()
 
         if choice == "1":
@@ -733,25 +715,25 @@ def main() -> None:
             print()
             if create_resource_group():
                 print()
-                create_app_service_resources(app_plan, app_name)
+                create_app_service_resources(
+                    acr_name,
+                    app_plan,
+                    app_name,
+                    identity_name,
+                )
             print()
             pause()
         elif choice == "3":
             print()
-            configure_identity_and_containers(acr_name, app_name, identity_name)
-            print()
-            pause()
-        elif choice == "4":
-            print()
             check_deployment_status(acr_name, app_plan, app_name, identity_name)
             print()
             pause()
-        elif choice == "5":
+        elif choice == "4":
             print("Exiting...")
             clear_screen()
             sys.exit(0)
         else:
-            print("Invalid option. Please select 1-5.")
+            print("Invalid option. Please select 1-4.")
             pause()
 
 
