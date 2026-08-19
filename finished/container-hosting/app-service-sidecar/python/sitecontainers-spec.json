@@ -1,0 +1,46 @@
+[
+  {
+    "name": "chat-api",
+    "properties": {
+      "image": "acrsidecardf2d02f3.azurecr.io/chat-api:v1",
+      "targetPort": "8000",
+      "isMain": true,
+      "authType": "SystemIdentity",
+      "environmentVariables": [
+        {
+          "name": "MODEL_ENDPOINT",
+          "value": "MODEL_ENDPOINT"
+        }
+      ],
+      "volumeMounts": [
+        {
+          "volumeSubPath": "models/current",
+          "containerMountPath": "/app/models",
+          "readOnly": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "model-server",
+    "properties": {
+      "image": "acrsidecardf2d02f3.azurecr.io/model-server:v1",
+      "targetPort": "11434",
+      "isMain": false,
+      "authType": "SystemIdentity",
+      "environmentVariables": [
+        {
+          "name": "MODEL_NAME",
+          "value": "MODEL_NAME"
+        }
+      ],
+      "volumeMounts": [
+        {
+          "volumeSubPath": "models/current",
+          "containerMountPath": "/models",
+          "readOnly": false
+        }
+      ]
+    }
+  }
+]

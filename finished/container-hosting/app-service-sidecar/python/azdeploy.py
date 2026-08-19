@@ -21,7 +21,7 @@ import sys
 import time
 from pathlib import Path
 
-APP_SERVICE_SKU = "P1V3"
+APP_SERVICE_SKU = "P1mv3"
 CHAT_API_IMAGE = "chat-api:v1"
 SIDECAR_IMAGE = "model-server:v1"
 
@@ -381,7 +381,7 @@ def _prepare_app_service_plan(app_plan: str) -> bool:
         )
         return False
     print(f"App Service plan created: {app_plan}")
-    print(f"  SKU: {APP_SERVICE_SKU} (2 vCPU, 8 GB memory)")
+    print(f"  SKU: {APP_SERVICE_SKU}")
     return True
 
 
