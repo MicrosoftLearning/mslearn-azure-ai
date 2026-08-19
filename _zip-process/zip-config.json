@@ -42,6 +42,11 @@
       "name": "app-svc-container-python.zip"
     },
     {
+      "source": "starter/container-hosting/app-service-sidecar/python",
+      "output": "downloads/python",
+      "name": "app-svc-sidecar-python.zip"
+    },
+    {
       "source": "starter/aca/aca-deploy/python",
       "output": "downloads/python",
       "name": "aca-deploy-python.zip"
