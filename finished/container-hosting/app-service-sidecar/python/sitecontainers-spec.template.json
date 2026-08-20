@@ -3,7 +3,7 @@
     "name": "chat-api",
     "properties": {
       "image": "<registry-name>.azurecr.io/chat-api:v1",
-      "targetPort": "8000",
+      "targetPort": "8080",
       "isMain": true,
       "authType": "SystemIdentity",
       "environmentVariables": [

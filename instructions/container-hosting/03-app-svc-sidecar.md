@@ -48,11 +48,11 @@ In this section you download the project starter files and run the deployment sc
     python azdeploy.py
     ```
 
-1. Enter **1** to select **Create Azure Container Registry and build both images**. This option creates the registry and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
+1. Enter **1** to select **Create Azure Container Registry and build both images**. This option creates the registry, verifies that its authentication-as-ARM policy supports managed-identity image pulls, and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
 
     The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 5-10 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
 
-1. Enter **2** to select **Create App Service resources and configure system identity**. This option creates the App Service plan and sidecar-enabled web app. It also enables the web app's system-assigned managed identity, grants it the **AcrPull** role, updates the registry name in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
+1. Enter **2** to select **Create App Service resources and configure system identity**. This option creates the App Service plan and sidecar-enabled web app. It also enables the web app's system-assigned managed identity, grants it the **AcrPull** role, configures App Service to wait for the model readiness operation during warmup, updates the registry name in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
 
 1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, plan, web app, and managed identity are available.
 
@@ -70,11 +70,11 @@ In this section you download the project starter files and run the deployment sc
     . .\.env.ps1
     ```
 
-The exercise images use port **8000** for the main API and port **11434** for the model server. The main API reads **MODEL_ENDPOINT** and sends inference requests to the sidecar through **http://localhost:11434**. The web app doesn't serve the chat API until you define and apply a container with **isMain** set to **true**.
+The exercise images use port **8080** for the main API and port **11434** for the model server. The main API reads **MODEL_ENDPOINT** and sends inference requests to the sidecar through **http://localhost:11434**. The web app doesn't serve the chat API until you define and apply a container with **isMain** set to **true**.
 
 ## Define the main and sidecar containers
 
-In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8000**, while the model server remains internal on port **11434**. Both containers use the web app's system-assigned managed identity to pull their private images.
+In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8080**, while the model server remains internal on port **11434**. Both containers use the web app's system-assigned managed identity to pull their private images.
 
 The project includes *sitecontainers-spec.template.json* with a placeholder for the registry name. The deployment script preserves that template and generates *sitecontainers-spec.json* with your registry name, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
 
@@ -83,7 +83,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
 1. Review the **chat-api** container definition and identify the following settings:
 
     - **image** points to the **chat-api:v1** image in your Azure Container Registry.
-    - **targetPort** is **8000**, which is the port that receives external App Service traffic.
+    - **targetPort** is **8080**, which is the supported port that receives external App Service traffic.
     - **isMain** is **true**, which designates this container as the public application.
     - **authType** is **SystemIdentity**, which instructs App Service to use the web app's system-assigned managed identity to pull the image.
     - **MODEL_ENDPOINT** references the app setting of the same name. App Service resolves its value to **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
@@ -287,6 +287,26 @@ If you encounter issues while completing this exercise, try the following troubl
 **AcrPull role assignment not yet effective**
 - If the web app reports an image pull error immediately after option 2 completes, the AcrPull role assignment to the system-assigned managed identity can take a short time to propagate.
 - Wait a couple of minutes, then run **az webapp restart --name $APP_NAME --resource-group $RESOURCE_GROUP** to trigger a new pull attempt.
+
+**Managed-identity image pull reports token validation failed**
+- App Service managed-identity image pulls require the registry's authentication-as-ARM policy to be enabled. Option 1 verifies this policy before building the images.
+- If the script reports that the policy is disabled, run the following command to enable it, then run option 1 again.
+
+    **Bash**
+    ```bash
+    az acr config authentication-as-arm update \
+        --registry "$ACR_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --status enabled
+    ```
+
+    **PowerShell**
+    ```powershell
+    az acr config authentication-as-arm update `
+        --registry $env:ACR_NAME `
+        --resource-group $env:RESOURCE_GROUP `
+        --status enabled
+    ```
 
 **Verify environment variables**
 - Check that both the *.env* and *.env.ps1* files exist in the project root and contain the **RESOURCE_GROUP**, **APP_NAME**, **ACR_NAME**, and **CHAT_API_URL** values.

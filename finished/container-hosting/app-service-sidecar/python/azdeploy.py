@@ -253,8 +253,40 @@ def _prepare_acr(acr_name: str) -> bool:
     return True
 
 
+def _verify_acr_arm_authentication(acr_name: str) -> bool:
+    status = az_query(
+        [
+            "az", "acr", "config", "authentication-as-arm", "show",
+            "--registry", acr_name,
+            "--resource-group", rg,
+            "--query", "status",
+            "-o", "tsv",
+        ]
+    )
+    if not status:
+        print(
+            "Error: Could not verify the registry's authentication-as-arm policy. "
+            "Update Azure CLI and run this option again."
+        )
+        return False
+    if status.lower() != "enabled":
+        print(
+            "Error: The registry's authentication-as-arm policy must be enabled "
+            "for App Service managed-identity image pulls."
+        )
+        print(
+            "Run: az acr config authentication-as-arm update "
+            f"--registry {acr_name} --resource-group {rg} --status enabled"
+        )
+        return False
+    print("ACR authentication-as-arm policy is enabled.")
+    return True
+
+
 def create_acr_and_build_images(acr_name: str) -> bool:
     if not _prepare_acr(acr_name):
+        return False
+    if not _verify_acr_arm_authentication(acr_name):
         return False
 
     print()
@@ -458,6 +490,8 @@ def create_app_service_resources(
             "--name", app_name,
             "--settings",
             "WEBSITES_CONTAINER_START_TIME_LIMIT=1800",
+            "WEBSITE_WARMUP_PATH=/health/ready",
+            "WEBSITE_WARMUP_STATUSES=200",
             "MODEL_ENDPOINT=http://localhost:11434",
             "MODEL_NAME=microsoft/Phi-3-mini-4k-instruct-onnx",
         ],
