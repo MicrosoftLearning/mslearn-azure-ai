@@ -13,7 +13,7 @@ In this exercise, you deploy a Python chat API as the main App Service container
 
 ## Download project starter files and deploy Azure resources
 
-In this section you download the project starter files and run the deployment script. The script creates the resource group, the Azure Container Registry, a user-assigned managed identity granted **AcrPull** on the registry, both container images, the App Service plan, and the sidecar-enabled web app with the identity attached.
+In this section you download the project starter files and run the deployment script. The script creates the resource group, Azure Container Registry, both container images, a user-assigned managed identity granted **AcrPull** on the registry, the App Service plan, and the sidecar-enabled web app with the identity attached at creation.
 
 1. Open a browser and enter the following URL to download the starter files. The file is saved in your default download location.
 
@@ -48,15 +48,17 @@ In this section you download the project starter files and run the deployment sc
     python azdeploy.py
     ```
 
-1. Enter **1** to select **Create container registry, managed identity, and build images**. This option creates the registry, verifies that its authentication-as-ARM policy supports managed-identity image pulls, creates a user-assigned managed identity, grants that identity the **AcrPull** role on the registry, and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
+1. Enter **1** to select **Create Azure Container Registry and build both images**. This option creates the registry, verifies that its authentication-as-ARM policy supports managed-identity image pulls, and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
 
     The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 5-10 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
 
-1. Enter **2** to select **Create App Service resources and attach the managed identity**. This option creates the App Service plan and sidecar-enabled web app, attaches the user-assigned managed identity to the web app, configures App Service to wait for the model readiness operation during warmup, generates *sitecontainers-spec.json* with your registry name and the identity's client ID, and writes the resource values to *.env* and *.env.ps1*.
+1. Enter **2** to select **Create user-assigned managed identity and assign AcrPull**. This option creates a user-assigned managed identity and grants it the **AcrPull** role on your registry so App Service can pull the private images.
 
-1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, managed identity, AcrPull assignment, plan, and web app are all available.
+1. Enter **3** to select **Create App Service resources with the managed identity attached**. This option creates the App Service plan and sidecar-enabled web app with the user-assigned managed identity attached at creation, configures App Service to wait for the model readiness operation during warmup, generates *sitecontainers-spec.json* with your registry name and the identity's client ID, and writes the resource values to *.env* and *.env.ps1*.
 
-1. Enter **4** to exit the deployment script.
+1. Enter **4** to select **Check deployment status**. Confirm that the registry, both images, managed identity, AcrPull assignment, plan, and web app are all available.
+
+1. Enter **5** to exit the deployment script.
 
 1. Run the following command to load the resource values in Bash. The command exports the values from *.env* so the remaining Azure CLI commands and the local client can use them.
 
@@ -270,7 +272,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - Run the deployment script's **Check deployment status** option and confirm the registry, both container images, plan, web app, and managed identity are all available before applying the sitecontainers specification.
 
 **Resolve deployment failures**
-- If option 1 or option 2 fails, it's most often due to a temporary lack of capacity for the container registry or App Service plan SKU in your chosen region.
+- If option 1 or option 3 fails, it's most often due to a temporary lack of capacity for the container registry or App Service plan SKU in your chosen region.
 - Exit the script, change the **location** variable near the top of *azdeploy.py* to a different region such as eastus2, australiaeast, or canadacentral, then run the script again and choose the failed option.
 - The failed resource is deleted automatically before the next attempt.
 
@@ -286,7 +288,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - If the state remains **Unknown** or the log command keeps returning 503 after 10 minutes, open **Diagnose and solve problems** in the portal and run the **Linux Container Start Failure** and **Container Issues** detectors for a root cause.
 
 **AcrPull role assignment not yet effective**
-- If the web app reports an image pull error immediately after option 2 completes, the AcrPull role assignment to the user-assigned managed identity can take a short time to propagate.
+- If the web app reports an image pull error immediately after option 3 completes, the AcrPull role assignment to the user-assigned managed identity can take a short time to propagate.
 - Wait a couple of minutes, then run **az webapp restart --name $APP_NAME --resource-group $RESOURCE_GROUP** to trigger a new pull attempt.
 
 **Managed-identity image pull reports token validation failed**
@@ -315,7 +317,7 @@ If you encounter issues while completing this exercise, try the following troubl
 
 **Check the sitecontainers specification**
 - Confirm *sitecontainers-spec.json* exists next to *azdeploy.py* and that the registry name in each **image** field matches your registry (**$ACR_NAME.azurecr.io**).
-- If the file is missing or still contains the **\<registry-name>** placeholder, run option 2 in the deployment script again to regenerate it.
+- If the file is missing or still contains the **\<registry-name>** or **\<managed-identity-client-id>** placeholder, run option 3 in the deployment script again to regenerate it.
 - If **az webapp sitecontainers create** fails, run **az webapp sitecontainers list --name $APP_NAME --resource-group $RESOURCE_GROUP --output table** to see the current stored definitions.
 
 **Chat API readiness check reports the model isn't available**

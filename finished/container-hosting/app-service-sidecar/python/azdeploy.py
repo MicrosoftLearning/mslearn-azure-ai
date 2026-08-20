@@ -173,10 +173,11 @@ def show_menu(acr_name: str, app_plan: str, app_name: str, identity_name: str) -
     print(f"App Service Plan: {app_plan} ({APP_SERVICE_SKU})")
     print(f"Web App: {app_name}")
     print("=====================================================================")
-    print("1. Create container registry, managed identity, and build images")
-    print("2. Create App Service resources and attach the managed identity")
-    print("3. Check deployment status")
-    print("4. Exit")
+    print("1. Create Azure Container Registry and build both images")
+    print("2. Create user-assigned managed identity and assign AcrPull")
+    print("3. Create App Service resources with the managed identity attached")
+    print("4. Check deployment status")
+    print("5. Exit")
     print("=====================================================================")
 
 
@@ -286,19 +287,10 @@ def _verify_acr_arm_authentication(acr_name: str) -> bool:
     return True
 
 
-def create_acr_and_build_images(acr_name: str, identity_name: str) -> bool:
+def create_acr_and_build_images(acr_name: str) -> bool:
     if not _prepare_acr(acr_name):
         return False
     if not _verify_acr_arm_authentication(acr_name):
-        return False
-
-    print()
-    identity = _prepare_identity(identity_name)
-    if identity is None:
-        return False
-    _, principal_id, _ = identity
-    print()
-    if not _assign_acr_pull(acr_name, principal_id):
         return False
 
     print()
@@ -344,6 +336,30 @@ def create_acr_and_build_images(acr_name: str, identity_name: str) -> bool:
     if not build_succeeded:
         return False
     print(f"Image built and pushed: {acr_name}.azurecr.io/{SIDECAR_IMAGE}")
+    return True
+
+
+def create_identity_and_assign_role(acr_name: str, identity_name: str) -> bool:
+    """Create the user-assigned managed identity and grant it AcrPull on the registry."""
+    if not az_query(
+        [
+            "az", "acr", "show",
+            "--resource-group", rg,
+            "--name", acr_name,
+            "--query", "id",
+            "-o", "tsv",
+        ]
+    ):
+        print("Error: Azure Container Registry was not found. Run option 1 first.")
+        return False
+
+    identity = _prepare_identity(identity_name)
+    if identity is None:
+        return False
+    _, principal_id, _ = identity
+    print()
+    if not _assign_acr_pull(acr_name, principal_id):
+        return False
     return True
 
 
@@ -429,7 +445,7 @@ def _prepare_app_service_plan(app_plan: str) -> bool:
     return True
 
 
-def _prepare_web_app(app_plan: str, app_name: str) -> bool:
+def _prepare_web_app(app_plan: str, app_name: str, identity_resource_id: str) -> bool:
     state = az_query(
         [
             "az", "webapp", "show",
@@ -441,6 +457,8 @@ def _prepare_web_app(app_plan: str, app_name: str) -> bool:
     )
     if state == "Succeeded":
         print(f"Sidecar-enabled web app already exists: {app_name}")
+        if not _attach_identity_to_webapp(app_name, identity_resource_id):
+            return False
         return True
     if state in {"Failed", "Canceled"}:
         print(f"Removing web app in terminal state '{state}'...")
@@ -477,6 +495,7 @@ def _prepare_web_app(app_plan: str, app_name: str) -> bool:
             "--name", app_name,
             "--plan", app_plan,
             "--sitecontainers-app",
+            "--assign-identity", identity_resource_id,
         ],
     ):
         return False
@@ -490,19 +509,35 @@ def create_app_service_resources(
     app_name: str,
     identity_name: str,
 ) -> bool:
-    identity = _prepare_identity(identity_name)
-    if identity is None:
+    identity_resource_id = az_query(
+        [
+            "az", "identity", "show",
+            "--resource-group", rg,
+            "--name", identity_name,
+            "--query", "id",
+            "-o", "tsv",
+        ]
+    )
+    identity_client_id = az_query(
+        [
+            "az", "identity", "show",
+            "--resource-group", rg,
+            "--name", identity_name,
+            "--query", "clientId",
+            "-o", "tsv",
+        ]
+    )
+    if not (identity_resource_id and identity_client_id):
         print(
             "Error: The user-assigned managed identity was not found. "
-            "Run option 1 first."
+            "Run option 2 first."
         )
         return False
-    identity_resource_id, _, identity_client_id = identity
 
     if not _prepare_app_service_plan(app_plan):
         return False
     print()
-    if not _prepare_web_app(app_plan, app_name):
+    if not _prepare_web_app(app_plan, app_name, identity_resource_id):
         return False
     if not run_quiet(
         "Configure the extended container startup time",
@@ -518,9 +553,6 @@ def create_app_service_resources(
             "MODEL_NAME=microsoft/Phi-3-mini-4k-instruct-onnx",
         ],
     ):
-        return False
-    print()
-    if not _attach_identity_to_webapp(app_name, identity_resource_id):
         return False
     write_sitecontainers_spec(acr_name, identity_client_id)
     print("Resolved container specification saved to: sitecontainers-spec.json")
@@ -863,19 +895,26 @@ def main() -> None:
 
     while True:
         show_menu(acr_name, app_plan, app_name, identity_name)
-        choice = input("Please select an option (1-4): ").strip()
+        choice = input("Please select an option (1-5): ").strip()
 
-        if choice in {"1", "2", "3", "4"}:
+        if choice in {"1", "2", "3", "4", "5"}:
             clear_screen()
 
         if choice == "1":
             print()
             if create_resource_group():
                 print()
-                create_acr_and_build_images(acr_name, identity_name)
+                create_acr_and_build_images(acr_name)
             print()
             pause()
         elif choice == "2":
+            print()
+            if create_resource_group():
+                print()
+                create_identity_and_assign_role(acr_name, identity_name)
+            print()
+            pause()
+        elif choice == "3":
             print()
             if create_resource_group():
                 print()
@@ -887,17 +926,17 @@ def main() -> None:
                 )
             print()
             pause()
-        elif choice == "3":
+        elif choice == "4":
             print()
             check_deployment_status(acr_name, app_plan, app_name, identity_name)
             print()
             pause()
-        elif choice == "4":
+        elif choice == "5":
             print("Exiting...")
             clear_screen()
             sys.exit(0)
         else:
-            print("Invalid option. Please select 1-4.")
+            print("Invalid option. Please select 1-5.")
             pause()
 
 
