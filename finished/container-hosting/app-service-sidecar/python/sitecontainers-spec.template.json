@@ -5,7 +5,8 @@
       "image": "<registry-name>.azurecr.io/chat-api:v1",
       "targetPort": "8080",
       "isMain": true,
-      "authType": "SystemIdentity",
+      "authType": "UserAssigned",
+      "userManagedIdentityClientId": "<managed-identity-client-id>",
       "environmentVariables": [
         {
           "name": "MODEL_ENDPOINT",
@@ -27,7 +28,8 @@
       "image": "<registry-name>.azurecr.io/model-server:v1",
       "targetPort": "11434",
       "isMain": false,
-      "authType": "SystemIdentity",
+      "authType": "UserAssigned",
+      "userManagedIdentityClientId": "<managed-identity-client-id>",
       "environmentVariables": [
         {
           "name": "MODEL_NAME",

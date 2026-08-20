@@ -134,12 +134,13 @@ def write_env_files(env_vars: dict[str, str], directory: str = ".") -> None:
         f.writelines(ps_lines)
 
 
-def write_sitecontainers_spec(acr_name: str) -> None:
+def write_sitecontainers_spec(acr_name: str, identity_client_id: str) -> None:
     """Resolve the immutable template without deploying the containers."""
     template_path = Path("sitecontainers-spec.template.json")
     template = template_path.read_text(encoding="utf-8")
     resolved = template.replace("<registry-name>", acr_name)
-    if "<registry-name>" in resolved:
+    resolved = resolved.replace("<managed-identity-client-id>", identity_client_id)
+    if "<registry-name>" in resolved or "<managed-identity-client-id>" in resolved:
         raise ValueError("Container specification placeholders were not fully resolved.")
 
     spec = json.loads(resolved)
@@ -150,16 +151,17 @@ def write_sitecontainers_spec(acr_name: str) -> None:
     )
 
 
-def _derived_names(user_object_id: str) -> tuple[str, str, str]:
+def _derived_names(user_object_id: str) -> tuple[str, str, str, str]:
     user_hash = hashlib.sha1(user_object_id.encode("utf-8")).hexdigest()[:8]
     return (
         f"acrsidecar{user_hash}",
         f"plan-ai-sidecar-{user_hash}",
         f"app-ai-sidecar-{user_hash}",
+        f"id-sidecar-{user_hash}",
     )
 
 
-def show_menu(acr_name: str, app_plan: str, app_name: str) -> None:
+def show_menu(acr_name: str, app_plan: str, app_name: str, identity_name: str) -> None:
     clear_screen()
     print("=====================================================================")
     print("    App Service AI Sidecar Exercise - Deployment Script")
@@ -167,11 +169,12 @@ def show_menu(acr_name: str, app_plan: str, app_name: str) -> None:
     print(f"Resource Group: {rg}")
     print(f"Location: {location}")
     print(f"ACR Name: {acr_name}")
+    print(f"Managed Identity: {identity_name}")
     print(f"App Service Plan: {app_plan} ({APP_SERVICE_SKU})")
     print(f"Web App: {app_name}")
     print("=====================================================================")
-    print("1. Create Azure Container Registry and build both images")
-    print("2. Create App Service resources and configure system identity")
+    print("1. Create container registry, managed identity, and build images")
+    print("2. Create App Service resources and attach the managed identity")
     print("3. Check deployment status")
     print("4. Exit")
     print("=====================================================================")
@@ -283,10 +286,19 @@ def _verify_acr_arm_authentication(acr_name: str) -> bool:
     return True
 
 
-def create_acr_and_build_images(acr_name: str) -> bool:
+def create_acr_and_build_images(acr_name: str, identity_name: str) -> bool:
     if not _prepare_acr(acr_name):
         return False
     if not _verify_acr_arm_authentication(acr_name):
+        return False
+
+    print()
+    identity = _prepare_identity(identity_name)
+    if identity is None:
+        return False
+    _, principal_id, _ = identity
+    print()
+    if not _assign_acr_pull(acr_name, principal_id):
         return False
 
     print()
@@ -476,7 +488,17 @@ def create_app_service_resources(
     acr_name: str,
     app_plan: str,
     app_name: str,
+    identity_name: str,
 ) -> bool:
+    identity = _prepare_identity(identity_name)
+    if identity is None:
+        print(
+            "Error: The user-assigned managed identity was not found. "
+            "Run option 1 first."
+        )
+        return False
+    identity_resource_id, _, identity_client_id = identity
+
     if not _prepare_app_service_plan(app_plan):
         return False
     print()
@@ -498,9 +520,9 @@ def create_app_service_resources(
     ):
         return False
     print()
-    if not configure_system_identity(acr_name, app_name):
+    if not _attach_identity_to_webapp(app_name, identity_resource_id):
         return False
-    write_sitecontainers_spec(acr_name)
+    write_sitecontainers_spec(acr_name, identity_client_id)
     print("Resolved container specification saved to: sitecontainers-spec.json")
     write_env_files(
         {
@@ -509,6 +531,7 @@ def create_app_service_resources(
             "ACR_NAME": acr_name,
             "APP_PLAN": app_plan,
             "APP_NAME": app_name,
+            "IDENTITY_NAME": identity_name,
             "CHAT_API_IMAGE": f"{acr_name}.azurecr.io/{CHAT_API_IMAGE}",
             "SIDECAR_IMAGE": f"{acr_name}.azurecr.io/{SIDECAR_IMAGE}",
             "CHAT_API_URL": f"https://{app_name}.azurewebsites.net",
@@ -517,6 +540,69 @@ def create_app_service_resources(
     )
     print("Environment variables saved to: .env and .env.ps1")
     return True
+
+
+def _prepare_identity(identity_name: str) -> tuple[str, str, str] | None:
+    """Create or verify the user-assigned managed identity.
+
+    Returns (resource_id, principal_id, client_id) on success.
+    """
+    existing = az_query(
+        [
+            "az", "identity", "show",
+            "--resource-group", rg,
+            "--name", identity_name,
+            "--query", "id",
+            "-o", "tsv",
+        ]
+    )
+    if not existing:
+        print(f"Creating user-assigned managed identity '{identity_name}'...")
+        if not run_quiet(
+            "Create user-assigned managed identity",
+            [
+                "az", "identity", "create",
+                "--resource-group", rg,
+                "--name", identity_name,
+                "--location", location,
+            ],
+        ):
+            return None
+        print(f"User-assigned managed identity created: {identity_name}")
+    else:
+        print(f"User-assigned managed identity already exists: {identity_name}")
+
+    resource_id = az_query(
+        [
+            "az", "identity", "show",
+            "--resource-group", rg,
+            "--name", identity_name,
+            "--query", "id",
+            "-o", "tsv",
+        ]
+    )
+    principal_id = az_query(
+        [
+            "az", "identity", "show",
+            "--resource-group", rg,
+            "--name", identity_name,
+            "--query", "principalId",
+            "-o", "tsv",
+        ]
+    )
+    client_id = az_query(
+        [
+            "az", "identity", "show",
+            "--resource-group", rg,
+            "--name", identity_name,
+            "--query", "clientId",
+            "-o", "tsv",
+        ]
+    )
+    if not (resource_id and principal_id and client_id):
+        print("Error: Could not retrieve managed identity properties.")
+        return None
+    return (resource_id, principal_id, client_id)
 
 
 def _assign_acr_pull(acr_name: str, principal_id: str) -> bool:
@@ -538,12 +624,13 @@ def _assign_acr_pull(acr_name: str, principal_id: str) -> bool:
             "az", "role", "assignment", "list",
             "--assignee", principal_id,
             "--scope", acr_id,
-            "--query", "[?roleDefinitionName=='AcrPull'].id | [0]",
+            "--query",
+            f"[?roleDefinitionName=='AcrPull' && principalId=='{principal_id}'].id | [0]",
             "-o", "tsv",
         ]
     )
     if assignment:
-        print("AcrPull role assignment already exists.")
+        print("AcrPull role assignment already exists for the managed identity.")
         return True
 
     print("Assigning the AcrPull role to the managed identity...")
@@ -562,58 +649,32 @@ def _assign_acr_pull(acr_name: str, principal_id: str) -> bool:
     return True
 
 
-def configure_system_identity(acr_name: str, app_name: str) -> bool:
-    if not az_query(
-        [
-            "az", "webapp", "show",
-            "--resource-group", rg,
-            "--name", app_name,
-            "--query", "name",
-            "-o", "tsv",
-        ]
-    ):
-        print("Error: The web app was not found. Complete option 2 first.")
-        return False
-
-    principal_id = az_query(
+def _attach_identity_to_webapp(app_name: str, identity_resource_id: str) -> bool:
+    attached = az_query(
         [
             "az", "webapp", "identity", "show",
             "--resource-group", rg,
             "--name", app_name,
-            "--query", "principalId",
-            "-o", "tsv",
+            "--query", "userAssignedIdentities",
+            "-o", "json",
         ]
     )
-    if not principal_id:
-        print("Enabling the system-assigned managed identity...")
-        if not run_quiet(
-            "Enable system-assigned managed identity",
-            [
-                "az", "webapp", "identity", "assign",
-                "--resource-group", rg,
-                "--name", app_name,
-            ],
-        ):
-            return False
-        principal_id = az_query(
-            [
-                "az", "webapp", "identity", "show",
-                "--resource-group", rg,
-                "--name", app_name,
-                "--query", "principalId",
-                "-o", "tsv",
-            ]
-        )
-        if not principal_id:
-            print("Error: Could not retrieve the system-assigned identity principal ID.")
-            return False
-        print("System-assigned managed identity enabled.")
-    else:
-        print("System-assigned managed identity is already enabled.")
+    if attached and identity_resource_id in attached:
+        print("User-assigned managed identity is already attached to the web app.")
+        return True
 
-    if not _assign_acr_pull(acr_name, principal_id):
+    print("Attaching the user-assigned managed identity to the web app...")
+    if not run_quiet(
+        "Attach user-assigned managed identity",
+        [
+            "az", "webapp", "identity", "assign",
+            "--resource-group", rg,
+            "--name", app_name,
+            "--identities", identity_resource_id,
+        ],
+    ):
         return False
-
+    print("User-assigned managed identity attached.")
     return True
 
 
@@ -621,6 +682,7 @@ def check_deployment_status(
     acr_name: str,
     app_plan: str,
     app_name: str,
+    identity_name: str,
 ) -> bool:
     print("Checking deployment status...")
     print()
@@ -643,6 +705,53 @@ def check_deployment_status(
         for image in (CHAT_API_IMAGE.split(":")[0], SIDECAR_IMAGE.split(":")[0]):
             state = "Available" if image in repositories.splitlines() else "Not found"
             print(f"  {image}: {state}")
+
+    print()
+    identity_client_id = az_query(
+        [
+            "az", "identity", "show",
+            "--resource-group", rg,
+            "--name", identity_name,
+            "--query", "clientId",
+            "-o", "tsv",
+        ]
+    )
+    print(f"User-Assigned Managed Identity ({identity_name}):")
+    if not identity_client_id:
+        print("  Status: Not created")
+    else:
+        print("  Status: Created")
+        print(f"  Client ID: {identity_client_id}")
+        identity_principal_id = az_query(
+            [
+                "az", "identity", "show",
+                "--resource-group", rg,
+                "--name", identity_name,
+                "--query", "principalId",
+                "-o", "tsv",
+            ]
+        )
+        acr_id = az_query(
+            [
+                "az", "acr", "show",
+                "--resource-group", rg,
+                "--name", acr_name,
+                "--query", "id",
+                "-o", "tsv",
+            ]
+        )
+        if identity_principal_id and acr_id:
+            role = az_query(
+                [
+                    "az", "role", "assignment", "list",
+                    "--assignee", identity_principal_id,
+                    "--scope", acr_id,
+                    "--query",
+                    f"[?roleDefinitionName=='AcrPull' && principalId=='{identity_principal_id}'].id | [0]",
+                    "-o", "tsv",
+                ]
+            )
+            print(f"  AcrPull on registry: {'Assigned' if role else 'Not assigned'}")
 
     print()
     plan_name = az_query(
@@ -703,21 +812,30 @@ def check_deployment_status(
     print(f"  State: {app_state or 'Not created'}")
     if app_state:
         print(f"  URL: https://{app_name}.azurewebsites.net")
-
-    print()
-    principal_id = az_query(
-        [
-            "az", "webapp", "identity", "show",
-            "--resource-group", rg,
-            "--name", app_name,
-            "--query", "principalId",
-            "-o", "tsv",
-        ]
-    )
-    print("System-assigned Managed Identity:")
-    print(f"  Status: {'Configured' if principal_id else 'Not configured'}")
-    if principal_id:
-        print(f"  Principal ID: {principal_id}")
+        attached = az_query(
+            [
+                "az", "webapp", "identity", "show",
+                "--resource-group", rg,
+                "--name", app_name,
+                "--query", "userAssignedIdentities",
+                "-o", "json",
+            ]
+        )
+        identity_resource_id = az_query(
+            [
+                "az", "identity", "show",
+                "--resource-group", rg,
+                "--name", identity_name,
+                "--query", "id",
+                "-o", "tsv",
+            ]
+        )
+        is_attached = (
+            bool(identity_resource_id)
+            and bool(attached)
+            and identity_resource_id in attached
+        )
+        print(f"  Managed identity attached: {'Yes' if is_attached else 'No'}")
     return True
 
 
@@ -741,10 +859,10 @@ def _preflight() -> None:
 def main() -> None:
     _preflight()
     user_object_id = require_az_login()
-    acr_name, app_plan, app_name = _derived_names(user_object_id)
+    acr_name, app_plan, app_name, identity_name = _derived_names(user_object_id)
 
     while True:
-        show_menu(acr_name, app_plan, app_name)
+        show_menu(acr_name, app_plan, app_name, identity_name)
         choice = input("Please select an option (1-4): ").strip()
 
         if choice in {"1", "2", "3", "4"}:
@@ -754,7 +872,7 @@ def main() -> None:
             print()
             if create_resource_group():
                 print()
-                create_acr_and_build_images(acr_name)
+                create_acr_and_build_images(acr_name, identity_name)
             print()
             pause()
         elif choice == "2":
@@ -765,12 +883,13 @@ def main() -> None:
                     acr_name,
                     app_plan,
                     app_name,
+                    identity_name,
                 )
             print()
             pause()
         elif choice == "3":
             print()
-            check_deployment_status(acr_name, app_plan, app_name)
+            check_deployment_status(acr_name, app_plan, app_name, identity_name)
             print()
             pause()
         elif choice == "4":

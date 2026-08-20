@@ -13,7 +13,7 @@ In this exercise, you deploy a Python chat API as the main App Service container
 
 ## Download project starter files and deploy Azure resources
 
-In this section you download the project starter files and run the deployment script. The script creates the resource group, builds both container images in Azure Container Registry, creates the App Service plan and sidecar-enabled web app, and grants the web app's system-assigned managed identity permission to pull the private images.
+In this section you download the project starter files and run the deployment script. The script creates the resource group, the Azure Container Registry, a user-assigned managed identity granted **AcrPull** on the registry, both container images, the App Service plan, and the sidecar-enabled web app with the identity attached.
 
 1. Open a browser and enter the following URL to download the starter files. The file is saved in your default download location.
 
@@ -48,13 +48,13 @@ In this section you download the project starter files and run the deployment sc
     python azdeploy.py
     ```
 
-1. Enter **1** to select **Create Azure Container Registry and build both images**. This option creates the registry, verifies that its authentication-as-ARM policy supports managed-identity image pulls, and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
+1. Enter **1** to select **Create container registry, managed identity, and build images**. This option creates the registry, verifies that its authentication-as-ARM policy supports managed-identity image pulls, creates a user-assigned managed identity, grants that identity the **AcrPull** role on the registry, and uses ACR Tasks to build and push the chat API and Phi-3 model-server images.
 
     The first model-server build downloads the approximately 2.7 GB Phi-3 CPU INT4 model and can take 5-10 minutes. Keep the terminal open until both builds finish. If the deployment fails, review the **Troubleshooting** section.
 
-1. Enter **2** to select **Create App Service resources and configure system identity**. This option creates the App Service plan and sidecar-enabled web app. It also enables the web app's system-assigned managed identity, grants it the **AcrPull** role, configures App Service to wait for the model readiness operation during warmup, updates the registry name in *sitecontainers-spec.json*, and writes the resource values to *.env* and *.env.ps1*.
+1. Enter **2** to select **Create App Service resources and attach the managed identity**. This option creates the App Service plan and sidecar-enabled web app, attaches the user-assigned managed identity to the web app, configures App Service to wait for the model readiness operation during warmup, generates *sitecontainers-spec.json* with your registry name and the identity's client ID, and writes the resource values to *.env* and *.env.ps1*.
 
-1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, plan, web app, and managed identity are available.
+1. Enter **3** to select **Check deployment status**. Confirm that the registry, both images, managed identity, AcrPull assignment, plan, and web app are all available.
 
 1. Enter **4** to exit the deployment script.
 
@@ -74,7 +74,7 @@ The exercise images use port **8080** for the main API and port **11434** for th
 
 ## Define the main and sidecar containers
 
-In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8080**, while the model server remains internal on port **11434**. Both containers use the web app's system-assigned managed identity to pull their private images.
+In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8080**, while the model server remains internal on port **11434**. Both containers use the shared user-assigned managed identity to pull their private images.
 
 The project includes *sitecontainers-spec.template.json* with a placeholder for the registry name. The deployment script preserves that template and generates *sitecontainers-spec.json* with your registry name, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
 
@@ -85,7 +85,8 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
     - **image** points to the **chat-api:v1** image in your Azure Container Registry.
     - **targetPort** is **8080**, which is the supported port that receives external App Service traffic.
     - **isMain** is **true**, which designates this container as the public application.
-    - **authType** is **SystemIdentity**, which instructs App Service to use the web app's system-assigned managed identity to pull the image.
+    - **authType** is **UserAssigned**, which instructs App Service to use a user-assigned managed identity to pull the image.
+    - **userManagedIdentityClientId** is the client ID of the shared user-assigned managed identity that has the **AcrPull** role on your registry.
     - **MODEL_ENDPOINT** references the app setting of the same name. App Service resolves its value to **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
     - The **models/current** volume is mounted at **/app/models** as read-only.
 
@@ -93,7 +94,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
 
     - **image** points to the **model-server:v1** image in your Azure Container Registry.
     - **targetPort** is **11434** and **isMain** is **false**, so the model server remains an internal sidecar.
-    - The container uses the same system-assigned managed identity as the main API.
+    - The container uses the same user-assigned managed identity as the main API to pull its image.
     - **MODEL_NAME** references the app setting of the same name, which identifies the Microsoft Phi-3 Mini ONNX model.
     - The **models/current** volume is mounted at **/models** with write access so the sidecar can create the model manifest.
 
@@ -133,7 +134,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
         --output table
     ```
 
-1. Confirm that **chat-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use **SystemIdentity** authentication.
+1. Confirm that **chat-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use **UserAssigned** authentication with the same **userManagedIdentityClientId**.
 
 ## Verify the model sidecar is ready
 
@@ -285,7 +286,7 @@ If you encounter issues while completing this exercise, try the following troubl
 - If the state remains **Unknown** or the log command keeps returning 503 after 10 minutes, open **Diagnose and solve problems** in the portal and run the **Linux Container Start Failure** and **Container Issues** detectors for a root cause.
 
 **AcrPull role assignment not yet effective**
-- If the web app reports an image pull error immediately after option 2 completes, the AcrPull role assignment to the system-assigned managed identity can take a short time to propagate.
+- If the web app reports an image pull error immediately after option 2 completes, the AcrPull role assignment to the user-assigned managed identity can take a short time to propagate.
 - Wait a couple of minutes, then run **az webapp restart --name $APP_NAME --resource-group $RESOURCE_GROUP** to trigger a new pull attempt.
 
 **Managed-identity image pull reports token validation failed**
