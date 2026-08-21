@@ -89,7 +89,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
     - **isMain** is **true**, which designates this container as the public application.
     - **authType** is **UserAssigned**, which instructs App Service to use a user-assigned managed identity to pull the image.
     - **userManagedIdentityClientId** is the client ID of the shared user-assigned managed identity that has the **AcrPull** role on your registry.
-    - **MODEL_ENDPOINT** references the app setting of the same name. App Service resolves its value to **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
+    - **MODEL_ENDPOINT** is set to **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
     - The **models/current** volume is mounted at **/app/models** as read-only.
 
 1. Review the **model-server** container definition and identify the following settings:
@@ -97,7 +97,7 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
     - **image** points to the **model-server:v1** image in your Azure Container Registry.
     - **targetPort** is **11434** and **isMain** is **false**, so the model server remains an internal sidecar.
     - The container uses the same user-assigned managed identity as the main API to pull its image.
-    - **MODEL_NAME** references the app setting of the same name, which identifies the Microsoft Phi-3 Mini ONNX model.
+    - **MODEL_NAME** is set to **microsoft/Phi-3-mini-4k-instruct-onnx**, which identifies the Microsoft Phi-3 Mini ONNX model.
     - The **models/current** volume is mounted at **/models** with write access so the sidecar can create the model manifest.
 
 1. Run the following command to enable **Always On** for the web app. Always On tells App Service to keep the containers resident and to send a lightweight internal ping to the site every few minutes. Without it, App Service unloads idle containers after about 20 minutes, and the next request pays the full cold-start cost of pulling the images and reloading the Phi-3 model into memory. Enabling Always On is standard practice for containerized workloads that hold a model in memory.
