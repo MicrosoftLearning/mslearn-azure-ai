@@ -100,6 +100,24 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
     - **MODEL_NAME** references the app setting of the same name, which identifies the Microsoft Phi-3 Mini ONNX model.
     - The **models/current** volume is mounted at **/models** with write access so the sidecar can create the model manifest.
 
+1. Run the following command to enable **Always On** for the web app. Always On tells App Service to keep the containers resident and to send a lightweight internal ping to the site every few minutes. Without it, App Service unloads idle containers after about 20 minutes, and the next request pays the full cold-start cost of pulling the images and reloading the Phi-3 model into memory. Enabling Always On is standard practice for containerized workloads that hold a model in memory.
+
+    **Bash**
+    ```bash
+    az webapp config set \
+        --name "$APP_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --always-on true
+    ```
+
+    **PowerShell**
+    ```powershell
+    az webapp config set `
+        --name $env:APP_NAME `
+        --resource-group $env:RESOURCE_GROUP `
+        --always-on true
+    ```
+
 1. Run the following command to apply the main and sidecar container definitions. This creates the runtime relationship between the public chat API and its internal model sidecar.
 
     **Bash**

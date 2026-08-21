@@ -21,7 +21,7 @@ import sys
 import time
 from pathlib import Path
 
-APP_SERVICE_SKU = "P2mv3"
+APP_SERVICE_SKU = "P2v3"
 CHAT_API_IMAGE = "chat-api:v1"
 SIDECAR_IMAGE = "model-server:v1"
 
