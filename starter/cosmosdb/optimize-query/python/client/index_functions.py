@@ -202,13 +202,89 @@ def bulk_load_documents(documents: list, progress_callback=None) -> dict:
 
 # END COMPARE INDEX PERFORMANCE FUNCTION
 
+def filtered_vector_search(
+    container_name: str,
+    query_embedding: list,
+    category: str = None,
+    top_n: int = 5
+) -> dict:
+    """
+    Combine vector similarity search with metadata filtering.
 
-# BEGIN FILTERED VECTOR SEARCH FUNCTION
+    This hybrid approach applies a metadata filter before ranking results
+    by vector similarity. Filtering reduces the search space and can
+    improve performance for targeted queries.
 
+    Args:
+        container_name: Name of the container to search
+        query_embedding: 256-dimensional query vector
+        category: Optional category filter
+        top_n: Number of results to return
 
+    Returns:
+        Dictionary containing results, ru_charge, and execution_time_ms
+    """
+    container = get_container(container_name)
 
-# END FILTERED VECTOR SEARCH FUNCTION
+    start_time = time.time()
 
+    # Build WHERE clause for metadata filtering
+    where_clause = ""
+    parameters = [
+        {"name": "@topN", "value": top_n},
+        {"name": "@queryVector", "value": query_embedding}
+    ]
+
+    if category:
+        where_clause = "WHERE c.metadata.category = @category"
+        parameters.append({"name": "@category", "value": category})
+
+    # Filtered vector search: apply filter, then rank by similarity
+    query = f"""
+        SELECT TOP @topN
+            c.id,
+            c.documentId,
+            c.content,
+            c.metadata,
+            VectorDistance(c.embedding, @queryVector) AS similarityScore
+        FROM c
+        {where_clause}
+        ORDER BY VectorDistance(c.embedding, @queryVector)
+    """
+
+    items = list(container.query_items(
+        query=query,
+        parameters=parameters,
+        enable_cross_partition_query=True
+    ))
+
+    end_time = time.time()
+    execution_time_ms = (end_time - start_time) * 1000
+
+    ru_charge = 0.0
+    try:
+        ru_charge = float(container.client_connection.last_response_headers.get(
+            'x-ms-request-charge', 0
+        ))
+    except Exception:
+        pass
+
+    results = [
+        {
+            "chunk_id": item["id"],
+            "document_id": item["documentId"],
+            "content": item["content"],
+            "metadata": item["metadata"],
+            "similarity_score": item["similarityScore"]
+        }
+        for item in items
+    ]
+
+    return {
+        "results": results,
+        "ru_charge": ru_charge,
+        "execution_time_ms": round(execution_time_ms, 2)
+    }
 
 def compare_filtered_performance(
     query_embedding: list,

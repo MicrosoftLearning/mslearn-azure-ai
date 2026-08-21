@@ -323,8 +323,6 @@ def compare_index_performance(
     return comparison
 # END COMPARE INDEX PERFORMANCE FUNCTION
 
-
-# BEGIN FILTERED VECTOR SEARCH FUNCTION
 def filtered_vector_search(
     container_name: str,
     query_embedding: list,
@@ -408,8 +406,6 @@ def filtered_vector_search(
         "ru_charge": ru_charge,
         "execution_time_ms": round(execution_time_ms, 2)
     }
-# END FILTERED VECTOR SEARCH FUNCTION
-
 
 def compare_filtered_performance(
     query_embedding: list,
