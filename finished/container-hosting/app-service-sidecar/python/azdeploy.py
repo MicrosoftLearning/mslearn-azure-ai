@@ -495,7 +495,6 @@ def _prepare_web_app(app_plan: str, app_name: str, identity_resource_id: str) ->
             "--name", app_name,
             "--plan", app_plan,
             "--sitecontainers-app",
-            "--assign-identity", identity_resource_id,
         ],
     ):
         return False
@@ -509,6 +508,10 @@ def _prepare_web_app(app_plan: str, app_name: str, identity_resource_id: str) ->
         ],
     ):
         return False
+    if not _attach_identity_to_webapp(app_name, identity_resource_id):
+        return False
+    print("Waiting 30 seconds for the managed identity attachment to propagate...")
+    time.sleep(30)
     print(f"Sidecar-enabled web app created: {app_name}")
     return True
 

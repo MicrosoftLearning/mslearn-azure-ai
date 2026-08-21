@@ -156,6 +156,22 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
 
 1. Confirm that **chat-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use **UserAssigned** authentication with the same **userManagedIdentityClientId**.
 
+1. Run the following command to restart the web app. Restarting after applying the container specification signals the App Service platform to reconcile the site configuration and start pulling the container images from the registry. Without this restart, the platform can leave the site in its pre-specification state and never attempt the initial pull.
+
+    **Bash**
+    ```bash
+    az webapp restart \
+        --name "$APP_NAME" \
+        --resource-group "$RESOURCE_GROUP"
+    ```
+
+    **PowerShell**
+    ```powershell
+    az webapp restart `
+        --name $env:APP_NAME `
+        --resource-group $env:RESOURCE_GROUP
+    ```
+
 ## Verify the model sidecar is ready
 
 In this section you verify that App Service pulled both images and that the Phi-3 model sidecar finished loading before you start the local chat client. The first container start can take several minutes.
