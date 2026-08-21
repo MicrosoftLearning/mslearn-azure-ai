@@ -560,8 +560,6 @@ def create_app_service_resources(
             "--name", app_name,
             "--settings",
             "WEBSITES_CONTAINER_START_TIME_LIMIT=1800",
-            "MODEL_ENDPOINT=http://localhost:11434",
-            "MODEL_NAME=microsoft/Phi-3-mini-4k-instruct-onnx",
         ],
     ):
         return False

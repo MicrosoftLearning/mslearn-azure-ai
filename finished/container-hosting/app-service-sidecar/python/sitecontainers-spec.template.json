@@ -10,7 +10,7 @@
       "environmentVariables": [
         {
           "name": "MODEL_ENDPOINT",
-          "value": "MODEL_ENDPOINT"
+          "value": "http://localhost:11434"
         }
       ],
       "volumeMounts": [
@@ -33,7 +33,7 @@
       "environmentVariables": [
         {
           "name": "MODEL_NAME",
-          "value": "MODEL_NAME"
+          "value": "microsoft/Phi-3-mini-4k-instruct-onnx"
         }
       ],
       "volumeMounts": [
