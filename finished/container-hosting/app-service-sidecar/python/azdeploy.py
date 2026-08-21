@@ -499,6 +499,16 @@ def _prepare_web_app(app_plan: str, app_name: str, identity_resource_id: str) ->
         ],
     ):
         return False
+    if not run_quiet(
+        "Normalize sitecontainers runtime configuration",
+        [
+            "az", "webapp", "config", "set",
+            "--resource-group", rg,
+            "--name", app_name,
+            "--linux-fx-version", "sitecontainers",
+        ],
+    ):
+        return False
     print(f"Sidecar-enabled web app created: {app_name}")
     return True
 

@@ -1,0 +1,25 @@
+[
+  {
+    "name": "chat-api",
+    "properties": {
+      "image": "acrsidecardf2d02f3.azurecr.io/chat-api:v1",
+      "targetPort": "8080",
+      "isMain": true,
+      "authType": "UserAssigned",
+      "userManagedIdentityClientId": "d26fd3db-6968-4c30-8474-f4c2890e87fb",
+      "environmentVariables": [
+        {
+          "name": "MODEL_ENDPOINT",
+          "value": "MODEL_ENDPOINT"
+        }
+      ],
+      "volumeMounts": [
+        {
+          "volumeSubPath": "models/current",
+          "containerMountPath": "/app/models",
+          "readOnly": true
+        }
+      ]
+    }
+  }
+]
