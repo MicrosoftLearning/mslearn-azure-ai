@@ -4,12 +4,33 @@ lab:
     title: 'Deploy an AI API with a local model-serving sidecar'
     description: 'Deploy a chat API and a local Phi-3 model sidecar to Azure App Service, then use a local Flask client to test the application.'
     level: 300
-    duration: 45
+    duration: 30
 ---
 
 # Deploy an AI API with a local model-serving sidecar
 
 In this exercise, you deploy a Python chat API as the main App Service container and a local model server as a sidecar. The deployment script builds both images in Azure Container Registry. A separate Flask client runs on your development computer and calls the public chat API. You configure managed-identity image pulls, `localhost` communication, a shared temporary volume, and container-specific diagnostics.
+
+Tasks performed in this exercise:
+
+- Download the project starter files
+- Deploy Azure Container Registry and build the chat API and model-server images using ACR Tasks
+- Deploy an App Service plan and a sidecar-enabled web app with managed-identity image pulls
+- Define and apply the main and sidecar container configuration
+- Verify model-sidecar readiness and shared-volume access
+- Configure the Python environment for the local Flask client
+- Run the chat client and test end-to-end model inference
+
+This exercise takes approximately **30** minutes to complete.
+
+## Before you start
+
+To complete the exercise, you need:
+
+- An Azure subscription with the permissions to deploy the necessary Azure services. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
+- The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+- [Python 3.12](https://www.python.org/downloads/) or greater.
 
 ## Download project starter files and deploy Azure resources
 

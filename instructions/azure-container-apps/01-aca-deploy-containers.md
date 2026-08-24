@@ -34,7 +34,7 @@ To complete the exercise, you need:
 - An Azure subscription with the permissions to deploy the necessary Azure services. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
-- Optional: [Python 3.12](https://www.python.org/downloads/) or greater.
+- [Python 3.12](https://www.python.org/downloads/) or greater.
 
 ## Download project starter files and deploy Azure services
 
@@ -331,4 +331,3 @@ If you encounter issues while completing this exercise, try the following troubl
     - **Bash:** **az containerapp secret list -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP -o table**
     - **PowerShell:** **az containerapp secret list -n $env:CONTAINER_APP_NAME -g $env:RESOURCE_GROUP -o table**
 - Confirm the environment variable references the secret correctly by calling the root endpoint (**/**), which shows whether the API key is configured.
-
