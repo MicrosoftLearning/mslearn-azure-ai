@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Phi-3 Sidecar Chat</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/chat.js') }}" defer></script>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <header>
+            <div>
+                <p class="eyebrow">Azure App Service sidecar</p>
+                <h1>Chat with Phi-3 Mini</h1>
+                <p class="subtitle">Messages reach the local client, which calls the chat API hosted in Azure App Service.</p>
+            </div>
+            <div id="model-status" class="status status-loading" role="status">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span id="status-text">Checking model...</span>
+            </div>
+        </header>
+
+        <section class="chat-card" aria-labelledby="chat-heading">
+            <div class="chat-header">
+                <div>
+                    <h2 id="chat-heading">Conversation</h2>
+                    <p id="model-details">Microsoft Phi-3 Mini 4K Instruct, CPU INT4</p>
+                </div>
+                <button id="clear-button" class="btn-secondary" type="button">Clear conversation</button>
+            </div>
+
+            <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions">
+                <div id="empty-state" class="empty-state">
+                    <h3>Start a conversation</h3>
+                    <p>Ask a short question to send it through the chat API to the Phi-3 model sidecar.</p>
+                </div>
+            </div>
+
+            <form id="chat-form" class="chat-form">
+                <label for="message-input">Message</label>
+                <textarea
+                    id="message-input"
+                    name="message"
+                    rows="3"
+                    maxlength="2000"
+                    placeholder="Ask Phi-3 a question..."
+                    required
+                ></textarea>
+                <div class="form-actions">
+                    <span id="character-count" class="character-count">0 / 2000</span>
+                    <button id="send-button" class="btn-primary" type="submit" disabled>Send</button>
+                </div>
+            </form>
+            <div id="error-message" class="error-message" role="alert" hidden></div>
+        </section>
+
+        <p class="privacy-note">Conversation history stays in this browser tab and is cleared when the page reloads.</p>
+    </main>
+</body>
+</html>

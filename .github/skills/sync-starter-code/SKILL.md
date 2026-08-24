@@ -7,7 +7,7 @@ Sync application code files under `starter/**/python/` from the matching `finish
 1. **Finished is the source of truth.** Every non-deployment source file under `finished/<topic>/<exercise>/python/` is copied to the matching path under `starter/<starter_topic>/<starter_slug>/python/`. This skill never writes to `finished/`.
 2. **`# BEGIN` / `# END` blocks are emptied in the starter.** For every matching pair of marker lines in a `.py` file, the content strictly between them is replaced with three blank lines. Marker lines themselves are preserved verbatim (including indentation).
 
-Deployment scripts (`azdeploy.py`) and generated env files (`.env`, `.env.ps1`) are always excluded — those belong to the [sync-starter-deploy skill](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/sync-starter-deploy/SKILL.md) and the deployment script, respectively.
+Deployment scripts (`azdeploy.py`) and generated files (`.env`, `.env.ps1`, `sitecontainers-spec.json`) are always excluded — those belong to the [sync-starter-deploy skill](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/sync-starter-deploy/SKILL.md) and the deployment script, respectively. A source template such as `sitecontainers-spec.template.json` remains a normal sync candidate.
 
 ## Files that are synced
 
@@ -17,7 +17,7 @@ Every file under `finished/<topic>/<exercise>/python/` is a sync candidate. Comm
 
 Never copied, and never touched in the starter tree if they already exist there:
 
-- **Deployment / generated env files:** `azdeploy.py`, `.env`, `.env.ps1`
+- **Deployment / generated files:** `azdeploy.py`, `.env`, `.env.ps1`, `sitecontainers-spec.json`
 - **Markdown docs:** any `*.md` or `*.markdown` file (readmes stay owned by the finished tree)
 - **Build/venv detritus:** anything under `__pycache__/`, `.venv/`, `.git/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, and any `*.pyc`
 - **OS junk:** `.DS_Store`, `Thumbs.db`
@@ -126,7 +126,7 @@ For each file under a synced exercise:
 | present, `.py` with matched `# BEGIN`/`# END` blocks | matches emptied version | `unchanged` |
 | present, `.py` with matched `# BEGIN`/`# END` blocks | differs | Rewrite starter with finished contents, with each block's body replaced by three blank lines. |
 | present, `.py` with an unmatched `# BEGIN` (no `# END`) | any | Warning printed; that block is left untouched. Other blocks in the file still get emptied. |
-| excluded (`azdeploy.py`, `.env`, `.env.ps1`, `*.md`, `*.pyc`, anything under `__pycache__/` or `.venv/`) | any | Ignored. Never read, never written. |
+| excluded (`azdeploy.py`, `.env`, `.env.ps1`, `sitecontainers-spec.json`, `*.md`, `*.pyc`, anything under `__pycache__/` or `.venv/`) | any | Ignored. Never read, never written. |
 | missing | present | Reported as `extra in starter (not in finished; left alone)`. Not deleted. |
 
 Exercises where [topic-map.json](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/exercise-inventory/topic-map.json) sets `starter_slug: null` (e.g. `integrate-services/azure-functions`) are silently skipped.

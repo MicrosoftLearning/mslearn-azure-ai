@@ -3,7 +3,8 @@
 For each exercise where both a finished and a starter folder exist, mirror the
 application code under ``finished/<topic>/<exercise>/python/`` into
 ``starter/<starter_topic>/<starter_slug>/python/``. Files that are deployment
-artifacts (``azdeploy.py``, ``.env``, ``.env.ps1``) or build/venv detritus
+artifacts (``azdeploy.py``, ``.env``, ``.env.ps1``, resolved site-container
+specifications) or build/venv detritus
 (``__pycache__/``, ``.venv/``, ``*.pyc``) are never touched.
 
 For Python files (``*.py``), any code between matching ``# BEGIN <TAG>`` and
@@ -33,6 +34,7 @@ EXCLUDED_FILE_NAMES = frozenset({
     "azdeploy.py",
     ".env",
     ".env.ps1",
+    "sitecontainers-spec.json",
     ".DS_Store",
     "Thumbs.db",
 })

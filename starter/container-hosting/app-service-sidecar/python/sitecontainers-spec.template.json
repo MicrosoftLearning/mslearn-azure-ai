@@ -1,0 +1,22 @@
+[
+  {
+    "name": "chat-api",
+    "properties": {
+      "image": "<registry-name>.azurecr.io/chat-api:v1",
+      "targetPort": "8080",
+      "isMain": true,
+      "authType": "UserAssigned",
+      "userManagedIdentityClientId": "<managed-identity-client-id>"
+    }
+  },
+  {
+    "name": "model-server",
+    "properties": {
+      "image": "<registry-name>.azurecr.io/model-server:v1",
+      "targetPort": "11434",
+      "isMain": false,
+      "authType": "UserAssigned",
+      "userManagedIdentityClientId": "<managed-identity-client-id>"
+    }
+  }
+]

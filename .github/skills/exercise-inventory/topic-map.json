@@ -80,6 +80,10 @@
         "app-service": {
           "starter_slug": "app-service",
           "instructions_file": "02-app-svc-container.md"
+        },
+        "app-service-sidecar": {
+          "starter_slug": "app-service-sidecar",
+          "instructions_file": "03-app-svc-sidecar.md"
         }
       }
     },
