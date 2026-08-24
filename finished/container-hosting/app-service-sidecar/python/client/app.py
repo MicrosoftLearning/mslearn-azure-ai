@@ -49,7 +49,9 @@ def proxy_json(method: str, path: str, payload: object = None, timeout: int = 10
         return jsonify({"error": "The Azure chat API is unavailable."}), 503
     except ValueError:
         logger.error("Chat API returned a non-JSON response.")
-        return jsonify({"error": "The Azure chat API returned an invalid response."}), 502
+        return jsonify(
+            {"error": "The Azure chat API returned an invalid response."}
+        ), 502
     return jsonify(result), response.status_code
 
 
@@ -79,4 +81,6 @@ def model_info():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # Local-only dashboard
+    print("Dashboard running at http://127.0.0.1:5000", flush=True)
+    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)

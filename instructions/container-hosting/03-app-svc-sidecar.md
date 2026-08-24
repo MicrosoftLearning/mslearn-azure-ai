@@ -277,16 +277,6 @@ If you encounter issues while completing this exercise, try the following troubl
 - If the build fails partway through, network instability during the model download is the most common cause. Run option 1 again to retry.
 - If the second build consistently fails, check the ACR build logs in the Azure portal under your registry's **Services** > **Tasks** > **Runs** blade for the specific error.
 
-**First container start returns 503 or Issues Detected**
-- The first container start pulls both images from ACR, loads the 2.7 GB Phi-3 model into memory, and starts both containers. This can take several minutes on the initial start.
-- During this window, **az webapp sitecontainers log** can return a 503 from the SCM endpoint, and the portal **Properties** > **Site status** page can briefly show **Issues Detected** with an **Unknown** state and empty last-error fields.
-- Wait a few minutes and retry the command. Do not click **Repair** on the site-status page while the containers are still starting; it restarts the app and resets model-load progress.
-- If the state remains **Unknown** or the log command keeps returning 503 after 10 minutes, open **Diagnose and solve problems** in the portal and run the **Linux Container Start Failure** and **Container Issues** detectors for a root cause.
-
-**AcrPull role assignment not yet effective**
-- If the web app reports an image pull error immediately after option 3 completes, the AcrPull role assignment to the user-assigned managed identity can take a short time to propagate.
-- Wait a couple of minutes, then run **az webapp restart --name $APP_NAME --resource-group $RESOURCE_GROUP** to trigger a new pull attempt.
-
 **Managed-identity image pull reports token validation failed**
 - App Service managed-identity image pulls require the registry's authentication-as-ARM policy to be enabled. Option 1 verifies this policy before building the images.
 - If the script reports that the policy is disabled, run the following command to enable it, then run option 1 again.

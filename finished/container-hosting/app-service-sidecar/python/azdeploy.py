@@ -24,7 +24,7 @@ from pathlib import Path
 APP_SERVICE_SKU = "P2v3"
 CHAT_API_IMAGE = "chat-api:v1"
 SIDECAR_IMAGE = "model-server:v1"
-WEB_APP_BASE = "app-sidecar10"
+WEB_APP_BASE = "app-ai-sidecar"
 
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
 
