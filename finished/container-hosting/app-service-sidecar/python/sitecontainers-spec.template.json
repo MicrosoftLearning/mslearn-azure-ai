@@ -6,20 +6,7 @@
       "targetPort": "8080",
       "isMain": true,
       "authType": "UserAssigned",
-      "userManagedIdentityClientId": "<managed-identity-client-id>",
-      "environmentVariables": [
-        {
-          "name": "MODEL_ENDPOINT",
-          "value": "MODEL_ENDPOINT"
-        }
-      ],
-      "volumeMounts": [
-        {
-          "volumeSubPath": "models/current",
-          "containerMountPath": "/app/models",
-          "readOnly": true
-        }
-      ]
+      "userManagedIdentityClientId": "<managed-identity-client-id>"
     }
   },
   {
@@ -29,20 +16,7 @@
       "targetPort": "11434",
       "isMain": false,
       "authType": "UserAssigned",
-      "userManagedIdentityClientId": "<managed-identity-client-id>",
-      "environmentVariables": [
-        {
-          "name": "MODEL_NAME",
-          "value": "MODEL_NAME"
-        }
-      ],
-      "volumeMounts": [
-        {
-          "volumeSubPath": "models/current",
-          "containerMountPath": "/models",
-          "readOnly": false
-        }
-      ]
+      "userManagedIdentityClientId": "<managed-identity-client-id>"
     }
   }
 ]

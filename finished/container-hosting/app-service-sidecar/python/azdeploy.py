@@ -5,7 +5,7 @@
 # rg = "<your-resource-group-name>"  # Resource Group name
 # location = "<your-azure-region>"   # Azure region for the resources
 
-rg = "rg-exercises"          # Resource Group name
+rg = "rg-newexercises"          # Resource Group name
 location = "canadacentral"         # Azure region for the resources
 
 # =============================================================================
@@ -24,6 +24,7 @@ from pathlib import Path
 APP_SERVICE_SKU = "P2v3"
 CHAT_API_IMAGE = "chat-api:v1"
 SIDECAR_IMAGE = "model-server:v1"
+WEB_APP_BASE = "app-sidecar10"
 
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
 
@@ -156,7 +157,7 @@ def _derived_names(user_object_id: str) -> tuple[str, str, str, str]:
     return (
         f"acrsidecar{user_hash}",
         f"plan-ai-sidecar-{user_hash}",
-        f"app-ai-sidecar-{user_hash}",
+        f"{WEB_APP_BASE}-{user_hash}",
         f"id-sidecar-{user_hash}",
     )
 
@@ -445,7 +446,11 @@ def _prepare_app_service_plan(app_plan: str) -> bool:
     return True
 
 
-def _prepare_web_app(app_plan: str, app_name: str, identity_resource_id: str) -> bool:
+def _prepare_web_app(
+    app_plan: str,
+    app_name: str,
+    identity_resource_id: str,
+) -> bool:
     state = az_query(
         [
             "az", "webapp", "show",
@@ -487,32 +492,63 @@ def _prepare_web_app(app_plan: str, app_name: str, identity_resource_id: str) ->
         return False
 
     print(f"Creating sidecar-enabled web app '{app_name}'...")
-    if not run_quiet(
-        "Create the base Linux web app",
+    plan_id = az_query(
         [
-            "az", "webapp", "create",
+            "az", "appservice", "plan", "show",
             "--resource-group", rg,
-            "--name", app_name,
-            "--plan", app_plan,
-            "--runtime", "PYTHON:3.11",
+            "--name", app_plan,
+            "--query", "id",
+            "-o", "tsv",
+        ]
+    )
+    if not plan_id:
+        print("Error: Could not resolve the App Service plan resource id.")
+        return False
+
+    site_resource = {
+        "type": "Microsoft.Web/sites",
+        "apiVersion": "2024-04-01",
+        "name": app_name,
+        "location": location,
+        "kind": "app,linux",
+        "identity": {
+            "type": "UserAssigned",
+            "userAssignedIdentities": {identity_resource_id: {}},
+        },
+        "properties": {
+            "serverFarmId": plan_id,
+            "reserved": True,
+            "httpsOnly": False,
+            "siteConfig": {
+                "linuxFxVersion": "sitecontainers",
+                "alwaysOn": True,
+                "acrUseManagedIdentityCreds": True,
+            },
+        },
+    }
+    template = {
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "contentVersion": "1.0.0.0",
+        "resources": [site_resource],
+    }
+    template_path = Path("sitecontainers-deployment.json")
+    template_path.write_text(
+        json.dumps(template, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    if not run_quiet(
+        "Deploy the sidecar-enabled web app",
+        [
+            "az", "deployment", "group", "create",
+            "--resource-group", rg,
+            "--template-file", str(template_path),
+            "--name", f"sidecar-webapp-{app_name}",
         ],
     ):
         return False
-    if not _attach_identity_to_webapp(app_name, identity_resource_id):
-        return False
-    print("Waiting 10 seconds for the managed identity attachment to propagate...")
-    time.sleep(10)
-    if not run_quiet(
-        "Convert the web app to sitecontainers mode",
-        [
-            "az", "webapp", "sitecontainers", "convert",
-            "--resource-group", rg,
-            "--name", app_name,
-            "--mode", "sitecontainers",
-        ],
-    ):
-        return False
-    print(f"Sidecar-enabled web app created: {app_name}")
+    print(f"Sidecar-enabled web app deployed: {app_name}")
     return True
 
 
@@ -551,19 +587,6 @@ def create_app_service_resources(
         return False
     print()
     if not _prepare_web_app(app_plan, app_name, identity_resource_id):
-        return False
-    if not run_quiet(
-        "Configure the extended container startup time",
-        [
-            "az", "webapp", "config", "appsettings", "set",
-            "--resource-group", rg,
-            "--name", app_name,
-            "--settings",
-            "WEBSITES_CONTAINER_START_TIME_LIMIT=1800",
-            "MODEL_ENDPOINT=http://localhost:11434",
-            "MODEL_NAME=microsoft/Phi-3-mini-4k-instruct-onnx",
-        ],
-    ):
         return False
     write_sitecontainers_spec(acr_name, identity_client_id)
     print("Resolved container specification saved to: sitecontainers-spec.json")

@@ -76,9 +76,9 @@ The exercise images use port **8080** for the main API and port **11434** for th
 
 ## Define the main and sidecar containers
 
-In this section you configure the main chat API container and the Phi-3 model sidecar in the provided *sitecontainers-spec.json* file. The main API receives external traffic on port **8080**, while the model server remains internal on port **11434**. Both containers use the shared user-assigned managed identity to pull their private images.
+In this section you review the main chat API container and the Phi-3 model sidecar defined in the *sitecontainers-spec.json* file that the deployment script generated, then apply the specification to the sidecar-enabled web app. The main API receives external traffic on port **8080**, while the model server remains internal on port **11434**. Both containers use the shared user-assigned managed identity to pull their private images.
 
-The project includes *sitecontainers-spec.template.json* with a placeholder for the registry name. The deployment script preserves that template and generates *sitecontainers-spec.json* with your registry name, but it doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
+The project includes *sitecontainers-spec.template.json* with placeholders for the registry name and the identity's client ID. The deployment script preserves that template and generates *sitecontainers-spec.json* with your registry name and client ID, but doesn't apply the specification. In this section you review the generated configuration and then deploy both containers.
 
 1. Open *sitecontainers-spec.json* in Visual Studio Code.
 
@@ -89,36 +89,14 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
     - **isMain** is **true**, which designates this container as the public application.
     - **authType** is **UserAssigned**, which instructs App Service to use a user-assigned managed identity to pull the image.
     - **userManagedIdentityClientId** is the client ID of the shared user-assigned managed identity that has the **AcrPull** role on your registry.
-    - **MODEL_ENDPOINT** references the app setting of the same name. App Service resolves its value to **http://localhost:11434**, which uses the shared network namespace to reach the model sidecar.
-    - The **models/current** volume is mounted at **/app/models** as read-only.
 
 1. Review the **model-server** container definition and identify the following settings:
 
     - **image** points to the **model-server:v1** image in your Azure Container Registry.
     - **targetPort** is **11434** and **isMain** is **false**, so the model server remains an internal sidecar.
     - The container uses the same user-assigned managed identity as the main API to pull its image.
-    - **MODEL_NAME** references the app setting of the same name, which identifies the Microsoft Phi-3 Mini ONNX model.
-    - The **models/current** volume is mounted at **/models** with write access so the sidecar can create the model manifest.
 
-1. Run the following command to enable **Always On** for the web app. Always On tells App Service to keep the containers resident and to send a lightweight internal ping to the site every few minutes. Without it, App Service unloads idle containers after about 20 minutes, and the next request pays the full cold-start cost of pulling the images and reloading the Phi-3 model into memory. Enabling Always On is standard practice for containerized workloads that hold a model in memory.
-
-    **Bash**
-    ```bash
-    az webapp config set \
-        --name "$APP_NAME" \
-        --resource-group "$RESOURCE_GROUP" \
-        --always-on true
-    ```
-
-    **PowerShell**
-    ```powershell
-    az webapp config set `
-        --name $env:APP_NAME `
-        --resource-group $env:RESOURCE_GROUP `
-        --always-on true
-    ```
-
-1. Run the following command to apply the main and sidecar container definitions. This creates the runtime relationship between the public chat API and its internal model sidecar.
+1. Run the following command to apply the main and sidecar container definitions. This creates the runtime relationship between the public chat API and its internal model sidecar and starts the initial container pulls.
 
     **Bash**
     ```bash
@@ -155,22 +133,6 @@ The project includes *sitecontainers-spec.template.json* with a placeholder for 
     ```
 
 1. Confirm that **chat-api** is the main container, **model-server** is the sidecar, the target ports are different, and both definitions use **UserAssigned** authentication with the same **userManagedIdentityClientId**.
-
-1. Run the following command to restart the web app. Restarting after applying the container specification signals the App Service platform to reconcile the site configuration and start pulling the container images from the registry. Without this restart, the platform can leave the site in its pre-specification state and never attempt the initial pull.
-
-    **Bash**
-    ```bash
-    az webapp restart \
-        --name "$APP_NAME" \
-        --resource-group "$RESOURCE_GROUP"
-    ```
-
-    **PowerShell**
-    ```powershell
-    az webapp restart `
-        --name $env:APP_NAME `
-        --resource-group $env:RESOURCE_GROUP
-    ```
 
 ## Verify the model sidecar is ready
 
@@ -210,9 +172,9 @@ In this section you verify that App Service pulled both images and that the Phi-
 
 ## Verify the shared volume
 
-In this section you verify that the main API and model sidecar access the same shared volume through different container paths. The model server writes a small manifest to **/models/manifest.json** after it loads the model, and the main API reads the same file through **/app/models/manifest.json**.
+In this section you verify that the main API and model sidecar access the App Service default **/home** shared volume. All sitecontainers in a Linux web app automatically share the **/home** volume, so the model server writes a small manifest to **/home/models/manifest.json** after it loads the model, and the main API reads the same file.
 
-1. Run the following command to request the non-sensitive model manifest fields. A successful response proves that the sidecar wrote the manifest and the main API read it through the shared volume.
+1. Run the following command to request the non-sensitive model manifest fields. A successful response proves that the sidecar wrote the manifest and the main API read it through the shared **/home** volume.
 
     **Bash**
     ```bash
@@ -226,7 +188,7 @@ In this section you verify that the main API and model sidecar access the same s
 
 1. Confirm that the response identifies the Microsoft Phi-3 Mini model, Microsoft ONNX Runtime GenAI, CPU INT4 quantization, and a ready state.
 
-The two containers use different mount paths, but both definitions reference the **models/current** volume subpath. The model-server mount has write access so it can create the manifest, while the main API mount is read-only. The volume is non-persistent because the sidecar can recreate the manifest each time it starts. Data that must survive restarts or be shared across scaled-out instances belongs in durable storage.
+App Service automatically shares the **/home** volume across every sitecontainer, so you didn't need to define **volumeMounts** in the specification. The volume is non-persistent because the sidecar can recreate the manifest each time it starts. Data that must survive restarts or be shared across scaled-out instances belongs in durable storage.
 
 ## Set up the Python environment
 

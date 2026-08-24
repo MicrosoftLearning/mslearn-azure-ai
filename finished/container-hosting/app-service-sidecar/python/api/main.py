@@ -9,7 +9,7 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 MODEL_ENDPOINT = os.getenv("MODEL_ENDPOINT", "http://localhost:11434").rstrip("/")
-MODEL_INFO_PATH = Path(os.getenv("MODEL_INFO_PATH", "/app/models/manifest.json"))
+MODEL_INFO_PATH = Path(os.getenv("MODEL_INFO_PATH", "/home/models/manifest.json"))
 MODEL_REQUEST_TIMEOUT = int(os.getenv("MODEL_REQUEST_TIMEOUT", "240"))
 MAX_MESSAGES = 8
 MAX_MESSAGE_LENGTH = 2000
