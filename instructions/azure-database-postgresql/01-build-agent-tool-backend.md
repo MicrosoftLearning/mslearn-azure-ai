@@ -436,6 +436,11 @@ Now that you finished the exercise, you should delete the cloud resources you cr
 
 If you encounter issues during this exercise, try these steps:
 
+**Deployment fails**
+- Run the deployment script again and select option **1**.
+- If the script detects an existing PostgreSQL server, it warns that redeployment permanently deletes the server and all of its data. Enter `yes` to confirm that you want to delete and redeploy the server.
+- If Azure does not release the PostgreSQL server name within five minutes, exit the deployment script, wait five minutes, then run the script and select option **1** again.
+
 **psql connection fails**
 - Ensure both the *.env* and *.env.ps1* files were created by running the deployment script option **3**
 - Ensure you ran **source .env** (Bash) or **. .\.env.ps1** (PowerShell) to load environment variables
@@ -443,7 +448,7 @@ If you encounter issues during this exercise, try these steps:
 - Verify the server is ready by running the deployment script option **2**
 
 **Access denied or authentication errors**
-- The Microsoft Entra administrator is configured automatically when option **1** creates the server. If access is still denied, verify the administrator by running option **2**, and if it is missing, delete the resource group and rerun option **1** to redeploy.
+- The Microsoft Entra administrator is configured automatically when option **1** creates the server. If access is still denied, verify the administrator by running option **2**. If it is missing, run option **1** and confirm that you want to delete and redeploy the server.
 - Verify **PGPASSWORD** is set correctly in your terminal session
 - Ensure you're using the correct **DB_USER** value (your Azure account email)
 
