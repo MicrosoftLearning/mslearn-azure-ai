@@ -18,7 +18,7 @@ The process resolves file references against the exercise's finished Python tree
 
 - **Explicit empty file:** `Open the empty *path/file* file` creates a zero-byte starter file.
 - **BEGIN section:** a step that references a bold `BEGIN <TAG>` marker and tells the student to add code copies finished and empties only the referenced marker body.
-- **Placeholder replacement:** an instruction that identifies a line containing an uppercase angle-bracket placeholder, such as `image: <YOUR_ACR_ENDPOINT>/app:latest`, copies finished and restores that complete instructional line.
+- **Placeholder replacement:** an instruction that identifies a line containing an angle-bracket placeholder, such as `image: <YOUR_ACR_ENDPOINT>/app:latest` or `<resource-name>`, copies finished and restores that complete instructional line. Placeholder matching is case-insensitive and supports letters, digits, underscores, and hyphens.
 - **Review or run only:** a file with no student-edit action is copied verbatim from finished.
 - **Ambiguous edit:** an edit cue that cannot be mapped to one of the preceding actions produces an error and leaves the starter file untouched.
 

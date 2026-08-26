@@ -61,7 +61,9 @@ BEGIN_PROSE_RE = re.compile(
     re.IGNORECASE,
 )
 BOLD_RE = re.compile(r"\*\*(?P<text>[^*\n]+)\*\*")
-PLACEHOLDER_RE = re.compile(r"\\?<(?P<name>[A-Z][A-Z0-9_-]*)>")
+PLACEHOLDER_RE = re.compile(
+    r"\\?<(?P<name>[A-Za-z][A-Za-z0-9_-]*)>"
+)
 EDIT_CUE_RE = re.compile(
     r"\b(?:add|complete|insert|modify|replace|update)\b",
     re.IGNORECASE,
@@ -187,7 +189,11 @@ def analyze_instructions(
             current_action.marker_tags.add(tag)
             continue
 
-        if re.search(r"\breplace\b", line, re.IGNORECASE) and PLACEHOLDER_RE.search(line):
+        if (
+            line_number - current_action.line_number <= 12
+            and re.search(r"\breplace\b", line, re.IGNORECASE)
+            and PLACEHOLDER_RE.search(line)
+        ):
             current_action.edit_cues.append(line.strip())
             for template in contextual_placeholder_templates(line):
                 if template not in current_action.placeholder_templates:
