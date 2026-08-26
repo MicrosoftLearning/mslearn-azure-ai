@@ -163,7 +163,7 @@ In this section you complete both the *deployment.yaml* and *service.yaml* files
 
 Next, you update the *service.yaml* file.
 
-1. Open the *k8s/service.yaml* to complete the file.
+1. Open the empty *k8s/service.yaml* file.
 
 1. Add the following YAML to the manifest. Ensure YAML indentation is correct.
 
