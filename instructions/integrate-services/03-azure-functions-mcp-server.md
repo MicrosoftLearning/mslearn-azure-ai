@@ -45,7 +45,7 @@ In this section you create a new Azure Functions project in Visual Studio Code u
 
 1. Create a folder for the project (for example, *mcp-server-functions*) and open it in Visual Studio Code by selecting **File > Open Folder...** in the menu.
 
-1. Press **Ctrl+Shift+P** to open the Command Palette. Run the **Azure Functions: Create Function...** command and choose the following options when prompted:
+1. Select **View > Command Palette..."** to open the Command Palette. Run the **Azure Functions: Create Function...** command and choose the following options when prompted:
 
     | Option | Action |
     |--|--|
@@ -183,7 +183,7 @@ In this section you define two MCP tool trigger functions that become discoverab
 
 In this section you verify that Visual Studio Code is using the Python interpreter from the virtual environment that the Azure Functions extension created during project setup.
 
-1. Press **Ctrl+Shift+P** to open the Command Palette and run the **Python: Select Interpreter** command. Select the interpreter from the *.venv* folder in the project directory (for example, *./.venv/bin/python*). This ensures the debugger and terminal use the correct environment when you start the Functions runtime with **F5**.
+1. Select **View > Command Palette..."** to open the Command Palette and run the **Python: Select Interpreter** command. Select the interpreter from the *.venv* folder in the project directory (for example, *./.venv/bin/python*). This ensures the debugger and terminal use the correct environment when you start the Functions runtime with **F5**.
 
 ## Test the MCP server locally
 
