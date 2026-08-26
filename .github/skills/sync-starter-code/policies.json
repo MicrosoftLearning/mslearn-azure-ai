@@ -1,0 +1,17 @@
+{
+  "$schema_note": "Explicit starter-state policies. Unclassified files are never modified. Modes: copy, empty, strip-markers, template, ignore.",
+  "exercises": {
+    "aks/configure-aks": {
+      "k8s/deployment.yaml": {
+        "mode": "template",
+        "replacements": [
+          {
+            "pattern": "(?m)^(?P<prefix>[ \\t]*image:[ \\t]*)[^/\\n]+(?P<suffix>/aks-config-api:latest[ \\t]*)$",
+            "replacement": "\\g<prefix><YOUR_ACR_ENDPOINT>\\g<suffix>",
+            "expected_matches": 1
+          }
+        ]
+      }
+    }
+  }
+}
