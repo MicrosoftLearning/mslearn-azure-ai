@@ -295,7 +295,7 @@ With the Python environment configured and dependencies installed, you can now r
       Version: 1.0.0
       Student: YourNameHere
     ```
-1. Enter **2** to start the **Check API Readiness (Foundry Connectivity)** option. This confirms the API can successfully connect to the Foundry model endpoint and is ready to process inference requests.
+1. Enter **2** to start the **Check API Readiness** option. This confirms that the student name from the ConfigMap is loaded, displays the configured API version, and reports whether the Kubernetes Secrets are loaded and the persistent log storage is writable.
 
 1. Enter **3** to start the **View Secrets Information** option. This functionality exists only so you can confirm your secrets were set in the pod and is for demonstration purposes only. In the output you can view information about the secrets, the output is masked.
 
@@ -312,6 +312,8 @@ With the Python environment configured and dependencies installed, you can now r
         Value: ***3456
         Length: 21 characters
     ```
+
+1. Enter **4** to start the **Get Single Product** option. Enter a product ID from **1** through **10** to retrieve one of the mock products from the API.
 
 1. Enter **5** to start the **List All Products** option. This displays the mock data included in the API.
 
