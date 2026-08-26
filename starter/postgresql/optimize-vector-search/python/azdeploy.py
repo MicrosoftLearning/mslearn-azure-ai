@@ -10,6 +10,7 @@ location = "<your-azure-region>"   # Azure region for the resources
 # =============================================================================
 
 import hashlib
+import json
 import os
 import secrets
 import shutil
@@ -20,6 +21,7 @@ import time
 from pathlib import Path
 
 DB_NAME = "postgres"
+FIREWALL_RULE_NAME = "AllowAll"
 
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
 
@@ -64,6 +66,30 @@ def run_quiet(description: str, argv: list[str]) -> bool:
             print(combined.rstrip())
         return False
     return True
+
+
+def run_quiet_retry_busy(
+    description: str, argv: list[str], max_attempts: int = 6
+) -> bool:
+    """Run an idempotent server operation, retrying transient busy responses."""
+    argv = [_resolve_exe(argv[0]), *argv[1:]]
+    for attempt in range(1, max_attempts + 1):
+        result = subprocess.run(argv, capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            return True
+
+        combined = (result.stdout or "") + (result.stderr or "")
+        if "ServerIsBusy" not in combined or attempt == max_attempts:
+            print(f"Error: {description} failed (exit code {result.returncode}).")
+            if combined.strip():
+                print(combined.rstrip())
+            return False
+
+        delay = min(5 * (2 ** (attempt - 1)), 60)
+        print(f"Server is busy. Retrying {description.lower()} in {delay} seconds...")
+        time.sleep(delay)
+
+    return False
 
 
 def az_query(argv: list[str]) -> str:
@@ -179,21 +205,101 @@ def _server_exists(server_name: str) -> bool:
     ]))
 
 
+def _wait_for_name_available(
+    server_name: str, timeout_seconds: int = 300, poll_seconds: int = 15
+) -> bool:
+    subscription_id = az_query(
+        ["az", "account", "show", "--query", "id", "-o", "tsv"]
+    )
+    if not subscription_id:
+        print("Error: Unable to determine the current Azure subscription.")
+        return False
+
+    availability_url = (
+        "https://management.azure.com/subscriptions/"
+        f"{subscription_id}/providers/Microsoft.DBforPostgreSQL/"
+        "checkNameAvailability?api-version=2025-08-01"
+    )
+    request_body = json.dumps({
+        "name": server_name,
+        "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+    })
+    deadline = time.monotonic() + timeout_seconds
+    waiting = False
+    while time.monotonic() < deadline:
+        name_available = az_query([
+            "az", "rest",
+            "--method", "post",
+            "--url", availability_url,
+            "--body", request_body,
+            "--query", "nameAvailable",
+            "-o", "tsv",
+        ])
+        if name_available.lower() == "true":
+            return True
+        if not waiting:
+            print(f"Waiting for Azure to release server name '{server_name}'...")
+            waiting = True
+        time.sleep(poll_seconds)
+    print(f"Error: Timed out waiting for server name '{server_name}' to become available.")
+    print("Exit the deployment script, wait 5 minutes, then run it again.")
+    return False
+
+
+def _wait_for_deleted(
+    server_name: str, timeout_seconds: int = 600, poll_seconds: int = 15
+) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if not _server_exists(server_name):
+            print("Server resource deleted.")
+            return True
+        time.sleep(poll_seconds)
+    print(f"Error: Timed out waiting for server '{server_name}' to be deleted.")
+    print("Wait a few minutes, then run option 1 again.")
+    return False
+
+
+def _delete_existing_server(server_name: str) -> bool:
+    state = _server_state(server_name) or "Provisioning"
+    print(f"PostgreSQL server '{server_name}' already exists (state: {state}).")
+    print("Redeploying permanently deletes the existing server and all of its data.")
+    try:
+        confirm = input(
+            "Delete and redeploy this PostgreSQL server? (yes/no): "
+        ).strip().lower()
+    except EOFError:
+        confirm = "no"
+    if confirm != "yes":
+        print("Redeployment canceled.")
+        return False
+
+    print(f"Deleting existing PostgreSQL server '{server_name}'...")
+    if not run_quiet_retry_busy(
+        "Delete PostgreSQL Flexible Server",
+        [
+            "az", "postgres", "flexible-server", "delete",
+            "--resource-group", rg,
+            "--name", server_name,
+            "--yes",
+        ],
+    ):
+        return False
+    if not _wait_for_deleted(server_name):
+        return False
+    print("Existing PostgreSQL server deleted.")
+    return True
+
+
 def create_postgres_server(server_name: str, user_object_id: str) -> bool:
     if not create_resource_group():
         return False
     print()
 
-    if _server_exists(server_name):
-        state = _server_state(server_name) or "Provisioning"
-        if state == "Ready":
-            print(f"PostgreSQL server already exists: {server_name}")
-            return True
-        print(f"PostgreSQL server '{server_name}' already exists (state: {state}).")
-        print("Azure is still processing an operation on this server, most likely")
-        print("a create that was started by an earlier attempt.")
-        print("Wait a few minutes, then use option 3 to check status.")
-        return True
+    if _server_exists(server_name) and not _delete_existing_server(server_name):
+        return False
+    if not _wait_for_name_available(server_name):
+        return False
 
     print(f"Creating Azure Database for PostgreSQL Flexible Server '{server_name}'...")
     print("This may take several minutes...")
@@ -218,20 +324,86 @@ def create_postgres_server(server_name: str, user_object_id: str) -> bool:
             "--tier", "Burstable",
             "--storage-size", "32",
             "--version", "16",
-            "--public-access", "0.0.0.0-255.255.255.255",
+            "--public-access", "Enabled",
             "--microsoft-entra-auth", "Enabled",
-            "--password-auth", "Disabled",
+            "--password-auth", "Enabled",
             "--admin-user", "pgadmin",
             "--admin-password", _throwaway_admin_password(),
-            "--admin-object-id", user_object_id,
-            "--admin-display-name", user_upn,
-            "--admin-type", "User",
             "--yes",
         ],
     ):
         return False
+
+    print("PostgreSQL server created. Checking server status...")
+    if not _wait_for_ready(server_name):
+        return False
+
+    print("Configuring Microsoft Entra administrator...")
+    if not run_quiet_retry_busy(
+        "Configure Microsoft Entra administrator",
+        [
+            "az", "postgres", "flexible-server", "microsoft-entra-admin", "create",
+            "--resource-group", rg,
+            "--server-name", server_name,
+            "--display-name", user_upn,
+            "--object-id", user_object_id,
+            "--type", "User",
+        ],
+    ):
+        return False
+    if not _wait_for_ready(server_name):
+        return False
+
+    print("Disabling password authentication...")
+    if not run_quiet_retry_busy(
+        "Disable password authentication",
+        [
+            "az", "postgres", "flexible-server", "update",
+            "--resource-group", rg,
+            "--name", server_name,
+            "--microsoft-entra-auth", "Enabled",
+            "--password-auth", "Disabled",
+            "--yes",
+        ],
+    ):
+        return False
+    if not _wait_for_ready(server_name):
+        return False
+
+    print("Creating firewall rule...")
+    if not run_quiet_retry_busy(
+        "Create PostgreSQL firewall rule",
+        [
+            "az", "postgres", "flexible-server", "firewall-rule", "create",
+            "--resource-group", rg,
+            "--server-name", server_name,
+            "--name", FIREWALL_RULE_NAME,
+            "--start-ip-address", "0.0.0.0",
+            "--end-ip-address", "255.255.255.255",
+        ],
+    ):
+        return False
+    if not _wait_for_ready(server_name):
+        return False
+
+    admin_name = az_query(
+        ["az", "postgres", "flexible-server", "microsoft-entra-admin", "list",
+         "--resource-group", rg, "--server-name", server_name,
+         "--query", "[0].principalName", "-o", "tsv"]
+    )
+    firewall_rules = az_query(
+        ["az", "postgres", "flexible-server", "firewall-rule", "list",
+         "--resource-group", rg, "--server-name", server_name,
+         "--query", "[].name", "-o", "tsv"]
+    ).splitlines()
+    if not admin_name or FIREWALL_RULE_NAME not in firewall_rules:
+        print("Error: PostgreSQL deployment verification failed.")
+        print("Use option 3 to review the current deployment status.")
+        return False
+
     print("PostgreSQL server created successfully")
-    print(f"  Microsoft Entra administrator: {user_upn}")
+    print(f"  Microsoft Entra administrator: {admin_name}")
+    print(f"  Firewall rule: {FIREWALL_RULE_NAME}")
     return True
 
 
@@ -243,6 +415,9 @@ def _wait_for_ready(server_name: str, timeout_seconds: int = 600, poll_seconds: 
         state = _server_state(server_name)
         if state == "Ready":
             return True
+        if state in ("Failed", "Canceled"):
+            print(f"Error: PostgreSQL server entered the {state} state.")
+            return False
         if state and state != last_state:
             print(f"  Server state: {state} (waiting...)")
             last_state = state
@@ -303,11 +478,7 @@ def check_deployment_status(server_name: str) -> bool:
     print()
 
     print(f"PostgreSQL Server ({server_name}):")
-    state = az_query(
-        ["az", "postgres", "flexible-server", "show",
-         "--resource-group", rg, "--name", server_name,
-         "--query", "state", "-o", "tsv"]
-    )
+    state = _server_state(server_name)
     if not state:
         print("  Status: Not created")
         return True
@@ -315,6 +486,13 @@ def check_deployment_status(server_name: str) -> bool:
     print(f"  Status: {state}")
     if state == "Ready":
         print("  PostgreSQL server is ready")
+
+    public_access = az_query(
+        ["az", "postgres", "flexible-server", "show",
+         "--resource-group", rg, "--name", server_name,
+         "--query", "network.publicNetworkAccess", "-o", "tsv"]
+    )
+    print(f"  Public access: {public_access or 'Unknown'}")
 
     admin_name = az_query(
         ["az", "postgres", "flexible-server", "microsoft-entra-admin", "list",
@@ -325,6 +503,16 @@ def check_deployment_status(server_name: str) -> bool:
         print(f"  Entra administrator: {admin_name}")
     else:
         print("  WARNING: Entra administrator not configured")
+
+    firewall_rules = az_query(
+        ["az", "postgres", "flexible-server", "firewall-rule", "list",
+         "--resource-group", rg, "--server-name", server_name,
+         "--query", "[].name", "-o", "tsv"]
+    ).splitlines()
+    if FIREWALL_RULE_NAME in firewall_rules:
+        print(f"  Firewall rule: {FIREWALL_RULE_NAME}")
+    else:
+        print("  WARNING: Allow-all firewall rule not configured")
 
     allowed_value = az_query([
         "az", "postgres", "flexible-server", "parameter", "show",
@@ -344,11 +532,7 @@ def check_deployment_status(server_name: str) -> bool:
 def retrieve_connection_info(server_name: str) -> bool:
     print("Retrieving connection information...")
 
-    state = az_query(
-        ["az", "postgres", "flexible-server", "show",
-         "--resource-group", rg, "--name", server_name,
-         "--query", "state", "-o", "tsv"]
-    )
+    state = _server_state(server_name)
     if not state:
         print(f"Error: PostgreSQL server '{server_name}' not found.")
         print("Please run option 1 to create the PostgreSQL server, then try again.")
