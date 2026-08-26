@@ -131,7 +131,7 @@ In this section you run the deployment script to deploy the necessary services t
     Write-Output $FQDN
     ```
 
-1. Run the following command to call the default endpoint to verify the app is running. The command should return some JSON. Look for the **model.name** field, it should be set to **gpt-4o-mini**.
+1. Run the following command to call the default endpoint to verify the app is running. The command should return some JSON. Look for the **model.name** field, it should be set to **gpt-5.4-mini**.
 
     **Bash**
     ```bash

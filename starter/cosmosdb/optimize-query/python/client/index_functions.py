@@ -60,6 +60,7 @@ def get_all_containers():
         "diskANN": get_container(CONTAINER_DISKANN)
     }
 
+
 def store_vector_document(
     container_name: str,
     document_id: str,

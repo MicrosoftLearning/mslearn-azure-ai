@@ -118,7 +118,7 @@ In this section you complete YAML files, located in the *k8s* folder, needed to 
 
 ConfigMaps store non-sensitive configuration data as key-value pairs that can be consumed by pods. In this section, you create a ConfigMap to store application settings like the student name, API version, and log path.
 
-1. Open the *k8s/configmap.yaml* file and add the following code to the file. You can update the value for **STUDENT_NAME** with your name if you want to.
+1. Open the empty *k8s/configmap.yaml* file and add the following code. You can update the value for **STUDENT_NAME** with your name if you want to.
 
     ```yml
     apiVersion: v1
@@ -140,7 +140,7 @@ ConfigMaps store non-sensitive configuration data as key-value pairs that can be
 
 Secrets store sensitive information like passwords, tokens, and keys in a base64-encoded format. In this section, you create a Secret to store sensitive credentials that the API will access at runtime.
 
-1. Open the *k8s/secrets.yaml* file and add the following code to the file.
+1. Open the empty *k8s/secrets.yaml* file and add the following code.
 
     ```yml
     apiVersion: v1
@@ -162,7 +162,7 @@ Secrets store sensitive information like passwords, tokens, and keys in a base64
 
 A PersistentVolumeClaim (PVC) requests storage resources from Azure that can be mounted to pods. In this section, you create a PVC that uses Azure Disk storage to persist API log files across pod restarts.
 
-1. Open the *k8s/pvc.yaml* file and add the following code to the file.
+1. Open the empty *k8s/pvc.yaml* file and add the following code.
 
     ```yml
     apiVersion: v1
