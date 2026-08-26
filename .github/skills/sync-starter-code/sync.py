@@ -422,26 +422,36 @@ def sync_exercise(
     apply: bool,
     show_diff: bool,
     target_rel: Optional[Path] = None,
-) -> list[str]:
+) -> tuple[list[str], list[Path]]:
     reports: list[str] = []
+    extra_files: list[Path] = []
     starter_dir = exercise.get("starter_dir")
     if not starter_dir:
-        return reports
+        return reports, extra_files
 
     finished_python = REPO_ROOT / exercise["finished_dir"] / "python"
     starter_python = REPO_ROOT / starter_dir / "python"
 
     if not finished_python.is_dir():
         reports.append(f"  skip: {finished_python.relative_to(REPO_ROOT)} does not exist")
-        return reports
+        return reports, extra_files
 
     if target_rel is not None:
         target_file = finished_python / target_rel
         if not target_file.is_file():
-            reports.append(
-                f"  error: {target_file.relative_to(REPO_ROOT)} does not exist"
-            )
-            return reports
+            starter_file = starter_python / target_rel
+            if starter_file.is_file() and not is_excluded(starter_file, starter_python):
+                rel_starter = starter_file.relative_to(REPO_ROOT)
+                reports.append(
+                    f"  {rel_starter}: deletion candidate "
+                    "(not in finished)"
+                )
+                extra_files.append(starter_file)
+            else:
+                reports.append(
+                    f"  error: {target_file.relative_to(REPO_ROOT)} does not exist"
+                )
+            return reports, extra_files
         finished_files = [target_file]
     else:
         finished_files = list(iter_source_files(finished_python))
@@ -475,9 +485,45 @@ def sync_exercise(
             if rel in finished_rel_set:
                 continue
             rel_starter = starter_file.relative_to(REPO_ROOT)
-            reports.append(f"  {rel_starter}: extra in starter (not in finished; left alone)")
+            reports.append(
+                f"  {rel_starter}: deletion candidate (not in finished)"
+            )
+            extra_files.append(starter_file)
 
-    return reports
+    return reports, extra_files
+
+
+def delete_extra_files(extra_files: list[Path]) -> tuple[int, int]:
+    """Offer to delete starter files that have no finished counterpart."""
+    if not extra_files:
+        return 0, 0
+
+    print()
+    print(f"Found {len(extra_files)} starter-only file(s):")
+    for path in extra_files:
+        print(f"  {path.relative_to(REPO_ROOT)}")
+
+    try:
+        confirm = input("Delete all listed starter-only files? (yes/no): ").strip().lower()
+    except EOFError:
+        confirm = "no"
+    if confirm != "yes":
+        print("Starter-only files were not deleted.")
+        return 0, 0
+
+    deleted = 0
+    errors = 0
+    for path in extra_files:
+        rel_path = path.relative_to(REPO_ROOT)
+        try:
+            path.unlink()
+        except OSError as error:
+            print(f"Error: Failed to delete {rel_path}: {error}")
+            errors += 1
+            continue
+        print(f"Deleted: {rel_path}")
+        deleted += 1
+    return deleted, errors
 
 
 def main() -> int:
@@ -577,9 +623,11 @@ def main() -> int:
         "created": 0,
         "skipped": 0,
         "extra": 0,
+        "deleted": 0,
         "warnings": 0,
         "errors": 0,
     }
+    extra_files: list[Path] = []
 
     for exercise in exercises:
         if not exercise.get("starter_dir"):
@@ -595,13 +643,14 @@ def main() -> int:
             counters["errors"] += 1
             continue
         exercise_policies = analyze_instructions(instructions_path, finished_root)
-        reports = sync_exercise(
+        reports, exercise_extra_files = sync_exercise(
             exercise,
             exercise_policies,
             args.apply,
             args.diff,
             target_rel,
         )
+        extra_files.extend(exercise_extra_files)
         if not reports:
             print("  (nothing to do)")
             continue
@@ -615,12 +664,21 @@ def main() -> int:
                 counters["created"] += 1
             elif ": skip" in line:
                 counters["skipped"] += 1
-            elif ": extra in starter" in line:
+            elif ": deletion candidate" in line:
                 counters["extra"] += 1
             elif ": error:" in line or line.lstrip().startswith("error:"):
                 counters["errors"] += 1
             elif "warning:" in line:
                 counters["warnings"] += 1
+
+    if args.apply and extra_files:
+        if counters["errors"]:
+            print()
+            print("Starter-only files were not deleted because the sync reported errors.")
+        else:
+            deleted, delete_errors = delete_extra_files(extra_files)
+            counters["deleted"] = deleted
+            counters["errors"] += delete_errors
 
     print()
     print("Summary:")
@@ -628,7 +686,8 @@ def main() -> int:
     print(f"  Files unchanged:         {counters['unchanged']}")
     print(f"  Files to create/created: {counters['created']}")
     print(f"  Files skipped:           {counters['skipped']}")
-    print(f"  Extra files in starter:  {counters['extra']}")
+    print(f"  Deletion candidates:     {counters['extra']}")
+    print(f"  Files deleted:           {counters['deleted']}")
     print(f"  Errors:                  {counters['errors']}")
     print(f"  Warnings:                {counters['warnings']}")
     if not args.apply:

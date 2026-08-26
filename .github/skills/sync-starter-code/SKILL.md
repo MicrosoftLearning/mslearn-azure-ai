@@ -79,7 +79,23 @@ Only tags referenced by the instructions are emptied. A referenced tag that is m
 
 ## Starter-only files
 
-Files that exist in the starter tree but not in the finished tree are reported as `extra in starter (not in finished; left alone)`. This skill never deletes anything from the starter tree. If a stale starter file needs to go, remove it by hand.
+Files that exist in the starter tree but not in the finished tree are reported as `deletion candidate (not in finished)`.
+
+- A dry run only reports the candidates.
+- An apply run completes normal synchronization, lists every candidate in the selected scope, and asks once whether to delete all of them.
+- Only a literal `yes` deletes the files. Any other response, including unavailable interactive input, preserves them.
+- If synchronization reports any errors, starter-only files are preserved and no deletion prompt appears.
+- Excluded deployment, generated, documentation, cache, and virtual-environment files remain untouched and are never deletion candidates.
+
+### Agent confirmation requirement
+
+When an agent runs this skill, deletion approval must come directly from the user after the dry-run candidate list is shown.
+
+- Never pipe, redirect, script, or otherwise pre-answer `yes` to the sync command.
+- Never infer deletion approval from a general request such as "run the sync tool" or from approval of earlier unrelated deletions.
+- After the dry run, use the user-confirmation interface to show the complete candidate list and ask whether all listed files should be deleted.
+- Run the apply command only after the user explicitly confirms that exact list.
+- If the candidate list changes between dry run and apply, stop and obtain confirmation for the new list before deleting anything.
 
 ## When to use this skill
 
@@ -160,7 +176,7 @@ For each file under a synced exercise:
 | instructions contain an ambiguous edit cue | Report an error, leave the file untouched, and exit nonzero. |
 | referenced BEGIN tag is missing or unclosed | Report an error or warning and do not silently invent a region. |
 | excluded (`azdeploy.py`, `.env`, `.env.ps1`, `sitecontainers-spec.json`, `*.md`, `*.pyc`, anything under `__pycache__/` or `.venv/`) | any | Ignored. Never read, never written. |
-| missing | present | Reported as `extra in starter (not in finished; left alone)`. Not deleted. |
+| missing | present | Reported as `deletion candidate (not in finished)`. With `--apply`, all candidates are listed and offered for deletion in a single confirmation prompt. |
 
 Exercises where [topic-map.json](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/exercise-inventory/topic-map.json) sets `starter_slug: null` (e.g. `integrate-services/azure-functions`) are silently skipped.
 
@@ -178,8 +194,11 @@ Exercises where [topic-map.json](/home/jeffko/lab-git/mslearn-azure-ai/.github/s
    ```
    python .github/skills/sync-starter-code/sync.py --file <starter-file> --apply
    ```
-7. Run the same command without `--apply` and confirm the file is unchanged.
-8. If you also touched the deployment script, run the [sync-starter-deploy skill](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/sync-starter-deploy/SKILL.md) too.
+7. Review any starter-only deletion candidates.
+8. Ask the user to confirm deletion of the complete candidate list. Do not pre-answer the sync command's prompt.
+9. After explicit confirmation, run the apply command and answer its prompt using the user's approval.
+10. Run the same command without `--apply` and confirm the file is unchanged and no unexpected deletion candidates remain.
+11. If you also touched the deployment script, run the [sync-starter-deploy skill](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/sync-starter-deploy/SKILL.md) too.
 
 ## Files in this skill
 
