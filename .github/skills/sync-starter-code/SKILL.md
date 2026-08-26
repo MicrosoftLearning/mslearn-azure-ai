@@ -1,46 +1,28 @@
 # sync-starter-code
 
-Build explicitly classified files under `starter/**/python/` from the matching `finished/**/python/` tree. The finished implementation supplies source content, while `policies.json` defines the state students should receive.
+Build files under `starter/**/python/` from the matching `finished/**/python/` tree and the exercise instructions. Finished supplies the completed implementation; instructions determine what students should receive and edit.
 
 ## The rules that matter
 
-1. **Every writable starter file needs an explicit policy.** Unclassified files are reported and left untouched. There is no default copy behavior.
-2. **Finished supplies implementation content; policy supplies student intent.** A policy can copy a completed file, create an empty file, empty marker blocks, create a placeholder-bearing template, or ignore the file.
-3. **The process fails closed.** A malformed policy, a template replacement with an unexpected match count, or an invalid target produces an error and no write for that file.
-4. **This skill never writes to `finished/`.**
+1. **Instructions define student edits.** The process reads the registered instruction file every run; there is no manually maintained file-classification list.
+2. **Finished supplies implementation content.** Files students only review or run are copied verbatim from finished.
+3. **Explicit prose drives transformations.** Empty-file wording, BEGIN references, and placeholder replacement wording determine the starter state.
+4. **The process fails closed.** Ambiguous edit instructions, missing markers, or placeholder templates that do not match exactly once produce an error and no write for that file.
+5. **This skill never writes to `finished/` or `instructions/`.**
 
 Deployment scripts (`azdeploy.py`) and generated files (`.env`, `.env.ps1`, `sitecontainers-spec.json`) are always excluded — those belong to the [sync-starter-deploy skill](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/sync-starter-deploy/SKILL.md) and the deployment script, respectively. A source template such as `sitecontainers-spec.template.json` remains a normal sync candidate.
 
-## File policies
+## Instruction-derived behavior
 
-Policies live in `policies.json`, keyed first by exercise id and then by the path relative to the exercise's `python/` folder.
+The process resolves file references against the exercise's finished Python tree and derives one action for each file:
 
-- **`copy`** — copy the finished file verbatim.
-- **`empty`** — create a zero-byte starter file because the student supplies the entire contents.
-- **`strip-markers`** — copy finished and replace every matched `# BEGIN` / `# END` body with three blank lines.
-- **`template`** — copy finished and apply explicitly configured regular-expression replacements. Every replacement declares its expected match count.
-- **`ignore`** — report the file as ignored and never modify it.
+- **Explicit empty file:** `Open the empty *path/file* file` creates a zero-byte starter file.
+- **BEGIN section:** a step that references a bold `BEGIN <TAG>` marker and tells the student to add code copies finished and empties only the referenced marker body.
+- **Placeholder replacement:** an instruction that identifies a line containing an uppercase angle-bracket placeholder, such as `image: <YOUR_ACR_ENDPOINT>/app:latest`, copies finished and restores that complete instructional line.
+- **Review or run only:** a file with no student-edit action is copied verbatim from finished.
+- **Ambiguous edit:** an edit cue that cannot be mapped to one of the preceding actions produces an error and leaves the starter file untouched.
 
-Example:
-
-```
-{
-  "exercises": {
-    "aks/configure-aks": {
-      "k8s/deployment.yaml": {
-        "mode": "template",
-        "replacements": [
-          {
-            "pattern": "...",
-            "replacement": "...",
-            "expected_matches": 1
-          }
-        ]
-      }
-    }
-  }
-}
-```
+Instruction wording should be explicit and consistent. In particular, whole-file exercises must say `Open the empty *file* file`; generic wording such as `add code to the file` is intentionally treated as ambiguous.
 
 ## Files that are excluded
 
@@ -51,9 +33,9 @@ Never copied, and never touched in the starter tree if they already exist there:
 - **Build/venv detritus:** anything under `__pycache__/`, `.venv/`, `.git/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, and any `*.pyc`
 - **OS junk:** `.DS_Store`, `Thumbs.db`
 
-## `# BEGIN` / `# END` handling for `strip-markers` policies
+## `# BEGIN` / `# END` handling
 
-The `strip-markers` policy supports `.py`, `.yaml`, and `.yml` files. Python marker lines use a space before the tag:
+Instruction-derived marker handling supports `.py`, `.yaml`, and `.yml` files. Python marker lines use a space before the tag:
 
 ```
 # BEGIN STORE DOCUMENT CHUNK FUNCTION
@@ -93,7 +75,7 @@ Rules:
 - If a `# BEGIN` has no matching `# END` (or another `# BEGIN` appears before the expected `# END`), the block is left untouched and a warning is emitted so you can fix the finished file.
 - Content outside of `# BEGIN` / `# END` blocks (helpers, imports, blank-line separators, module docstrings) is copied verbatim from finished. Whatever spacing exists between blocks in finished is what ends up in starter.
 
-Other file types cannot use `strip-markers`; classify them with another policy.
+Only tags referenced by the instructions are emptied. A referenced tag that is missing from finished is an error.
 
 ## Starter-only files
 
@@ -101,11 +83,11 @@ Files that exist in the starter tree but not in the finished tree are reported a
 
 ## When to use this skill
 
-- You updated a reference implementation and want to regenerate a classified starter file.
+- You updated a reference implementation or its student instructions and want to regenerate the starter state.
 - You need to enforce that a whole-file student exercise remains empty.
 - You need to regenerate a starter template with instructional placeholders.
-- You edited a `# BEGIN` / `# END` block in a classified Python or YAML file.
-- Before shipping a milestone, to identify unclassified files without modifying them.
+- You edited a `# BEGIN` / `# END` block or its corresponding instruction step.
+- Before shipping a milestone, to identify ambiguous instruction wording.
 
 ## When NOT to use this skill
 
@@ -171,13 +153,12 @@ For each file under a synced exercise:
 
 | finished file | starter file | Action |
 |---|---|---|
-| present, classified, expected output matches | `unchanged` |
-| present, classified, expected output differs | Rewrite according to policy. Result reported as `updated`. |
-| present, classified, starter missing | Create according to policy. Result reported as `created`. |
-| present, unclassified | Report `unclassified (left alone)`. Never write. |
-| present, `ignore` policy | Report `ignored by policy`. Never write. |
-| present, malformed or failed policy | Report an error. Never write that file and exit nonzero. |
-| present, `strip-markers` policy with unmatched marker | Warning printed; affected region left untouched. Other matched blocks are emptied. |
+| instructions say `Open the empty` | Write a zero-byte starter file. |
+| instructions reference BEGIN tags | Copy finished and empty only those marker bodies. |
+| instructions identify a placeholder-bearing line | Copy finished and restore that line with the placeholder. |
+| instructions do not ask the student to edit the file | Copy finished verbatim. |
+| instructions contain an ambiguous edit cue | Report an error, leave the file untouched, and exit nonzero. |
+| referenced BEGIN tag is missing or unclosed | Report an error or warning and do not silently invent a region. |
 | excluded (`azdeploy.py`, `.env`, `.env.ps1`, `sitecontainers-spec.json`, `*.md`, `*.pyc`, anything under `__pycache__/` or `.venv/`) | any | Ignored. Never read, never written. |
 | missing | present | Reported as `extra in starter (not in finished; left alone)`. Not deleted. |
 
@@ -186,7 +167,7 @@ Exercises where [topic-map.json](/home/jeffko/lab-git/mslearn-azure-ai/.github/s
 ## Recommended workflow
 
 1. Confirm the instructions' intended student action for the target file.
-2. Add or review the explicit file policy in `policies.json`.
+2. Make the instruction wording explicit enough to select one instruction-derived behavior.
 3. Make implementation edits in `finished/` and verify the reference implementation still runs.
 4. Dry-run this skill against the smallest scope you can:
    ```
@@ -203,5 +184,4 @@ Exercises where [topic-map.json](/home/jeffko/lab-git/mslearn-azure-ai/.github/s
 ## Files in this skill
 
 - [SKILL.md](SKILL.md) — this file.
-- [policies.json](policies.json) — explicit per-file starter-state policies.
-- [sync.py](sync.py) — the policy-driven sync script.ver. Loads the exercise inventory from the [exercise-inventory skill](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/exercise-inventory/SKILL.md) so it never guesses paths.
+- [sync.py](sync.py) — the instruction-driven sync script. It loads the exercise inventory from the [exercise-inventory skill](/home/jeffko/lab-git/mslearn-azure-ai/.github/skills/exercise-inventory/SKILL.md) so it never guesses paths.

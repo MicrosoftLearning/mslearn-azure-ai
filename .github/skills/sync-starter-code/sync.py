@@ -1,15 +1,17 @@
-"""Build explicitly classified starter files from the finished tree.
+"""Build starter files from finished code and student instructions.
 
-Each starter file must have an explicit policy in ``policies.json``. Supported
-policies are ``copy``, ``empty``, ``strip-markers``, ``template``, and
-``ignore``. Unclassified files are reported and never modified.
+Each exercise's registered instruction file determines what students should
+receive. Explicit empty-file wording produces an empty starter file, BEGIN/END
+steps produce emptied marker regions, and placeholder replacement steps restore
+the instructional placeholder. Files students only review or run are copied
+from finished. Ambiguous student-edit instructions fail closed.
 
 Files that are deployment artifacts (``azdeploy.py``, ``.env``, ``.env.ps1``,
 resolved site-container specifications) or build/venv detritus
 (``__pycache__/``, ``.venv/``, ``*.pyc``) are never touched.
 
-The finished implementation supplies source content, while each policy defines
-the state students should receive. This script never writes to ``finished/``.
+The finished implementation supplies source content, while instructions define
+student edits. This script never writes to ``finished/`` or ``instructions/``.
 
 Runs in dry-run mode by default. Use ``--apply`` to write changes.
 """
@@ -19,6 +21,7 @@ import json
 import re
 import subprocess
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -26,7 +29,6 @@ from typing import Iterable, Optional
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
 INVENTORY_SCRIPT = REPO_ROOT / ".github/skills/exercise-inventory/inventory.py"
-POLICIES_FILE = SCRIPT_DIR / "policies.json"
 
 EXCLUDED_FILE_NAMES = frozenset({
     "azdeploy.py",
@@ -50,9 +52,34 @@ EXCLUDED_DIR_NAMES = frozenset({
 
 BEGIN_RE = re.compile(r"^(?P<indent>[ \t]*)# BEGIN(?::|[ \t]+)(?P<tag>.+?)\s*$")
 END_RE = re.compile(r"^(?P<indent>[ \t]*)# END(?::|[ \t]+)(?P<tag>.+?)\s*$")
+OPEN_FILE_RE = re.compile(
+    r"Open (?:the )?(?P<empty>empty )?\*(?P<target>[^*]+?\.[A-Za-z0-9]+)\*",
+    re.IGNORECASE,
+)
+BEGIN_PROSE_RE = re.compile(
+    r"\*\*(?:#\s*)?BEGIN:?\s+(?P<tag>[A-Za-z][A-Za-z0-9 _\-/.]+?)\*\*",
+    re.IGNORECASE,
+)
+BOLD_RE = re.compile(r"\*\*(?P<text>[^*\n]+)\*\*")
+PLACEHOLDER_RE = re.compile(r"\\?<(?P<name>[A-Z][A-Z0-9_-]*)>")
+EDIT_CUE_RE = re.compile(
+    r"\b(?:add|complete|insert|modify|replace|update)\b",
+    re.IGNORECASE,
+)
+ADD_FOLLOWING_RE = re.compile(r"\badd the following\b", re.IGNORECASE)
 
 BLANK_BLOCK_LINES = 3
 MARKER_FILE_SUFFIXES = frozenset({".py", ".yaml", ".yml"})
+
+
+@dataclass
+class InstructionAction:
+    target_rel: str
+    line_number: int
+    explicitly_empty: bool = False
+    marker_tags: set[str] = field(default_factory=set)
+    placeholder_templates: list[str] = field(default_factory=list)
+    edit_cues: list[str] = field(default_factory=list)
 
 
 def load_inventory() -> list[dict]:
@@ -65,14 +92,6 @@ def load_inventory() -> list[dict]:
     )
     payload = json.loads(result.stdout)
     return payload["exercises"]
-
-
-def load_policies() -> dict[str, dict[str, dict]]:
-    payload = json.loads(POLICIES_FILE.read_text(encoding="utf-8"))
-    exercises = payload.get("exercises")
-    if not isinstance(exercises, dict):
-        raise ValueError(f"{POLICIES_FILE}: 'exercises' must be an object")
-    return exercises
 
 
 def is_excluded(path: Path, base: Path) -> bool:
@@ -97,7 +116,131 @@ def iter_source_files(base: Path) -> Iterable[Path]:
         yield path
 
 
-def normalize_marker_blocks(text: str, source_hint: str) -> tuple[str, list[str]]:
+def resolve_target(finished_root: Path, target_rel: str) -> Optional[Path]:
+    direct = finished_root / target_rel
+    if direct.is_file() and not is_excluded(direct, finished_root):
+        return direct
+    basename = Path(target_rel).name
+    matches = [
+        path
+        for path in finished_root.rglob(basename)
+        if path.is_file() and not is_excluded(path, finished_root)
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def contextual_placeholder_templates(line: str) -> list[str]:
+    templates: list[str] = []
+    for match in BOLD_RE.finditer(line):
+        text = match.group("text").replace(r"\<", "<")
+        placeholders = list(PLACEHOLDER_RE.finditer(text))
+        if not placeholders:
+            continue
+        without_placeholders = PLACEHOLDER_RE.sub("", text)
+        if without_placeholders.strip():
+            templates.append(text)
+    return templates
+
+
+def analyze_instructions(
+    instructions_path: Path,
+    finished_root: Path,
+) -> dict[str, dict]:
+    lines = instructions_path.read_text(encoding="utf-8").splitlines()
+    actions: dict[str, InstructionAction] = {}
+    current_action: Optional[InstructionAction] = None
+
+    for line_number, line in enumerate(lines, start=1):
+        open_match = OPEN_FILE_RE.search(line)
+        if open_match:
+            target_path = resolve_target(
+                finished_root,
+                open_match.group("target").strip(),
+            )
+            if target_path is None:
+                current_action = None
+                continue
+            target_rel = target_path.relative_to(finished_root).as_posix()
+            current_action = actions.setdefault(
+                target_rel,
+                InstructionAction(
+                    target_rel=target_rel,
+                    line_number=line_number,
+                ),
+            )
+            if open_match.group("empty"):
+                current_action.explicitly_empty = True
+            if EDIT_CUE_RE.search(line):
+                current_action.edit_cues.append(line.strip())
+            for template in contextual_placeholder_templates(line):
+                if template not in current_action.placeholder_templates:
+                    current_action.placeholder_templates.append(template)
+
+        if current_action is None:
+            continue
+
+        begin_match = BEGIN_PROSE_RE.search(line)
+        if begin_match and EDIT_CUE_RE.search(line):
+            tag = re.sub(r"\s+", " ", begin_match.group("tag").strip())
+            current_action.marker_tags.add(tag)
+            continue
+
+        if re.search(r"\breplace\b", line, re.IGNORECASE) and PLACEHOLDER_RE.search(line):
+            current_action.edit_cues.append(line.strip())
+            for template in contextual_placeholder_templates(line):
+                if template not in current_action.placeholder_templates:
+                    current_action.placeholder_templates.append(template)
+            continue
+
+        if ADD_FOLLOWING_RE.search(line):
+            current_action.edit_cues.append(line.strip())
+
+    policies: dict[str, dict] = {}
+    for target_rel, action in actions.items():
+        modes = sum((
+            action.explicitly_empty,
+            bool(action.marker_tags),
+            bool(action.placeholder_templates),
+        ))
+        if modes > 1:
+            policies[target_rel] = {
+                "mode": "error",
+                "message": (
+                    f"instructions line {action.line_number} gives conflicting "
+                    "empty, marker, or placeholder actions"
+                ),
+            }
+        elif action.explicitly_empty:
+            policies[target_rel] = {"mode": "empty"}
+        elif action.marker_tags:
+            policies[target_rel] = {
+                "mode": "strip-markers",
+                "tags": sorted(action.marker_tags),
+            }
+        elif action.placeholder_templates:
+            policies[target_rel] = {
+                "mode": "template",
+                "templates": action.placeholder_templates,
+            }
+        elif action.edit_cues:
+            policies[target_rel] = {
+                "mode": "error",
+                "message": (
+                    f"ambiguous student-edit instruction near line "
+                    f"{action.line_number}: {action.edit_cues[0]}"
+                ),
+            }
+
+    return policies
+
+
+def normalize_marker_blocks(
+    text: str,
+    source_hint: str,
+    requested_tags: set[str],
+) -> tuple[str, list[str]]:
     """Replace content between ``# BEGIN``/``# END`` markers with blank lines.
 
     Returns ``(new_text, warnings)``. Marker lines are preserved verbatim.
@@ -106,6 +249,7 @@ def normalize_marker_blocks(text: str, source_hint: str) -> tuple[str, list[str]
     the affected region is left untouched.
     """
     warnings: list[str] = []
+    found_tags: set[str] = set()
     lines = text.splitlines(keepends=True)
     output: list[str] = []
     i = 0
@@ -118,6 +262,11 @@ def normalize_marker_blocks(text: str, source_hint: str) -> tuple[str, list[str]
             continue
 
         tag = begin_match.group("tag").strip()
+        if tag not in requested_tags:
+            output.append(line)
+            i += 1
+            continue
+
         end_index: Optional[int] = None
         for j in range(i + 1, len(lines)):
             end_match = END_RE.match(lines[j].rstrip("\r\n"))
@@ -142,40 +291,49 @@ def normalize_marker_blocks(text: str, source_hint: str) -> tuple[str, list[str]
         output.append(line)
         output.extend(["\n"] * BLANK_BLOCK_LINES)
         output.append(lines[end_index])
+        found_tags.add(tag)
         i = end_index + 1
+
+    missing_tags = requested_tags - found_tags
+    if missing_tags:
+        missing = ", ".join(sorted(missing_tags))
+        raise ValueError(
+            f"{source_hint}: instruction marker tag(s) not found: {missing}"
+        )
 
     return "".join(output), warnings
 
 
-def apply_template_policy(text: str, policy: dict, source_hint: str) -> str:
-    replacements = policy.get("replacements")
-    if not isinstance(replacements, list) or not replacements:
-        raise ValueError(f"{source_hint}: template policy requires replacements")
-
+def apply_instruction_templates(text: str, policy: dict, source_hint: str) -> str:
+    templates = policy.get("templates")
+    if not isinstance(templates, list) or not templates:
+        raise ValueError(f"{source_hint}: template action requires templates")
     result = text
-    for index, replacement in enumerate(replacements, start=1):
-        if not isinstance(replacement, dict):
+    for index, template in enumerate(templates, start=1):
+        if not isinstance(template, str):
+            raise ValueError(f"{source_hint}: template {index} must be a string")
+        matches = list(PLACEHOLDER_RE.finditer(template))
+        if len(matches) != 1:
             raise ValueError(
-                f"{source_hint}: template replacement {index} must be an object"
+                f"{source_hint}: template {index} must contain exactly one "
+                "placeholder"
             )
-        pattern = replacement.get("pattern")
-        value = replacement.get("replacement")
-        expected = replacement.get("expected_matches", 1)
-        if not isinstance(pattern, str) or not isinstance(value, str):
+        placeholder = matches[0]
+        prefix = template[:placeholder.start()]
+        suffix = template[placeholder.end():]
+        pattern = (
+            r"(?m)^(?P<indent>[ \t]*)"
+            + re.escape(prefix)
+            + r"[^ \t/\n]+"
+            + re.escape(suffix)
+            + r"[ \t]*$"
+        )
+        replacement = rf"\g<indent>{template}"
+        result, count = re.subn(pattern, replacement, result)
+        if count != 1:
             raise ValueError(
-                f"{source_hint}: template replacement {index} requires string "
-                "'pattern' and 'replacement' values"
-            )
-        if not isinstance(expected, int) or expected < 1:
-            raise ValueError(
-                f"{source_hint}: template replacement {index} has invalid "
-                "'expected_matches'"
-            )
-        result, count = re.subn(pattern, value, result)
-        if count != expected:
-            raise ValueError(
-                f"{source_hint}: template replacement {index} matched {count} "
-                f"time(s); expected {expected}"
+                f"{source_hint}: instruction template {index} matched {count} "
+                "line(s); expected 1"
             )
     return result
 
@@ -192,6 +350,8 @@ def compute_starter_text(
 
     mode = policy.get("mode")
     source_hint = str(finished_file.relative_to(REPO_ROOT))
+    if mode == "error":
+        raise ValueError(f"{source_hint}: {policy.get('message', 'ambiguous action')}")
     if mode == "copy":
         return text, []
     if mode == "empty":
@@ -202,9 +362,16 @@ def compute_starter_text(
                 f"{source_hint}: strip-markers is not supported for "
                 f"'{finished_file.suffix}' files"
             )
-        return normalize_marker_blocks(text, source_hint)
+        tags = policy.get("tags")
+        if not isinstance(tags, list) or not all(
+            isinstance(tag, str) for tag in tags
+        ):
+            raise ValueError(
+                f"{source_hint}: strip-markers action requires string tags"
+            )
+        return normalize_marker_blocks(text, source_hint, set(tags))
     if mode == "template":
-        return apply_template_policy(text, policy, source_hint), []
+        return apply_instruction_templates(text, policy, source_hint), []
     raise ValueError(f"{source_hint}: unsupported policy mode {mode!r}")
 
 
@@ -245,7 +412,7 @@ def sync_file(
 
 def sync_exercise(
     exercise: dict,
-    policies: dict[str, dict],
+    instruction_policies: dict[str, dict],
     apply: bool,
     show_diff: bool,
     target_rel: Optional[Path] = None,
@@ -280,13 +447,7 @@ def sync_exercise(
         finished_rel_set.add(rel)
         starter_file = starter_python / rel
         rel_starter = starter_file.relative_to(REPO_ROOT)
-        policy = policies.get(rel.as_posix())
-        if policy is None:
-            reports.append(f"  {rel_starter}: unclassified (left alone)")
-            continue
-        if policy.get("mode") == "ignore":
-            reports.append(f"  {rel_starter}: ignored by policy")
-            continue
+        policy = instruction_policies.get(rel.as_posix(), {"mode": "copy"})
         try:
             status, warnings = sync_file(
                 finished_file,
@@ -360,7 +521,6 @@ def main() -> int:
         return 1
 
     exercises = load_inventory()
-    policies = load_policies()
     target_rel: Optional[Path] = None
     if args.only:
         exercises = [ex for ex in exercises if ex["id"] == args.only]
@@ -412,8 +572,6 @@ def main() -> int:
         "skipped": 0,
         "extra": 0,
         "warnings": 0,
-        "unclassified": 0,
-        "ignored": 0,
         "errors": 0,
     }
 
@@ -421,7 +579,16 @@ def main() -> int:
         if not exercise.get("starter_dir"):
             continue
         print(f"{exercise['id']}:")
-        exercise_policies = policies.get(exercise["id"], {})
+        instructions_path = REPO_ROOT / exercise["instructions_file"]
+        finished_root = REPO_ROOT / exercise["finished_dir"] / "python"
+        if not instructions_path.is_file():
+            print(
+                f"  error: registered instructions file "
+                f"{instructions_path.relative_to(REPO_ROOT)} does not exist"
+            )
+            counters["errors"] += 1
+            continue
+        exercise_policies = analyze_instructions(instructions_path, finished_root)
         reports = sync_exercise(
             exercise,
             exercise_policies,
@@ -444,10 +611,6 @@ def main() -> int:
                 counters["skipped"] += 1
             elif ": extra in starter" in line:
                 counters["extra"] += 1
-            elif ": unclassified" in line:
-                counters["unclassified"] += 1
-            elif ": ignored by policy" in line:
-                counters["ignored"] += 1
             elif ": error:" in line or line.lstrip().startswith("error:"):
                 counters["errors"] += 1
             elif "warning:" in line:
@@ -460,8 +623,6 @@ def main() -> int:
     print(f"  Files to create/created: {counters['created']}")
     print(f"  Files skipped:           {counters['skipped']}")
     print(f"  Extra files in starter:  {counters['extra']}")
-    print(f"  Unclassified files:      {counters['unclassified']}")
-    print(f"  Files ignored by policy: {counters['ignored']}")
     print(f"  Errors:                  {counters['errors']}")
     print(f"  Warnings:                {counters['warnings']}")
     if not args.apply:
