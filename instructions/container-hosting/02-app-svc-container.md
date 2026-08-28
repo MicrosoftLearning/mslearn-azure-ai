@@ -435,13 +435,13 @@ In this section you open the SCM (Kudu) site to inspect configuration views and 
     Write-Host "Kudu URL: https://$($env:APP_NAME).scm.azurewebsites.net"
     ```
 
-1. Open this URL in a browser. In the menu at the top of the page, navigate to:
+1. Open this URL in a browser. In the left nagivation pane, navigate to:
 
     1. **Environment** to view environment variables and verify your app settings are present.
     1. Expand **SSH**, then select **Kudu** to open a browser-based shell.
     1. **File Manager** and then navigate to **/home/LogFiles/** to view log files.
 
-    >**Tip:** You can also use **Log stream** in the top menu to view logs in the browser, or use the **SSH** option to connect to the app container.
+    >**Tip:** In the left navigation pane, you can also expand Logs and select Log Stream to view logs in the browser, or use the Application entry under SSH to connect to the app container.
 
     The SCM site is separate from your app container, so it doesn't provide a complete view of the container's file system or running processes.
 
