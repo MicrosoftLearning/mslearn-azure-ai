@@ -102,6 +102,11 @@
       "name": "event-grid-python.zip"
     },
     {
+      "source": "starter/integrate-services/durable-functions/python",
+      "output": "downloads/python",
+      "name": "durable-functions-python.zip"
+    },
+    {
       "source": "starter/app-sec-config/key-vault/python",
       "output": "downloads/python",
       "name": "key-vault-python.zip"

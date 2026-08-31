@@ -134,6 +134,10 @@
         "azure-functions": {
           "starter_slug": null,
           "instructions_file": "03-azure-functions-mcp-server.md"
+        },
+        "durable-functions": {
+          "starter_slug": "durable-functions",
+          "instructions_file": "04-durable-functions-ai.md"
         }
       }
     },
