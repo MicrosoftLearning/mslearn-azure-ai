@@ -304,74 +304,27 @@ In this section you start Azurite and the local Functions host, then test automa
 
 1. Open a second terminal in Visual Studio Code and activate the virtual environment using the appropriate command from the previous section.
 
-1. Run the appropriate commands to start the mixed-confidence workflow. The request contains one high-confidence document that completes automatically and one low-confidence document that waits for approval. The commands save the parent instance ID and status URL for later steps.
+1. Run the following command to start the interactive workflow test menu.
 
-    **Bash**
-    ```bash
-    response=$(curl --silent --show-error --request POST \
-      "http://localhost:7071/api/workflows" \
-      --header "Content-Type: application/json" \
-      --data @samples/mixed-confidence-batch.json)
-    printf '%s\n' "$response" | python -m json.tool
-    PARENT_ID=$(printf '%s' "$response" | python -c "import json, sys; print(json.load(sys.stdin)['id'])")
-    STATUS_URL=$(printf '%s' "$response" | python -c "import json, sys; print(json.load(sys.stdin)['statusQueryGetUri'])")
+    ```
+    python tests/run_workflow_tests.py
     ```
 
-    **PowerShell**
-    ```powershell
-    $body = Get-Content ./samples/mixed-confidence-batch.json -Raw
-    $response = Invoke-RestMethod -Method Post `
-      -Uri "http://localhost:7071/api/workflows" `
-      -ContentType "application/json" `
-      -Body $body
-    $response | ConvertTo-Json -Depth 10
-    $env:PARENT_ID = $response.id
-    $env:STATUS_URL = $response.statusQueryGetUri
-    ```
+1. Enter **1** to start a mixed-confidence workflow. The test submits one high-confidence document that completes automatically and one low-confidence document that waits for an external approval event. Note the parent and child orchestration IDs displayed by the test.
 
-1. Review the response. The **id** value identifies the parent orchestration, and the **statusQueryGetUri** value queries its durable status. The low-confidence document uses a child instance ID made from the parent ID followed by **-claim-002**.
+1. Enter **2** to check the active workflow status. Confirm the parent orchestration is still running while its low-confidence child waits for approval.
 
-1. Run the appropriate command to approve the low-confidence document before its two-minute timer expires.
+1. Enter **3** to approve the low-confidence document. The test sends an **ApprovalResponse** external event to the waiting child orchestration.
 
-    **Bash**
-    ```bash
-    curl --request POST \
-      "http://localhost:7071/api/approvals/$PARENT_ID-claim-002" \
-      --header "Content-Type: application/json" \
-      --data '{"event_id":"approval-001","decision":"Approved"}'
-    ```
+1. Wait a few seconds, then enter **2** again. Confirm the parent **runtimeStatus** is **Completed**. In the output, the high-confidence document has a **Completed** status and the low-confidence document has an **Approved** status.
 
-    **PowerShell**
-    ```powershell
-    $approval = @{
-        event_id = "approval-001"
-        decision = "Approved"
-    } | ConvertTo-Json
-    Invoke-RestMethod -Method Post `
-      -Uri "http://localhost:7071/api/approvals/$($env:PARENT_ID)-claim-002" `
-      -ContentType "application/json" `
-      -Body $approval
-    ```
+1. Enter **5** to run the retry scenario. Watch the Functions host terminal as the classification activity reports one simulated transient failure and then succeeds on a retry. Confirm the test reports **PASS: retry scenario**.
 
-1. Wait a few seconds, then run the appropriate command to view the completed parent orchestration.
+1. Enter **6** to run the timeout scenario. The test waits approximately two minutes for the approval timer to expire.
 
-    **Bash**
-    ```bash
-    curl --silent --show-error "$STATUS_URL" | python -m json.tool
-    ```
+1. Confirm the test reports **PASS: timeout scenario** and the Functions host logs a compensation operation.
 
-    **PowerShell**
-    ```powershell
-    Invoke-RestMethod -Uri $env:STATUS_URL | ConvertTo-Json -Depth 10
-    ```
-
-1. Confirm the parent **runtimeStatus** is **Completed**. In the output, the high-confidence document has a **Completed** status and the low-confidence document has an **Approved** status.
-
-1. Repeat the workflow-start commands using *samples/retry-batch.json* instead of *samples/mixed-confidence-batch.json*. Watch the Functions host terminal as the classification activity reports one simulated transient failure and then succeeds on a retry. Use the new status URL to confirm the workflow completes.
-
-1. Repeat the mixed-confidence workflow-start commands one more time, but don't send an approval event. Wait two minutes and query the new status URL. Confirm the low-confidence document has an **ApprovalTimedOut** status and the Functions host logs a compensation operation.
-
-1. Return to the Functions host terminal and press **Ctrl+C** to stop the host. Then run **Azurite: Close** from the Visual Studio Code Command Palette to stop the local storage services.
+1. Enter **7** to exit the test menu. Return to the Functions host terminal and press **Ctrl+C** to stop the host. Then run **Azurite: Close** from the Visual Studio Code Command Palette to stop the local storage services.
 
 ## Deploy the app to Azure
 
@@ -411,100 +364,39 @@ In this section you configure and run the deployment script. The script creates 
 
 1. When the menu returns, enter **2** to run the **2. Deploy the Function App** option. The script creates a deployment package and uses a remote build so the Python dependencies are built for the Linux Functions environment.
 
-1. Enter **3** to run the **3. Check deployment status** option. Confirm that the storage account reports **Succeeded**, the Function App reports **Running**, and the script displays the workflow endpoint. Note the generated Function App name shown in the menu.
+1. Enter **3** to run the **3. Check deployment status** option. Confirm that the storage account reports **Succeeded**, the Function App reports **Running**, and the script creates *.env* and *.env.ps1* with the deployed Function App settings.
 
 1. Enter **4** to exit the deployment script.
 
 ## Test the app in Azure
 
-In this section you retrieve the Function App key and submit the same mixed-confidence workflow to the deployed app. You then send an approval event and verify that the durable workflow completes in Azure.
+In this section you load the deployed Function App settings and use the interactive test menu to send an external approval event to a workflow running in Azure.
 
-1. Run the appropriate commands to store the resource group name and generated Function App name, retrieve the default host key, and build the authenticated workflow URL. Replace the placeholder values with the values displayed by the deployment script.
+1. Run the appropriate command to load the deployed Function App settings into your terminal session.
 
     **Bash**
     ```bash
-    RESOURCE_GROUP="<rg-name>"
-    FUNCTION_APP="<function-app-name>"
-    FUNCTION_KEY=$(az functionapp keys list \
-      --resource-group "$RESOURCE_GROUP" \
-      --name "$FUNCTION_APP" \
-      --query "functionKeys.default" \
-      --output tsv)
-    WORKFLOW_URL="https://${FUNCTION_APP}.azurewebsites.net/api/workflows?code=${FUNCTION_KEY}"
+    source .env
     ```
 
     **PowerShell**
     ```powershell
-    $env:RESOURCE_GROUP = "<rg-name>"
-    $env:FUNCTION_APP = "<function-app-name>"
-    $env:FUNCTION_KEY = az functionapp keys list `
-      --resource-group $env:RESOURCE_GROUP `
-      --name $env:FUNCTION_APP `
-      --query "functionKeys.default" `
-      --output tsv
-    $env:WORKFLOW_URL = "https://$($env:FUNCTION_APP).azurewebsites.net/api/workflows?code=$($env:FUNCTION_KEY)"
+    . .\.env.ps1
     ```
 
-1. Run the appropriate commands to start the mixed-confidence workflow and save its parent instance ID and status URL.
+1. Run the following command to start the interactive workflow test menu.
 
-    **Bash**
-    ```bash
-    response=$(curl --silent --show-error --request POST \
-      "$WORKFLOW_URL" \
-      --header "Content-Type: application/json" \
-      --data @samples/mixed-confidence-batch.json)
-    printf '%s\n' "$response" | python -m json.tool
-    PARENT_ID=$(printf '%s' "$response" | python -c "import json, sys; print(json.load(sys.stdin)['id'])")
-    STATUS_URL=$(printf '%s' "$response" | python -c "import json, sys; print(json.load(sys.stdin)['statusQueryGetUri'])")
+    ```
+    python tests/run_workflow_tests.py
     ```
 
-    **PowerShell**
-    ```powershell
-    $body = Get-Content ./samples/mixed-confidence-batch.json -Raw
-    $response = Invoke-RestMethod -Method Post `
-      -Uri $env:WORKFLOW_URL `
-      -ContentType "application/json" `
-      -Body $body
-    $response | ConvertTo-Json -Depth 10
-    $env:PARENT_ID = $response.id
-    $env:STATUS_URL = $response.statusQueryGetUri
-    ```
+1. Enter **1** to start a mixed-confidence workflow, then enter **2** to confirm that it is waiting for approval.
 
-1. Run the appropriate command to approve the low-confidence document.
+1. Enter **3** to approve the low-confidence document. Wait a few seconds, then enter **2** again.
 
-    **Bash**
-    ```bash
-    curl --request POST \
-      "https://${FUNCTION_APP}.azurewebsites.net/api/approvals/$PARENT_ID-claim-002?code=${FUNCTION_KEY}" \
-      --header "Content-Type: application/json" \
-      --data '{"event_id":"azure-approval-001","decision":"Approved"}'
-    ```
+1. Confirm the parent **runtimeStatus** is **Completed** and the document statuses are **Completed** and **Approved**. The result URLs now reference blobs in the Azure Storage account created by the deployment script.
 
-    **PowerShell**
-    ```powershell
-    $approval = @{
-        event_id = "azure-approval-001"
-        decision = "Approved"
-    } | ConvertTo-Json
-    Invoke-RestMethod -Method Post `
-      -Uri "https://$($env:FUNCTION_APP).azurewebsites.net/api/approvals/$($env:PARENT_ID)-claim-002?code=$($env:FUNCTION_KEY)" `
-      -ContentType "application/json" `
-      -Body $approval
-    ```
-
-1. Wait a few seconds, then run the appropriate command to query the orchestration status.
-
-    **Bash**
-    ```bash
-    curl --silent --show-error "$STATUS_URL" | python -m json.tool
-    ```
-
-    **PowerShell**
-    ```powershell
-    Invoke-RestMethod -Uri $env:STATUS_URL | ConvertTo-Json -Depth 10
-    ```
-
-1. Confirm the parent **runtimeStatus** is **Completed** and the two document statuses are **Completed** and **Approved**. The result URLs now reference blobs in the Azure Storage account created by the deployment script.
+1. Enter **7** to exit the test menu.
 
 ## Clean up resources
 

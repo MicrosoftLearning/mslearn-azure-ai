@@ -73,6 +73,39 @@ def pause() -> None:
         print()
 
 
+def write_env_files(env_vars: dict[str, str], directory: str = ".") -> None:
+    """Write .env (bash) and .env.ps1 (PowerShell) side by side.
+
+    Writes UTF-8 without BOM and LF line endings so both bash `source` and
+    PowerShell dot-source read them correctly on every supported shell.
+    """
+    target_dir = Path(directory)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    def bash_escape(value: str) -> str:
+        return (
+            value.replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("$", "\\$")
+            .replace("`", "\\`")
+        )
+
+    def ps_escape(value: str) -> str:
+        return (
+            value.replace("`", "``")
+            .replace('"', '`"')
+            .replace("$", "`$")
+        )
+
+    bash_lines = [f'export {k}="{bash_escape(v)}"\n' for k, v in env_vars.items()]
+    ps_lines = [f'$env:{k} = "{ps_escape(v)}"\n' for k, v in env_vars.items()]
+
+    with open(target_dir / ".env", "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(bash_lines)
+    with open(target_dir / ".env.ps1", "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(ps_lines)
+
+
 def require_az_login() -> str:
     user_object_id = az_query(
         ["az", "ad", "signed-in-user", "show", "--query", "id", "-o", "tsv"]
@@ -704,6 +737,34 @@ def check_deployment_status(names: dict[str, str]) -> bool:
     )
     if host_name:
         print(f"Workflow endpoint: https://{host_name}/api/workflows")
+
+    function_key = az_query(
+        [
+            "az",
+            "functionapp",
+            "keys",
+            "list",
+            "--resource-group",
+            rg,
+            "--name",
+            names["function"],
+            "--query",
+            "functionKeys.default",
+            "-o",
+            "tsv",
+        ]
+    )
+    if not host_name or not function_key:
+        print("Error: Could not retrieve the Function App endpoint and key.")
+        return False
+
+    write_env_files(
+        {
+            "FUNCTION_APP_URL": f"https://{host_name}",
+            "FUNCTION_KEY": function_key,
+        }
+    )
+    print("Environment files created: .env and .env.ps1")
     return bool(function_state)
 
 
