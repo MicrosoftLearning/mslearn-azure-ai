@@ -318,6 +318,8 @@ In this section you start Azurite and the local Functions host, then test automa
 
 1. Wait a few seconds, then enter **2** again. Confirm the parent **runtimeStatus** is **Completed**. In the output, the high-confidence document has a **Completed** status and the low-confidence document has an **Approved** status.
 
+1. Enter **1** to start a new mixed-confidence workflow, then enter **4** to reject the low-confidence document. Wait a few seconds and enter **2**. Confirm the low-confidence document has a **Rejected** status and the Functions host logs a compensation operation.
+
 1. Enter **5** to run the retry scenario. Watch the Functions host terminal as the classification activity reports one simulated transient failure and then succeeds on a retry. Confirm the test reports **PASS: retry scenario**.
 
 1. Enter **6** to run the timeout scenario. The test waits approximately two minutes for the approval timer to expire.
@@ -370,7 +372,7 @@ In this section you configure and run the deployment script. The script creates 
 
 ## Test the app in Azure
 
-In this section you load the deployed Function App settings and use the interactive test menu to send an external approval event to a workflow running in Azure.
+In this section you load the deployed Function App settings and use the interactive test menu to exercise approval, rejection, retry, and timeout behavior in Azure.
 
 1. Run the appropriate command to load the deployed Function App settings into your terminal session.
 
@@ -395,6 +397,12 @@ In this section you load the deployed Function App settings and use the interact
 1. Enter **3** to approve the low-confidence document. Wait a few seconds, then enter **2** again.
 
 1. Confirm the parent **runtimeStatus** is **Completed** and the document statuses are **Completed** and **Approved**. The result URLs now reference blobs in the Azure Storage account created by the deployment script.
+
+1. Enter **1** to start a new mixed-confidence workflow, then enter **4** to reject the low-confidence document. Wait a few seconds and enter **2**. Confirm the low-confidence document has a **Rejected** status. This path demonstrates compensation after an explicit rejection.
+
+1. Enter **5** to run the retry scenario in Azure. Confirm the test reports **PASS: retry scenario** after the simulated transient failure is retried successfully.
+
+1. Enter **6** to run the timeout scenario in Azure. The test waits approximately two minutes for the approval timer to expire. Confirm the test reports **PASS: timeout scenario**, demonstrating timer-based compensation when no external event arrives.
 
 1. Enter **7** to exit the test menu.
 
