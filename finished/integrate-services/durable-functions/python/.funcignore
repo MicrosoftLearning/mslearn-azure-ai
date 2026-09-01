@@ -1,0 +1,11 @@
+.git*
+.venv/
+__pycache__/
+*.pyc
+local.settings.json
+.env
+.env.ps1
+azdeploy.py
+samples/
+tests/
+*.md

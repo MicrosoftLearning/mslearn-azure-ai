@@ -1,0 +1,11 @@
+{
+  "batch_id": "claim-batch-retry",
+  "documents": [
+    {
+      "document_id": "claim-003-retry",
+      "blob_url": "https://example.blob.core.windows.net/claims/claim-003.pdf",
+      "document_type": "damage-photo-report",
+      "confidence": 0.91
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "batch_id": "claim-batch-1042",
+  "documents": [
+    {
+      "document_id": "claim-001",
+      "blob_url": "https://example.blob.core.windows.net/claims/claim-001.pdf",
+      "document_type": "repair-estimate",
+      "confidence": 0.94
+    },
+    {
+      "document_id": "claim-002",
+      "blob_url": "https://example.blob.core.windows.net/claims/claim-002.pdf",
+      "document_type": "medical-invoice",
+      "confidence": 0.62
+    }
+  ]
+}
