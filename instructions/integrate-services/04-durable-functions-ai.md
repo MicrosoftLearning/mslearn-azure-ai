@@ -1,7 +1,7 @@
 ---
 lab:
   topic: Integrate backend services
-  title: Build a durable document-processing workflow
+  title: Build a durable document-processing workflow with Azure Functions
   description: Learn how to build and test a durable document-processing workflow that coordinates parallel activities, retries, human approval, and failure compensation.
   level: 300
   duration: 35
