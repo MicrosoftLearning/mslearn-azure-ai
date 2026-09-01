@@ -81,6 +81,7 @@ The **persist_result()** activity uses the deterministic operation ID as the blo
     @app.activity_trigger(input_name="request")
     def persist_result(request):
         container = _get_or_create_container(RESULTS_CONTAINER)
+        # The operation ID is the idempotency key for this external write.
         blob = container.get_blob_client(f"{request['operation_id']}.json")
         serialized = json.dumps(request, sort_keys=True)
 
@@ -89,6 +90,7 @@ The **persist_result()** activity uses the deterministic operation ID as the blo
             write_status = "Created"
             stored_result = request
         except ResourceExistsError:
+            # A replay returns the original result instead of writing a duplicate.
             stored_result = json.loads(blob.download_blob().readall())
             if stored_result.get("document_id") != request["document_id"]:
                 raise RuntimeError(
@@ -115,11 +117,13 @@ The **document_orchestrator()** function creates **RetryOptions** that allow eac
 
     ```python
         document = context.get_input()
+        # new_uuid() remains deterministic when the orchestrator replays.
         operation_id = str(context.new_uuid())
         process_request = {**document, "operation_id": operation_id}
         retry_options = df.RetryOptions(2_000, 3)
 
         try:
+            # Each activity can run up to three times before the workflow fails.
             extracted = yield context.call_activity_with_retry(
                 "extract_text",
                 retry_options,
@@ -136,6 +140,7 @@ The **document_orchestrator()** function creates **RetryOptions** that allow eac
                 classified,
             )
         except Exception:
+            # Compensate only after the activity exhausts its retry policy.
             yield context.call_activity(
                 "compensate_document",
                 {
@@ -157,6 +162,7 @@ The orchestrator uses **wait_for_external_event()** and **create_timer()** to cr
 1. Locate the **# BEGIN HUMAN APPROVAL WORKFLOW** comment and add the following code under the comment. The code must remain indented inside the **document_orchestrator()** function.
 
     ```python
+        # High-confidence documents do not require a human decision.
         if summarized["confidence"] >= APPROVAL_CONFIDENCE_THRESHOLD:
             final_status = "Completed"
         else:
@@ -168,6 +174,7 @@ The orchestrator uses **wait_for_external_event()** and **create_timer()** to cr
                 },
             )
 
+            # Race the external event against a durable timer without blocking a worker.
             approval = context.wait_for_external_event("ApprovalResponse")
             deadline = context.current_utc_datetime + timedelta(
                 seconds=APPROVAL_TIMEOUT_SECONDS
@@ -176,6 +183,7 @@ The orchestrator uses **wait_for_external_event()** and **create_timer()** to cr
             winner = yield context.task_any([approval, timeout])
 
             if winner == approval:
+                # Cancel the timer so the orchestration has no outstanding work.
                 if not timeout.is_completed:
                     timeout.cancel()
                 approval_payload = approval.result
@@ -185,6 +193,7 @@ The orchestrator uses **wait_for_external_event()** and **create_timer()** to cr
             else:
                 final_status = "ApprovalTimedOut"
 
+            # Rejection and timeout both require a compensating action.
             if final_status != "Approved":
                 yield context.call_activity(
                     "compensate_document",
@@ -211,6 +220,7 @@ The **document_workflow()** function builds a deterministic child instance ID fr
         workflow_input = context.get_input()
         tasks = []
 
+        # Schedule every child before yielding so documents run concurrently.
         for document in workflow_input["documents"]:
             child_instance_id = f"{context.instance_id}-{document['document_id']}"
             tasks.append(
@@ -224,6 +234,7 @@ The **document_workflow()** function builds a deterministic child instance ID fr
                 )
             )
 
+        # Fan in after every child reaches a terminal state.
         results = yield context.task_all(tasks)
         return {
             "batch_id": workflow_input["batch_id"],
@@ -243,6 +254,7 @@ The **raise_event()** method targets the child instance ID and sends the named *
 
     ```python
         instance_id = req.route_params["instance_id"]
+        # Deliver the decision to the exact child waiting for this named event.
         await client.raise_event(
             instance_id,
             "ApprovalResponse",

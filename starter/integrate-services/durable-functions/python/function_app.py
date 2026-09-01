@@ -182,31 +182,9 @@ def generate_summary(document):
 
 
 # BEGIN IDEMPOTENT RESULT PERSISTENCE
-@app.activity_trigger(input_name="request")
-def persist_result(request):
-    container = _get_or_create_container(RESULTS_CONTAINER)
-    # The operation ID is the idempotency key for this external write.
-    blob = container.get_blob_client(f"{request['operation_id']}.json")
-    serialized = json.dumps(request, sort_keys=True)
 
-    try:
-        blob.upload_blob(serialized, overwrite=False)
-        write_status = "Created"
-        stored_result = request
-    except ResourceExistsError:
-        # A replay returns the original result instead of writing a duplicate.
-        stored_result = json.loads(blob.download_blob().readall())
-        if stored_result.get("document_id") != request["document_id"]:
-            raise RuntimeError(
-                f"Operation ID collision for '{request['operation_id']}'."
-            )
-        write_status = "AlreadyExists"
 
-    return {
-        **stored_result,
-        "result_url": blob.url,
-        "write_status": write_status,
-    }
+
 # END IDEMPOTENT RESULT PERSISTENCE
 
 
@@ -233,82 +211,15 @@ def compensate_document(request):
 @app.orchestration_trigger(context_name="context")
 def document_orchestrator(context: df.DurableOrchestrationContext):
     # BEGIN ACTIVITY RETRY WORKFLOW
-    document = context.get_input()
-    # new_uuid() remains deterministic when the orchestrator replays.
-    operation_id = str(context.new_uuid())
-    process_request = {**document, "operation_id": operation_id}
-    retry_options = df.RetryOptions(2_000, 3)
 
-    try:
-        # Each activity can run up to three times before the workflow fails.
-        extracted = yield context.call_activity_with_retry(
-            "extract_text",
-            retry_options,
-            process_request,
-        )
-        classified = yield context.call_activity_with_retry(
-            "classify_document",
-            retry_options,
-            extracted,
-        )
-        summarized = yield context.call_activity_with_retry(
-            "generate_summary",
-            retry_options,
-            classified,
-        )
-    except Exception:
-        # Compensate only after the activity exhausts its retry policy.
-        yield context.call_activity(
-            "compensate_document",
-            {
-                "operation_id": operation_id,
-                "reason": "ProcessingFailed",
-            },
-        )
-        raise
+
+
     # END ACTIVITY RETRY WORKFLOW
 
     # BEGIN HUMAN APPROVAL WORKFLOW
-    # High-confidence documents do not require a human decision.
-    if summarized["confidence"] >= APPROVAL_CONFIDENCE_THRESHOLD:
-        final_status = "Completed"
-    else:
-        yield context.call_activity(
-            "notify_approver",
-            {
-                **summarized,
-                "instance_id": context.instance_id,
-            },
-        )
 
-        # Race the external event against a durable timer without blocking a worker.
-        approval = context.wait_for_external_event("ApprovalResponse")
-        deadline = context.current_utc_datetime + timedelta(
-            seconds=APPROVAL_TIMEOUT_SECONDS
-        )
-        timeout = context.create_timer(deadline)
-        winner = yield context.task_any([approval, timeout])
 
-        if winner == approval:
-            # Cancel the timer so the orchestration has no outstanding work.
-            if not timeout.is_completed:
-                timeout.cancel()
-            approval_payload = approval.result
-            if isinstance(approval_payload, str):
-                approval_payload = json.loads(approval_payload)
-            final_status = approval_payload["decision"]
-        else:
-            final_status = "ApprovalTimedOut"
 
-        # Rejection and timeout both require a compensating action.
-        if final_status != "Approved":
-            yield context.call_activity(
-                "compensate_document",
-                {
-                    "operation_id": operation_id,
-                    "reason": final_status,
-                },
-            )
     # END HUMAN APPROVAL WORKFLOW
 
     return (
@@ -324,31 +235,9 @@ def document_orchestrator(context: df.DurableOrchestrationContext):
 
 
 # BEGIN FAN OUT FAN IN ORCHESTRATION
-@app.orchestration_trigger(context_name="context")
-def document_workflow(context: df.DurableOrchestrationContext):
-    workflow_input = context.get_input()
-    tasks = []
 
-    # Schedule every child before yielding so documents run concurrently.
-    for document in workflow_input["documents"]:
-        child_instance_id = f"{context.instance_id}-{document['document_id']}"
-        tasks.append(
-            context.call_sub_orchestrator(
-                "document_orchestrator",
-                {
-                    **document,
-                    "batch_id": workflow_input["batch_id"],
-                },
-                child_instance_id,
-            )
-        )
 
-    # Fan in after every child reaches a terminal state.
-    results = yield context.task_all(tasks)
-    return {
-        "batch_id": workflow_input["batch_id"],
-        "documents": results,
-    }
+
 # END FAN OUT FAN IN ORCHESTRATION
 
 
@@ -377,15 +266,7 @@ async def submit_approval(
         )
 
     # BEGIN APPROVAL EVENT DELIVERY
-    instance_id = req.route_params["instance_id"]
-    # Deliver the decision to the exact child waiting for this named event.
-    await client.raise_event(
-        instance_id,
-        "ApprovalResponse",
-        {
-            "event_id": event_id,
-            "decision": decision,
-        },
-    )
-    return _json_response({"status": "Accepted"}, 202)
+
+
+
     # END APPROVAL EVENT DELIVERY
