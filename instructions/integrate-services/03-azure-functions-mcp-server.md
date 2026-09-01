@@ -24,7 +24,7 @@ Tasks performed in this exercise:
 - Create a new Azure Functions project with the MCP extension
 - Configure the MCP server settings in *host.json*
 - Define MCP tool trigger functions in *function_app.py*
-- Verify the Python environment
+- Configure the Python environment
 - Test the MCP server locally using GitHub Copilot in agent mode
 
 This exercise takes approximately **25** minutes to complete.
@@ -37,6 +37,7 @@ To complete the exercise, you need:
 - The [Azure Functions extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurefunctions) for Visual Studio Code.
 - [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local) v4 or later.
 - [Python 3.9](https://www.python.org/downloads/) or later.
+- A [GitHub account](https://github.com/) with access to GitHub Copilot.
 - The [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) extension for Visual Studio Code.
 
 ## Create a new Functions project with the MCP extension
@@ -51,7 +52,7 @@ In this section you create a new Azure Functions project in Visual Studio Code u
     |--|--|
     | Select the folder... | Select the folder you opened in the previous step |
     | Select a project type | Select **Python** |
-    | Select a Python interpreter... | Select **python 3.12** |
+    | Select a Python interpreter... | Select **Skip virtual environment** |
     | Select a template... | Select **HTTP trigger** |
     | Function name | Accept the default **http_trigger** |
     | Authorization level | Select **ANONYMOUS** |
@@ -179,11 +180,37 @@ In this section you define two MCP tool trigger functions that become discoverab
 
 1. Save the file and take a few minutes to review the code. Each function uses the **@app.generic_trigger()** decorator with the **mcpToolTrigger** type. The **toolName** appears in the MCP client's tool list, and **description** helps language models understand when to use each tool. The **toolProperties** parameter defines the input schema as a JSON array of property definitions.
 
-## Verify the Python environment
+## Configure the Python environment
 
-In this section you verify that Visual Studio Code is using the Python interpreter from the virtual environment that the Azure Functions extension created during project setup.
+In this section you create and activate a Python virtual environment, install the project dependencies, and configure Visual Studio Code to use the virtual environment.
 
-1. Select **View > Command Palette..."** to open the Command Palette and run the **Python: Select Interpreter** command. Select the interpreter from the *.venv* folder in the project directory (for example, *./.venv/bin/python*). This ensures the debugger and terminal use the correct environment when you start the Functions runtime with **F5**.
+1. In Visual Studio Code, select **Terminal > New Terminal** to open an integrated terminal in the project directory.
+
+1. Run the following command in the VS Code terminal to create the Python environment.
+
+    ```
+    python -m venv .venv
+    ```
+
+1. Run the following command to activate the Python environment. **Note:** On Linux/macOS, use the Bash command. On Windows, use the PowerShell command. If using Git Bash on Windows, use **source .venv/Scripts/activate**.
+
+    **Bash**
+    ```bash
+    source .venv/bin/activate
+    ```
+
+    **PowerShell**
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+1. Run the following command in the VS Code terminal to install the dependencies.
+
+    ```
+    pip install -r requirements.txt
+    ```
+
+1. Select **View > Command Palette...** to open the Command Palette and run the **Python: Select Interpreter** command. Select the interpreter from the *.venv* folder in the project directory. This ensures the debugger uses the correct environment when you start the Functions runtime with **F5**.
 
 ## Test the MCP server locally
 
