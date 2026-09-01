@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -107,13 +108,30 @@ def _start_workflow(
     return instance_id, status_url
 
 
-def _read_status(status_url: str) -> dict[str, Any]:
-    status = _request_json("GET", status_url)
-    print(json.dumps(status, indent=2))
+def _instance_status_url(status_url: str, instance_id: str) -> str:
+    parts = urlsplit(status_url)
+    path_segments = parts.path.rstrip("/").split("/")
+    path_segments[-1] = instance_id
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            "/".join(path_segments),
+            parts.query,
+            parts.fragment,
+        )
+    )
+
+
+def _read_status(session: WorkflowSession) -> dict[str, Any]:
+    status = _request_json("GET", session.status_url)
+    _print_status_summary(status)
+    if status.get("runtimeStatus") != "Completed" and session.scenario == "mixed":
+        _print_active_document_statuses(session)
     return status
 
 
-def _document_statuses(status: dict[str, Any]) -> list[str]:
+def _workflow_output(status: dict[str, Any]) -> dict[str, Any]:
     output = status.get("output")
     if isinstance(output, str):
         try:
@@ -126,23 +144,102 @@ def _document_statuses(status: dict[str, Any]) -> list[str]:
         raise WorkflowTestError(
             "The completed orchestration did not return an output object."
         )
+    return output
+
+
+def _workflow_documents(status: dict[str, Any]) -> list[dict[str, Any]]:
+    output = _workflow_output(status)
     documents = output.get("documents")
     if not isinstance(documents, list):
         raise WorkflowTestError(
             "The completed orchestration output did not contain documents."
         )
+    return [document for document in documents if isinstance(document, dict)]
+
+
+def _document_statuses(status: dict[str, Any]) -> list[str]:
     return [
         str(document.get("status"))
-        for document in documents
-        if isinstance(document, dict)
+        for document in _workflow_documents(status)
     ]
+
+
+def _print_status_summary(status: dict[str, Any]) -> None:
+    print(f"Instance ID: {status.get('instanceId', 'Unknown')}")
+    print(f"Runtime status: {status.get('runtimeStatus', 'Unknown')}")
+
+    created_time = status.get("createdTime")
+    if created_time:
+        print(f"Created: {created_time}")
+    last_updated_time = status.get("lastUpdatedTime")
+    if last_updated_time:
+        print(f"Last updated: {last_updated_time}")
+
+    custom_status = status.get("customStatus")
+    if custom_status is not None:
+        print(f"Custom status: {custom_status}")
+
+    if status.get("runtimeStatus") != "Completed":
+        return
+
+    output = _workflow_output(status)
+    batch_id = output.get("batch_id")
+    if batch_id:
+        print(f"Batch ID: {batch_id}")
+
+    documents = _workflow_documents(status)
+    if not documents:
+        print("Documents: None")
+        return
+
+    print("Documents:")
+    for document in documents:
+        details = [
+            f"id={document.get('document_id', 'Unknown')}",
+            f"status={document.get('status', 'Unknown')}",
+        ]
+        for field in ("category", "confidence", "retry_occurred", "write_status"):
+            value = document.get(field)
+            if value is not None:
+                details.append(f"{field}={value}")
+        print(f"  - {', '.join(details)}")
+
+
+def _print_active_document_statuses(session: WorkflowSession) -> None:
+    print("Documents:")
+    for document_id in ("claim-001", "claim-002"):
+        child_instance_id = f"{session.instance_id}-{document_id}"
+        child_status = _request_json(
+            "GET",
+            _instance_status_url(session.status_url, child_instance_id),
+        )
+        runtime_status = child_status.get("runtimeStatus", "Unknown")
+        result_status = "Pending"
+        if runtime_status == "Completed":
+            output = child_status.get("output")
+            if isinstance(output, str):
+                try:
+                    output = json.loads(output)
+                except json.JSONDecodeError:
+                    output = None
+            if isinstance(output, dict):
+                result_status = str(output.get("status", "Completed"))
+            else:
+                result_status = "Completed"
+        elif runtime_status in TERMINAL_FAILURE_STATES:
+            result_status = str(runtime_status)
+
+        print(
+            f"  - id={document_id}, orchestration={runtime_status}, "
+            f"status={result_status}"
+        )
 
 
 def _wait_for_completion(
     status_url: str,
     expected_statuses: list[str],
     timeout_seconds: int,
-) -> None:
+) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
     last_runtime_status = ""
 
@@ -160,8 +257,8 @@ def _wait_for_completion(
                     f"Expected document statuses {expected_statuses}, "
                     f"but received {actual_statuses}."
                 )
-            print(json.dumps(status.get("output"), indent=2))
-            return
+            _print_status_summary(status)
+            return status
 
         if runtime_status in TERMINAL_FAILURE_STATES:
             raise WorkflowTestError(
@@ -223,7 +320,28 @@ def run_retry_test(function_app_url: str, function_key: str | None) -> None:
         function_key,
         "retry-batch.json",
     )
-    _wait_for_completion(status_url, ["Completed"], 90)
+    status = _wait_for_completion(status_url, ["Completed"], 90)
+    documents = _workflow_documents(status)
+    retry_document = next(
+        (
+            document
+            for document in documents
+            if document.get("document_id") == "claim-003-retry"
+        ),
+        None,
+    )
+    if retry_document is None:
+        raise WorkflowTestError(
+            "The retry result did not contain document claim-003-retry."
+        )
+    if retry_document.get("retry_occurred") is not True:
+        raise WorkflowTestError(
+            "Document claim-003-retry completed without evidence of a retry."
+        )
+    print(
+        "Verified claim-003-retry recovered from one simulated transient "
+        "failure."
+    )
 
 
 def run_timeout_test(function_app_url: str, function_key: str | None) -> None:
@@ -232,11 +350,11 @@ def run_timeout_test(function_app_url: str, function_key: str | None) -> None:
         function_key,
         "mixed-confidence-batch.json",
     )
-    print("Waiting for the two-minute approval timer to expire...")
+    print("Waiting approximately 30 seconds for the approval timer to expire...")
     _wait_for_completion(
         status_url,
         ["Completed", "ApprovalTimedOut"],
-        180,
+        60,
     )
 
 
@@ -263,6 +381,17 @@ def _show_menu(
     print("===========================================================")
 
 
+def _clear_screen() -> None:
+    clear_command = ["cmd", "/c", "cls"] if os.name == "nt" else ["clear"]
+    result = subprocess.run(clear_command, check=False)
+    if result.returncode != 0:
+        print("\033[2J\033[H", end="", flush=True)
+
+
+def _pause_for_menu() -> None:
+    input("\nPress Enter to return to the menu...")
+
+
 def main() -> int:
     function_app_url = os.environ.get(
         "FUNCTION_APP_URL",
@@ -273,9 +402,10 @@ def main() -> int:
     session: WorkflowSession | None = None
 
     while True:
+        _clear_screen()
         _show_menu(target, function_app_url, session)
         choice = input("Please select an option (1-7): ").strip()
-        print()
+        _clear_screen()
 
         try:
             if choice == "1":
@@ -285,7 +415,7 @@ def main() -> int:
                     raise WorkflowTestError(
                         "Start a mixed-confidence workflow first."
                     )
-                _read_status(session.status_url)
+                _read_status(session)
             elif choice == "3":
                 _submit_decision(
                     session,
@@ -313,6 +443,8 @@ def main() -> int:
                 print("Invalid option. Please select 1-7.")
         except WorkflowTestError as exc:
             print(f"Error: {exc}", file=sys.stderr)
+
+        _pause_for_menu()
 
 
 if __name__ == "__main__":

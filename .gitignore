@@ -7,6 +7,12 @@
 .env
 .env.*
 
+# Azurite local storage
+__azurite_db_*__.json
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
+
 # Python virtual environments
 .venv/
 

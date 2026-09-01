@@ -14,7 +14,11 @@
   },
   "extensions": {
     "durableTask": {
-      "hubName": "DocumentWorkflowHub"
+      "hubName": "DocumentWorkflowHub",
+      "tracing": {
+        "distributedTracingEnabled": true,
+        "version": "None"
+      }
     }
   }
 }

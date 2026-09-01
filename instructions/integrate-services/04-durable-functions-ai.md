@@ -292,7 +292,7 @@ In this section you create a Python virtual environment and install the dependen
 
 In this section you start Azurite and the local Functions host, then test automatic completion, human approval, retry, and timeout behavior before creating any Azure resources.
 
-1. Select **View > Command Palette...** in Visual Studio Code, run the **Azurite: Start** command, and wait for the status bar to confirm that the Blob, Queue, and Table services are running.
+1. Select **View > Command Palette...** in Visual Studio Code and run the **Azurite: Start** command. Installing the Azurite extension does not automatically start its local storage services. Confirm that the Visual Studio Code status bar shows **[Azurite Blob Service] Running on http://127.0.0.1:10000**. You can also open the Visual Studio Code notifications to review the Blob, Queue, and Table service startup messages.
 
 1. Run the following command in the terminal with the virtual environment activated to start the local Functions host.
 
@@ -312,19 +312,31 @@ In this section you start Azurite and the local Functions host, then test automa
 
 1. Enter **1** to start a mixed-confidence workflow. The test submits one high-confidence document that completes automatically and one low-confidence document that waits for an external approval event. Note the parent and child orchestration IDs displayed by the test.
 
-1. Enter **2** to check the active workflow status. Confirm the parent orchestration is still running while its low-confidence child waits for approval.
+1. Enter **2** to check the active workflow status. Confirm **Runtime status** is **Running**. In the **Documents** list, confirm **claim-001** has a **Completed** status and **claim-002** has a **Pending** status while it waits for approval.
 
-1. Enter **3** to approve the low-confidence document. The test sends an **ApprovalResponse** external event to the waiting child orchestration.
+    ```
+    Instance ID: <ID for instance>
+    Runtime status: Running
+    Created: 2026-09-01T19:52:57Z
+    Last updated: 2026-09-01T19:52:57Z
+    Documents:
+      - id=claim-001, orchestration=Completed, status=Completed
+      - id=claim-002, orchestration=Running, status=Pending
 
-1. Wait a few seconds, then enter **2** again. Confirm the parent **runtimeStatus** is **Completed**. In the output, the high-confidence document has a **Completed** status and the low-confidence document has an **Approved** status.
+    Press Enter to return to the menu...
+    ```
 
-1. Enter **1** to start a new mixed-confidence workflow, then enter **4** to reject the low-confidence document. Wait a few seconds and enter **2**. Confirm the low-confidence document has a **Rejected** status and the Functions host logs a compensation operation.
+1. Enter **3** to approve **claim-002**, the low-confidence document. The test sends an **ApprovalResponse** external event to its waiting child orchestration.
 
-1. Enter **5** to run the retry scenario. Watch the Functions host terminal as the classification activity reports one simulated transient failure and then succeeds on a retry. Confirm the test reports **PASS: retry scenario**.
+1. Wait a few seconds, then enter **2** again. Confirm **Runtime status** is **Completed**. In the **Documents** list, confirm **claim-001** has a **Completed** status and **claim-002** has an **Approved** status.
 
-1. Enter **6** to run the timeout scenario. The test waits approximately two minutes for the approval timer to expire.
+1. Enter **1** to start a new mixed-confidence workflow, then enter **4** to reject **claim-002**. Wait a few seconds and enter **2**. Confirm **claim-001** has a **Completed** status and **claim-002** has a **Rejected** status. The rejected status confirms that the workflow followed its compensation path.
 
-1. Confirm the test reports **PASS: timeout scenario** and the Functions host logs a compensation operation.
+1. Enter **5** to run the retry scenario. Confirm the output lists **claim-003-retry** with **status=Completed** and **retry_occurred=True**. Also confirm the test reports that **claim-003-retry** recovered from one simulated transient failure, followed by **PASS: retry scenario**.
+
+1. Enter **6** to run the timeout scenario. The test waits approximately 30 seconds for the approval timer to expire.
+
+1. Confirm the output lists **claim-002** with an **ApprovalTimedOut** status and the test reports **PASS: timeout scenario**. The timeout status confirms that the workflow followed its compensation path.
 
 1. Enter **7** to exit the test menu. Return to the Functions host terminal and press **Ctrl+C** to stop the host. Then run **Azurite: Close** from the Visual Studio Code Command Palette to stop the local storage services.
 
@@ -392,17 +404,17 @@ In this section you load the deployed Function App settings and use the interact
     python tests/run_workflow_tests.py
     ```
 
-1. Enter **1** to start a mixed-confidence workflow, then enter **2** to confirm that it is waiting for approval.
+1. Enter **1** to start a mixed-confidence workflow, then enter **2**. Confirm **Runtime status** is **Running**, **claim-001** has a **Completed** status, and **claim-002** has a **Pending** status.
 
-1. Enter **3** to approve the low-confidence document. Wait a few seconds, then enter **2** again.
+1. Enter **3** to approve **claim-002**. Wait a few seconds, then enter **2** again.
 
-1. Confirm the parent **runtimeStatus** is **Completed** and the document statuses are **Completed** and **Approved**. The result URLs now reference blobs in the Azure Storage account created by the deployment script.
+1. Confirm **Runtime status** is **Completed**, **claim-001** has a **Completed** status, and **claim-002** has an **Approved** status.
 
-1. Enter **1** to start a new mixed-confidence workflow, then enter **4** to reject the low-confidence document. Wait a few seconds and enter **2**. Confirm the low-confidence document has a **Rejected** status. This path demonstrates compensation after an explicit rejection.
+1. Enter **1** to start a new mixed-confidence workflow, then enter **4** to reject **claim-002**. Wait a few seconds and enter **2**. Confirm **claim-001** has a **Completed** status and **claim-002** has a **Rejected** status. The rejected status confirms compensation after an explicit rejection.
 
-1. Enter **5** to run the retry scenario in Azure. Confirm the test reports **PASS: retry scenario** after the simulated transient failure is retried successfully.
+1. Enter **5** to run the retry scenario in Azure. Confirm the output lists **claim-003-retry** with **status=Completed** and **retry_occurred=True**, followed by **PASS: retry scenario**.
 
-1. Enter **6** to run the timeout scenario in Azure. The test waits approximately two minutes for the approval timer to expire. Confirm the test reports **PASS: timeout scenario**, demonstrating timer-based compensation when no external event arrives.
+1. Enter **6** to run the timeout scenario in Azure. The test waits approximately 30 seconds for the approval timer to expire. Confirm the output lists **claim-002** with an **ApprovalTimedOut** status, followed by **PASS: timeout scenario**. The timeout status confirms timer-based compensation when no external event arrives.
 
 1. Enter **7** to exit the test menu.
 
@@ -424,7 +436,9 @@ In this section you review common problems that can occur during local testing a
 
 **Azurite or the Functions host doesn't start**
 - Confirm Azure Functions Core Tools v4 or later is installed by running **func --version**.
-- Run **Azurite: Start** before running **func start**. Durable Functions needs the Azurite Blob, Queue, and Table services for local orchestration state.
+- Run **Azurite: Start** before running **func start**. Having the Azurite extension installed is not sufficient; Durable Functions needs its Blob, Queue, and Table services to be running for local orchestration state.
+- Confirm that the Visual Studio Code status bar shows **[Azurite Blob Service] Running on http://127.0.0.1:10000**, and review the Visual Studio Code notifications for the Blob, Queue, and Table service startup messages. An **Azurite** channel appears under **View > Output** only when the extension's debug logging setting is enabled.
+- A connection-refused error for **127.0.0.1:10000** means that the Azurite Blob service is not running.
 - Confirm *local.settings.json* contains **AzureWebJobsStorage** with the value **UseDevelopmentStorage=true**.
 - If a previous Azurite process is still using ports 10000, 10001, or 10002, run **Azurite: Close** and start it again.
 
@@ -434,7 +448,7 @@ In this section you review common problems that can occur during local testing a
 - Confirm no prewritten code outside the designated sections was removed or modified.
 
 **Workflow remains in the Running state**
-- A low-confidence document intentionally waits for approval for up to two minutes. Send the approval event or wait for the durable timer to expire.
+- A low-confidence document intentionally waits for approval for up to 30 seconds. Send the approval event or wait for the durable timer to expire.
 - Confirm the approval URL contains the parent instance ID followed by **-claim-002**.
 - Review the Functions host terminal for the child orchestration ID and activity errors.
 

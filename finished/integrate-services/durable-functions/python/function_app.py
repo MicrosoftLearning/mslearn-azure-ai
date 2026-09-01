@@ -12,7 +12,7 @@ from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
 APPROVAL_CONFIDENCE_THRESHOLD = 0.80
-APPROVAL_TIMEOUT_SECONDS = 120
+APPROVAL_TIMEOUT_SECONDS = 30
 MAX_BATCH_SIZE = 20
 RESULTS_CONTAINER = "workflow-results"
 CONTROL_CONTAINER = "workflow-control"
@@ -151,6 +151,7 @@ def extract_text(document):
 @app.activity_trigger(input_name="document")
 def classify_document(document):
     document_id = document["document_id"]
+    retry_occurred = False
     if document_id.endswith("-fail"):
         raise RuntimeError("Simulated permanent model failure")
     if document_id.endswith("-retry"):
@@ -160,7 +161,7 @@ def classify_document(document):
         try:
             marker.upload_blob(b"failed", overwrite=False)
         except ResourceExistsError:
-            pass
+            retry_occurred = True
         else:
             raise RuntimeError("Simulated transient model failure")
 
@@ -168,6 +169,7 @@ def classify_document(document):
         **document,
         "category": document["document_type"],
         "confidence": document["confidence"],
+        "retry_occurred": retry_occurred,
     }
 
 
