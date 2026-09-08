@@ -1,7 +1,7 @@
 ---
 lab:
   topic: Integrate backend services
-  title: Build a durable document-processing workflow with Azure Functions
+  title: Build a durable document-processing workflow with Azure Durable Functions
   description: Learn how to build and test a durable document-processing workflow that coordinates parallel activities, retries, human approval, and failure compensation.
   level: 300
   duration: 35
@@ -11,7 +11,7 @@ lab:
     - Azure Functions
 ---
 
-# Build a durable document-processing workflow with Azure Functions
+# Build a durable document-processing workflow with Azure Durable Functions
 
 Durable Functions extends Azure Functions with stateful orchestration, allowing serverless apps to coordinate long-running work without manually managing checkpoints, queues, or polling loops. Orchestrator functions record their progress so workflows can recover after interruptions, retry failed activities, wait efficiently for external events, and resume from durable timers.
 
