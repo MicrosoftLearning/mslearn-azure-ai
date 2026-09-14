@@ -37,7 +37,7 @@ To complete the exercise, you need:
 - The [Azure Functions extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurefunctions) for Visual Studio Code.
 - [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local) v4 or later.
 - [Python 3.9](https://www.python.org/downloads/) or later.
-- A [GitHub account](https://github.com/) with access to GitHub Copilot.
+- A [GitHub account](https://github.com/) with access to GitHub Copilot. You must sign in to this account in Visual Studio Code before testing the MCP server.
 - The [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) extension for Visual Studio Code.
 
 ## Create a new Functions project with the MCP extension
@@ -216,6 +216,8 @@ In this section you create and activate a Python virtual environment, install th
 
 In this section you start the local Functions runtime and connect to the MCP server from GitHub Copilot in agent mode to verify that the tools are discoverable and return the expected results.
 
+1. In Visual Studio Code, select the **Accounts** icon and verify that you're signed in to GitHub with an account that has access to GitHub Copilot. If you aren't signed in, follow the prompts to sign in before continuing.
+
 1. Press **F5** to start the Functions runtime with the debugger attached. If you receive a warning about a required storage account, select **Skip for now** . Visual Studio Code launches Core Tools, attaches the debugger, and opens the terminal panel showing the function endpoints.
 
     >**Note:** You can also start the runtime without the debugger by running `func start` in the integrated terminal.
@@ -230,13 +232,15 @@ In this section you start the local Functions runtime and connect to the MCP ser
 
     If both functions appear, the MCP server is running and ready for connections.
 
-1. Visual Studio Code detects the *.vscode/mcp.json* file you created earlier and connects to the MCP server. Open GitHub Copilot chat and switch to **Agent** mode. Select the tools icon (wrench) and look for the **document-tools-local** group — this matches the server key name from *.vscode/mcp.json*. Verify that both **summarize_text** and **classify_document** appear under that group with their descriptions.
+    >Note: You may see some warnings in the terminal depending on which verion of Azure Functions Core Tools you're using. You can safely ignore these warnings about health checks.
+
+1. Visual Studio Code detects the *.vscode/mcp.json* file you created earlier and connects to the MCP server. Open GitHub Copilot chat and select the tools icon at the bottom of the chat window. Look for the **document-tools-local** group — this matches the server key name from *.vscode/mcp.json*. Verify that both **summarize_text** and **classify_document** appear under that group with their descriptions.
 
 ### Test with explicit prompts
 
 Explicit prompts that name a tool directly are the most reliable way to trigger an MCP tool. The model will usually invoke the tool, but it may still rephrase or summarize the tool's raw output in its response. If a tool is not invoked, check the terminal output to confirm, then try submitting the prompt again.
 
-1. Test the **classify_document** tool by entering the following prompt in the Copilot chat. **Note:** When Copilot invokes an MCP tool for the first time, you may see a permission prompt. Select **Allow** to let Copilot call the tool.
+1. Test the **classify_document** tool by entering the following prompt in the Copilot chat. **Note:** When Copilot invokes an MCP tool for the first time, you may see a permission prompt. Select **Allow in this Session** to let Copilot call the tool.
 
     ```
     Use the classify_document tool to classify this text: 'This agreement is entered into by Party A and Party B'  with categories: contract, invoice, memo
