@@ -85,7 +85,7 @@ In this section you run the deployment script to deploy the necessary services t
     python azdeploy.py
     ```
 
-1. When the script is running, enter **1** to launch the **1. Create Azure Container Registry and build container image** option. This option creates the ACR service and uses ACR Tasks to build and push the image to the registry.
+1. When the script is running, enter **1** to launch the **1. Create Azure Container Registry and build container image** option. This option creates the ACR service with the registry admin account disabled, then uses ACR Tasks to build and push the image to the registry. Disabling the admin account avoids shared registry credentials and keeps the web app from relying on them instead of its managed identity and **AcrPull** role.
 
 1. When the previous operation is finished, enter **2** to launch the **Create App Service Plan** options. This option creates the App Service plan needed for web app.
 
@@ -255,6 +255,8 @@ To enable the web app use that identity to pull images, you assign the built-in 
         --container-image-name "$($env:ACR_NAME).azurecr.io/docprocessor:v1" `
         --container-registry-url "https://$($env:ACR_NAME).azurecr.io"
     ```
+
+    >**Note:** This command might display a failed credential lookup. You can safely ignore it because the registry admin account is disabled and the web app uses managed identity. Do not enable the admin account.
 
 ## Configure runtime settings and enable container logging
 
@@ -508,12 +510,23 @@ If you encounter issues while completing this exercise, try the following troubl
     - **Bash:** **az acr task logs --registry $ACR_NAME --run-id <run-id>**
     - **PowerShell:** **az acr task logs --registry $env:ACR_NAME --run-id <run-id>**
 
+**"No credential was provided to access Azure Container Registry" message**
+
+- This message is expected when you configure the container. The registry admin account is disabled by design, and the web app uses its managed identity instead.
+- Do not enable the registry admin account or add registry credentials.
+- Confirm that managed identity authentication is enabled:
+    - **Bash:** **az webapp config show --resource-group $RESOURCE_GROUP --name $APP_NAME --query acrUseManagedIdentityCreds --output tsv**
+    - **PowerShell:** **az webapp config show --resource-group $env:RESOURCE_GROUP --name $env:APP_NAME --query acrUseManagedIdentityCreds --output tsv**
+- Verify that the command returns **true**. No other action is needed.
+
 **Troubleshoot container pull failures (ImagePullBackOff / unauthorized / 403)**
+
 - Confirm the web app has a system-assigned managed identity enabled by running **az webapp identity show**.
 - Confirm the web app has the **AcrPull** role assignment scoped to the registry. Role assignments can take a minute or two to propagate after creation.
 - Re-run the container configuration step to ensure the image name and registry URL are correct.
 
 **Troubleshoot container startup and application errors**
+
 - Ensure container logging is enabled, then stream logs:
     - **Bash:** **az webapp log tail --resource-group $RESOURCE_GROUP --name $APP_NAME**
     - **PowerShell:** **az webapp log tail --resource-group $env:RESOURCE_GROUP --name $env:APP_NAME**
@@ -523,4 +536,3 @@ If you encounter issues while completing this exercise, try the following troubl
 
 - Confirm the **WEBSITES_ENABLE_APP_SERVICE_STORAGE** setting is present and set to **true**.
 - Call the **/documents** endpoint after submitting a document to confirm results are being written to persistent storage.
-
