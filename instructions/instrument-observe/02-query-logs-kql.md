@@ -236,23 +236,27 @@ In this section you use the Azure CLI to create an action group and a log search
 
     **Bash**
     ```bash
-    az monitor action-group create \
+    ACTION_GROUP_ID=$(az monitor action-group create \
         --resource-group $RESOURCE_GROUP \
         --name pipeline-alerts-ag \
         --short-name PipeAlert \
-        --action email oncall-email $ALERT_EMAIL
+        --action email oncall-email $ALERT_EMAIL \
+        --query id \
+        --output tsv)
     ```
 
     **PowerShell**
     ```powershell
-    az monitor action-group create `
+    $ACTION_GROUP_ID = az monitor action-group create `
         --resource-group $env:RESOURCE_GROUP `
         --name pipeline-alerts-ag `
         --short-name PipeAlert `
-        --action email oncall-email $env:ALERT_EMAIL
+        --action email oncall-email $env:ALERT_EMAIL `
+        --query id `
+        --output tsv
     ```
 
-    This command creates an action group named **pipeline-alerts-ag** that sends email notifications when triggered.
+    This command creates an action group named **pipeline-alerts-ag** that sends email notifications when triggered and saves its resource ID in the **ACTION_GROUP_ID** variable.
 
 1. Run the following command to create a log search alert rule that monitors the Application Insights resource for failed requests. The rule evaluates the query over a five-minute window and fires if more than ten requests fail.
 
@@ -262,6 +266,7 @@ In this section you use the Azure CLI to create an action group and a log search
         --resource-group $RESOURCE_GROUP \
         --name high-failure-rate-alert \
         --scopes $APPINSIGHTS_RESOURCE_ID \
+        --action-groups $ACTION_GROUP_ID \
         --condition "count 'FailedRequests' > 10" \
         --condition-query FailedRequests="requests | where success == false" \
         --evaluation-frequency 5m \
@@ -276,6 +281,7 @@ In this section you use the Azure CLI to create an action group and a log search
         --resource-group $env:RESOURCE_GROUP `
         --name high-failure-rate-alert `
         --scopes $env:APPINSIGHTS_RESOURCE_ID `
+        --action-groups $ACTION_GROUP_ID `
         --condition "count 'FailedRequests' > 10" `
         --condition-query FailedRequests="requests | where success == false" `
         --evaluation-frequency 5m `
