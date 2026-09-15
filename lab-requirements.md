@@ -23,9 +23,28 @@ Obtain the following accounts and install the listed software before completing 
 - The [GitHub Copilot extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot).
 - The [Azurite extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=Azurite.azurite).
 
-## Recommended options
+### Recommended options
 
 The following are strongly recommended to help complete the exercises.
 
 - The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) for formatting and linting Python code.
 - The [YAML extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) for YAML language support, validation, and formatting.
+
+## Azure services
+
+Each exercise provisions one or more the following Azure services:
+
+- Application Insights
+- Azure App Configuration
+- Azure App Service
+- Azure Container Apps
+- Azure Container Registry
+- Azure Cosmos DB for NoSQL
+- Azure Database for PostgreSQL flexible server
+- Azure Event Grid
+- Azure Key Vault
+- Azure Kubernetes Service
+- Azure Managed Redis
+- Azure Service Bus
+- Log Analytics
+- Microsoft Foundry
