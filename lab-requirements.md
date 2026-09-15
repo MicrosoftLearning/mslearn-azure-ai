@@ -1,3 +1,9 @@
+---
+title: Lab requirements
+permalink: lab-requirements.html
+layout: page
+---
+
 This document provides a consolidated list of the accounts and software used across all exercises in this repository. It is intended for students who want to configure a system to complete every lab and for lab providers who want to build a single environment that supports all exercises. Because this list represents the combined requirements, individual exercises require only a subset of these items.
 
 ## Required accounts and software
