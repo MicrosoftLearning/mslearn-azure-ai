@@ -10,7 +10,7 @@ The following exercises are designed to provide you with a hands-on learning exp
 
 > **Note**: To complete the exercises, you'll need an Azure subscription in which you have sufficient permissions and quota to provision the necessary Azure resources. If you don't already have one, you can sign up for an [Azure account](https://azure.microsoft.com/free).
 
-Some exercises may have additional, or different, requirements. Those will contain a **Before you start** section specific to that exercise.
+Review the [lab requirements]({{ site.github.url }}/lab-requirements.html) for the accounts and software used across all exercises. Each exercise also includes a **Before you start** section with a subset of those requirements specific to that exercise.
 
 ## Topic areas
 {% assign exercises = site.pages | where_exp:"page", "page.url contains '/instructions'" %}
@@ -34,4 +34,3 @@ Some exercises may have additional, or different, requirements. Those will conta
 {% endfor %}
 <a href="#overview">Return to top</a>
 {% endfor %}
-

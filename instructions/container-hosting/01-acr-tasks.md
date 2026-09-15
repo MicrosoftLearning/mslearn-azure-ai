@@ -30,7 +30,7 @@ This exercise takes approximately **30** minutes to complete.
 
 To complete the exercise, you need:
 
-- An Azure subscription with the permissions to deploy the necessary Azure services. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- An [Azure subscription](https://azure.microsoft.com/) with the permissions and quota to provision the necessary Azure services.
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
@@ -333,4 +333,3 @@ If you encounter issues while completing this exercise, try the following troubl
 - Check the build output for error messages - common issues include missing Dockerfile or incorrect file paths.
 - Verify you're running commands from the project root directory (where the *api* folder is located).
 - Run **az acr task list-runs --registry $ACR_NAME --output table** to see the status of recent builds.
-

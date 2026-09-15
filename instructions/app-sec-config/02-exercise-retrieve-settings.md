@@ -30,7 +30,7 @@ This exercise takes approximately **30** minutes to complete.
 
 To complete the exercise, you need:
 
-- An Azure subscription. If you don't already have one, you can [sign up for one](https://azure.microsoft.com/).
+- An [Azure subscription](https://azure.microsoft.com/) with the permissions and quota to provision the necessary Azure services.
 - [Visual Studio Code](https://code.visualstudio.com/) on one of the [supported platforms](https://code.visualstudio.com/docs/supporting/requirements#_platforms).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
