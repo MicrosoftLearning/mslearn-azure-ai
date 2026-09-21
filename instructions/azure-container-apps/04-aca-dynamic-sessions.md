@@ -1,7 +1,7 @@
 ---
 lab:
   topic: Azure Container Apps
-  title: Execute code in a dynamic session in Azure Container Apps
+  title: Execute AI-generated code securely in Azure Container Apps dynamic sessions
   description: Learn how to securely execute AI-generated Python code, exchange files, and manage an isolated Azure Container Apps dynamic session.
   level: 300
   duration: 30
@@ -11,7 +11,7 @@ lab:
     - Azure Container Apps
 ---
 
-# Execute code in a dynamic session in Azure Container Apps
+# Execute AI-generated code securely in Azure Container Apps dynamic sessions
 
 Azure Container Apps dynamic sessions provide fast access to isolated execution environments for running AI-generated or user-submitted code. A code interpreter session keeps generated code outside the application process, preserves temporary files across related requests, and automatically removes the environment after a configurable idle period.
 
