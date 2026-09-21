@@ -40,6 +40,7 @@ To complete the exercise, you need:
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - The Kubernetes command-line tool, [kubectl](https://kubernetes.io/docs/tasks/tools/).
 - [Python 3.12](https://www.python.org/downloads/) or greater.
+- **Optional:** The [YAML extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) for YAML language support, validation, and formatting.
 
 ## Download project starter files and deploy Azure services
 
