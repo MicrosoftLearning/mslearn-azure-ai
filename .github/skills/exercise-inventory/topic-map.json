@@ -66,6 +66,10 @@
         "scale-container-aca": {
           "starter_slug": "aca-scale",
           "instructions_file": "03-aca-scale-containers.md"
+        },
+        "dynamic-sessions-aca": {
+          "starter_slug": "aca-dynamic-sessions",
+          "instructions_file": "04-aca-dynamic-sessions.md"
         }
       }
     },

@@ -62,6 +62,11 @@
       "name": "aca-scale-python.zip"
     },
     {
+      "source": "starter/aca/aca-dynamic-sessions/python",
+      "output": "downloads/python",
+      "name": "aca-dynamic-sessions-python.zip"
+    },
+    {
       "source": "starter/postgresql/build-agent/python",
       "output": "downloads/python",
       "name": "postgresql-build-agent-python.zip"

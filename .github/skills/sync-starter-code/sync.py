@@ -50,6 +50,8 @@ EXCLUDED_DIR_NAMES = frozenset({
     ".ruff_cache",
 })
 
+TEST_DIR_NAMES = frozenset({"tests"})
+
 BEGIN_RE = re.compile(r"^(?P<indent>[ \t]*)# BEGIN(?::|[ \t]+)(?P<tag>.+?)\s*$")
 END_RE = re.compile(r"^(?P<indent>[ \t]*)# END(?::|[ \t]+)(?P<tag>.+?)\s*$")
 OPEN_FILE_RE = re.compile(
@@ -109,11 +111,54 @@ def is_excluded(path: Path, base: Path) -> bool:
     return False
 
 
-def iter_source_files(base: Path) -> Iterable[Path]:
+def test_dir_prefix(path: Path, base: Path) -> Optional[Path]:
+    """Return the relative test-directory prefix containing ``path``."""
+    rel_parts = path.relative_to(base).parts
+    for index, part in enumerate(rel_parts[:-1]):
+        if part in TEST_DIR_NAMES:
+            return Path(*rel_parts[:index + 1])
+    return None
+
+
+def referenced_test_dirs(
+    instructions_path: Path,
+    finished_root: Path,
+) -> set[Path]:
+    """Find test directories explicitly referenced by the instructions."""
+    instruction_text = (
+        instructions_path.read_text(encoding="utf-8").lower().replace("\\", "/")
+    )
+    mentions_unit_tests = re.search(r"\bunit tests?\b", instruction_text) is not None
+    prefixes: set[Path] = set()
+    for path in finished_root.rglob("*"):
+        if not path.is_file() or is_excluded(path, finished_root):
+            continue
+        prefix = test_dir_prefix(path, finished_root)
+        if prefix is None:
+            continue
+        prefix_text = prefix.as_posix().lower() + "/"
+        leaf_text = prefix.name.lower() + "/"
+        if (
+            mentions_unit_tests
+            or prefix_text in instruction_text
+            or leaf_text in instruction_text
+        ):
+            prefixes.add(prefix)
+    return prefixes
+
+
+def iter_source_files(
+    base: Path,
+    included_test_dirs: Optional[set[Path]] = None,
+) -> Iterable[Path]:
+    included_test_dirs = included_test_dirs or set()
     for path in sorted(base.rglob("*")):
         if not path.is_file():
             continue
         if is_excluded(path, base):
+            continue
+        prefix = test_dir_prefix(path, base)
+        if prefix is not None and prefix not in included_test_dirs:
             continue
         yield path
 
@@ -419,6 +464,7 @@ def sync_file(
 def sync_exercise(
     exercise: dict,
     instruction_policies: dict[str, dict],
+    included_test_dirs: set[Path],
     apply: bool,
     show_diff: bool,
     target_rel: Optional[Path] = None,
@@ -452,9 +498,16 @@ def sync_exercise(
                     f"  error: {target_file.relative_to(REPO_ROOT)} does not exist"
                 )
             return reports, extra_files
+        prefix = test_dir_prefix(target_file, finished_python)
+        if prefix is not None and prefix not in included_test_dirs:
+            reports.append(
+                f"  {target_file.relative_to(REPO_ROOT)}: skip: test directory "
+                "is not referenced by the instructions"
+            )
+            return reports, extra_files
         finished_files = [target_file]
     else:
-        finished_files = list(iter_source_files(finished_python))
+        finished_files = list(iter_source_files(finished_python, included_test_dirs))
 
     finished_rel_set: set[Path] = set()
 
@@ -480,7 +533,7 @@ def sync_exercise(
             reports.append(f"    warning: {warning}")
 
     if target_rel is None and starter_python.is_dir():
-        for starter_file in iter_source_files(starter_python):
+        for starter_file in iter_source_files(starter_python, included_test_dirs):
             rel = starter_file.relative_to(starter_python)
             if rel in finished_rel_set:
                 continue
@@ -643,9 +696,11 @@ def main() -> int:
             counters["errors"] += 1
             continue
         exercise_policies = analyze_instructions(instructions_path, finished_root)
+        included_test_dirs = referenced_test_dirs(instructions_path, finished_root)
         reports, exercise_extra_files = sync_exercise(
             exercise,
             exercise_policies,
+            included_test_dirs,
             args.apply,
             args.diff,
             target_rel,

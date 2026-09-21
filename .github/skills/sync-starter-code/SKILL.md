@@ -30,6 +30,7 @@ Never copied, and never touched in the starter tree if they already exist there:
 
 - **Deployment / generated files:** `azdeploy.py`, `.env`, `.env.ps1`, `sitecontainers-spec.json`
 - **Markdown docs:** any `*.md` or `*.markdown` file (readmes stay owned by the finished tree)
+- **Unreferenced tests:** files under `tests/` unless the registered instructions explicitly mention unit tests or reference that test directory
 - **Build/venv detritus:** anything under `__pycache__/`, `.venv/`, `.git/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, and any `*.pyc`
 - **OS junk:** `.DS_Store`, `Thumbs.db`
 
