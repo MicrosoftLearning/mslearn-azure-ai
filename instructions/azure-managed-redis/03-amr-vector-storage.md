@@ -35,6 +35,7 @@ To complete the exercise, you need:
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - The Azure CLI **redisenterprise** extension, version 2.75.0 or greater. A later step installs or upgrades the extension for you.
+- **Optional:** The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) for formatting and linting Python code.
 
 ## Download project starter files and deploy Azure Managed Redis
 
@@ -105,7 +106,7 @@ In this section you add code to create a Redis client that authenticates with Mi
 
 The **get_client()** function reads the Redis endpoint from the **REDIS_HOST** environment variable and calls **create_from_default_azure_credential()** to build a credential provider. The provider uses **DefaultAzureCredential** to acquire a Microsoft Entra token and refreshes it automatically in the background.
 
->**Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
 
 1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 

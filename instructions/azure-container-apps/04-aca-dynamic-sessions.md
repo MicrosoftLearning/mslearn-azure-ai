@@ -40,7 +40,7 @@ To complete the exercise, you need:
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - A region that supports Azure Container Apps dynamic sessions.
-- **Optional:** The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) to format and lint the Python code you add during the exercise.
+- **Optional:** The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) for formatting and linting Python code.
 
 ## Download project starter files and deploy a dynamic session pool
 

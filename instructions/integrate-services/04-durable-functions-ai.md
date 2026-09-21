@@ -35,6 +35,7 @@ To complete the exercise, you need:
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local) v4 or later.
 - The [Azurite](https://marketplace.visualstudio.com/items?itemName=Azurite.azurite) extension for Visual Studio Code.
+- **Optional:** The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) for formatting and linting Python code.
 
 Durable Functions requires a storage provider to save orchestration history and state. This exercise uses Azurite as the local storage provider.
 

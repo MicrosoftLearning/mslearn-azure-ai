@@ -39,6 +39,7 @@ To complete the exercise, you need:
 - [Python 3.9](https://www.python.org/downloads/) or later.
 - A [GitHub account](https://github.com/) with access to GitHub Copilot. You must sign in to this account in Visual Studio Code before testing the MCP server.
 - The [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) extension for Visual Studio Code.
+- **Optional:** The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) for formatting and linting Python code.
 
 ## Create a new Functions project with the MCP extension
 
