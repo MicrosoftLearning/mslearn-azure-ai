@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Execute AI-Generated Code - Azure Container Apps</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Execute AI-Generated Code in a Dynamic Session</h1>
+
+        <div class="left-panel">
+            <section class="section section-workflow" aria-labelledby="workflow-heading">
+                <h2 id="workflow-heading">Session Workflow</h2>
+                <p>Run each step to keep data, code, and generated artifacts in the same isolated session.</p>
+                <div class="workflow-actions">
+                    <form action="/upload" method="post">
+                        <button type="submit" class="btn-primary">1. Upload Sample Data</button>
+                    </form>
+                    <form action="/execute" method="post">
+                        <button type="submit" class="btn-success" {% if not state.uploaded %}disabled{% endif %}>
+                            2. Execute Analysis
+                        </button>
+                    </form>
+                    <form action="/files" method="post">
+                        <button type="submit" class="btn-primary" {% if not state.active %}disabled{% endif %}>
+                            3. List Session Files
+                        </button>
+                    </form>
+                    <a class="button-link btn-success {% if not state.executed %}disabled{% endif %}"
+                       href="{{ url_for('download') }}"
+                       {% if not state.executed %}aria-disabled="true" tabindex="-1"{% endif %}>
+                        4. Download Generated Chart
+                    </a>
+                </div>
+            </section>
+
+            <section class="section section-validation" aria-labelledby="validation-heading">
+                <h2 id="validation-heading">Validate and Clean Up</h2>
+                <p>Verify that an exception is not reported as success, then explicitly release the session.</p>
+                <div class="button-group">
+                    <form action="/test-failure" method="post">
+                        <button type="submit" class="btn-warning" {% if not state.active %}disabled{% endif %}>
+                            Test Failure Handling
+                        </button>
+                    </form>
+                    <form action="/delete" method="post">
+                        <button type="submit" class="btn-secondary" {% if not state.active %}disabled{% endif %}>
+                            Delete Session
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="section section-state" aria-labelledby="state-heading">
+                <h2 id="state-heading">Current State</h2>
+                <dl class="state-list">
+                    <div><dt>Session</dt><dd>{{ state.identifier or 'Not allocated' }}</dd></div>
+                    <div><dt>Data uploaded</dt><dd>{{ 'Yes' if state.uploaded else 'No' }}</dd></div>
+                    <div><dt>Analysis completed</dt><dd>{{ 'Yes' if state.executed else 'No' }}</dd></div>
+                </dl>
+                <p class="security-note">Only a shortened identifier is shown. The full value remains server-side.</p>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <section class="section section-results" aria-live="polite" aria-atomic="true"
+                     aria-labelledby="results-heading">
+                <h2 id="results-heading">Results</h2>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                {% if upload_result is defined and upload_result %}
+                    <h3>Uploaded File</h3>
+                    <div class="message-card card-completed">
+                        <div class="message-header">
+                            <span class="message-id">{{ upload_result.name or 'operational-data.csv' }}</span>
+                            <span class="tag tag-success">uploaded</span>
+                        </div>
+                        <div class="message-detail"><strong>Directory:</strong> /mnt/data</div>
+                        {% if upload_result.sizeInBytes is defined %}
+                            <div class="message-detail"><strong>Size:</strong> {{ upload_result.sizeInBytes }} bytes</div>
+                        {% endif %}
+                    </div>
+
+                {% elif execution_result is defined and execution_result %}
+                    <h3>Validated Analysis</h3>
+                    <div class="message-card card-completed">
+                        <div class="message-header">
+                            <span class="message-id">Execution {{ execution_result.id }}</span>
+                            <span class="tag tag-success">{{ execution_result.status }}</span>
+                        </div>
+                        <div class="message-detail"><strong>Duration:</strong> {{ execution_result.duration }} ms</div>
+                        <div class="summary-grid">
+                            <div><span>Months</span><strong>{{ execution_result.summary.months }}</strong></div>
+                            <div><span>Total requests</span><strong>{{ execution_result.summary.total_requests }}</strong></div>
+                            <div><span>Average</span><strong>{{ execution_result.summary.average_requests }}</strong></div>
+                            <div><span>Peak month</span><strong>{{ execution_result.summary.peak_month }}</strong></div>
+                        </div>
+                    </div>
+
+                {% elif file_results is defined %}
+                    <h3>Files in the Reused Session</h3>
+                    {% if file_results %}
+                        <div class="results-container" tabindex="0" role="region" aria-label="Session files">
+                            <table class="results-table">
+                                <caption class="sr-only">Files retained in the dynamic session</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Size</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for file in file_results %}
+                                        <tr>
+                                            <td>{{ file.name }}</td>
+                                            <td>{{ file.contentType or file.type }}</td>
+                                            <td>{{ file.sizeInBytes if file.sizeInBytes is defined else 'N/A' }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">No files are present in the session.</div>
+                    {% endif %}
+
+                {% elif expected_error is defined %}
+                    <h3>Expected Failure</h3>
+                    <div class="message-card card-dead-lettered">
+                        <div class="message-header">
+                            <span class="message-id">failing_payload.py</span>
+                            <span class="tag tag-error">failed</span>
+                        </div>
+                        <div class="message-detail"><strong>Reported error:</strong> {{ expected_error }}</div>
+                    </div>
+
+                {% else %}
+                    <div class="empty-state">
+                        Upload the sample data to allocate an isolated session and begin the workflow.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>
