@@ -40,6 +40,7 @@ To complete the exercise, you need:
 - [Python 3.12](https://www.python.org/downloads/) or greater.
 - The latest version of the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - A region that supports Azure Container Apps dynamic sessions.
+- **Optional:** The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) to format and lint the Python code you add during the exercise.
 
 ## Download project starter files and deploy a dynamic session pool
 
@@ -96,7 +97,7 @@ In this section you run the deployment script to create the session pool, assign
 
     When the operation succeeds, the script saves the resource group, pool name, management endpoint, and location to *.env* and *.env.ps1*.
 
-1. Enter **2** to select **Assign the session executor role**. This option assigns the **Azure ContainerApps Session Executor** role to your signed-in identity at the session pool scope. The role allows the client to execute code and exchange files using Microsoft Entra authentication.
+1. Enter **2** to select **Assign the session executor role**. This option checks whether your signed-in identity has the **Azure ContainerApps Session Executor** role at the session pool scope and assigns it when needed. The role allows the client to execute code and exchange files using Microsoft Entra authentication. If the script reports that the role is already assigned, continue to the next step.
 
 1. Enter **3** to select **Check deployment status**. Confirm that the session pool status is **Succeeded** and the executor role shows **Yes**.
 
@@ -122,7 +123,7 @@ In this section you add the Dynamic Sessions REST client code to *dynamic_sessio
 
 1. Open the *client/dynamic_sessions_functions.py* file to begin adding code.
 
-> **Tip:** Several code sections contain methods inside the **DynamicSessionClient** class. Make sure those methods remain indented four spaces so they align with the corresponding BEGIN and END markers.
+> **Tip:** Several code sections contain methods inside the **DynamicSessionClient** class. Make sure those methods remain indented so they align with the corresponding **BEGIN** and **END** markers.
 
 ### Add code to create the session client
 
