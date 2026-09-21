@@ -237,10 +237,11 @@ class DynamicSessionClient:
     # END MANAGE SESSION FILES CODE SECTION
 
     # BEGIN DELETE SESSION CODE SECTION
-    def delete_session(self) -> None:
+    def delete_session(self) -> int:
         """Immediately release the current dynamic session."""
         # The pool cooldown eventually removes idle sessions, but explicit
         # deletion releases capacity and temporary data as soon as work ends.
-        self._request("DELETE", "/session", timeout=(5, 15))
+        response = self._request("DELETE", "/session", timeout=(5, 15))
+        return response.status_code
 
     # END DELETE SESSION CODE SECTION

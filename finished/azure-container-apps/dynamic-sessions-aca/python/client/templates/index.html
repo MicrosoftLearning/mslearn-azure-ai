@@ -109,7 +109,15 @@
                             <span class="message-id">{{ upload_result.name or 'operational-data.csv' }}</span>
                             <span class="tag tag-success">uploaded</span>
                         </div>
+                        <div class="rest-summary">
+                            <strong>REST operation</strong>
+                            <code>POST /files</code>
+                        </div>
+                        <div class="message-detail"><strong>Session:</strong> {{ state.identifier }}</div>
                         <div class="message-detail"><strong>Directory:</strong> /mnt/data</div>
+                        {% if upload_result.contentType is defined %}
+                            <div class="message-detail"><strong>Content type:</strong> {{ upload_result.contentType }}</div>
+                        {% endif %}
                         {% if upload_result.sizeInBytes is defined %}
                             <div class="message-detail"><strong>Size:</strong> {{ upload_result.sizeInBytes }} bytes</div>
                         {% endif %}
@@ -122,7 +130,12 @@
                             <span class="message-id">Execution {{ execution_result.id }}</span>
                             <span class="tag tag-success">{{ execution_result.status }}</span>
                         </div>
+                        <div class="rest-summary">
+                            <strong>REST operation</strong>
+                            <code>POST /executions</code>
+                        </div>
                         <div class="message-detail"><strong>Duration:</strong> {{ execution_result.duration }} ms</div>
+                        <div class="message-detail"><strong>stderr:</strong> {{ execution_result.stderr or 'Empty' }}</div>
                         <div class="summary-grid">
                             <div><span>Months</span><strong>{{ execution_result.summary.months }}</strong></div>
                             <div><span>Total requests</span><strong>{{ execution_result.summary.total_requests }}</strong></div>
@@ -133,6 +146,11 @@
 
                 {% elif file_results is defined %}
                     <h3>Files in the Reused Session</h3>
+                    <div class="rest-summary">
+                        <strong>REST operation</strong>
+                        <code>GET /files</code>
+                        <span>{{ file_results | length }} file(s)</span>
+                    </div>
                     {% if file_results %}
                         <div class="results-container" tabindex="0" role="region" aria-label="Session files">
                             <table class="results-table">
@@ -166,7 +184,48 @@
                             <span class="message-id">Inline failure test</span>
                             <span class="tag tag-error">failed</span>
                         </div>
+                        <div class="rest-summary">
+                            <strong>REST operation</strong>
+                            <code>POST /executions</code>
+                        </div>
+                        <div class="message-detail">
+                            <strong>REST request:</strong> Completed
+                        </div>
+                        <div class="message-detail">
+                            <strong>Code execution:</strong> Failed
+                        </div>
                         <div class="message-detail"><strong>Reported error:</strong> {{ expected_error }}</div>
+                    </div>
+
+                {% elif download_result is defined and download_result %}
+                    <h3>Downloaded Artifact</h3>
+                    <div class="message-card card-completed">
+                        <div class="message-header">
+                            <span class="message-id">{{ download_result.name }}</span>
+                            <span class="tag tag-success">downloaded</span>
+                        </div>
+                        <div class="rest-summary">
+                            <strong>REST operation</strong>
+                            <code>GET /files/trend.svg/content</code>
+                        </div>
+                        <div class="message-detail"><strong>Content type:</strong> {{ download_result.content_type }}</div>
+                        <div class="message-detail"><strong>Size:</strong> {{ download_result.size }} bytes</div>
+                        <div class="message-detail"><strong>Session:</strong> Reused the active session</div>
+                    </div>
+
+                {% elif delete_result is defined and delete_result %}
+                    <h3>Session Deleted</h3>
+                    <div class="message-card card-completed">
+                        <div class="message-header">
+                            <span class="message-id">{{ delete_result.identifier }}</span>
+                            <span class="tag tag-success">released</span>
+                        </div>
+                        <div class="rest-summary">
+                            <strong>REST operation</strong>
+                            <code>DELETE /session</code>
+                        </div>
+                        <div class="message-detail"><strong>HTTP status:</strong> {{ delete_result.status_code }} No Content</div>
+                        <div class="message-detail">Temporary data and session capacity were released before the cooldown expired.</div>
                     </div>
 
                 {% else %}

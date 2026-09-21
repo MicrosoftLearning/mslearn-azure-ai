@@ -129,9 +129,10 @@ class DynamicSessionClientTests(unittest.TestCase):
     def test_delete_uses_current_session_api(self) -> None:
         self.http.request.return_value = response_with(status_code=204)
 
-        self.client.delete_session()
+        status_code = self.client.delete_session()
 
         method, url = self.http.request.call_args.args
+        self.assertEqual(status_code, 204)
         self.assertEqual(method, "DELETE")
         self.assertTrue(url.endswith("/session"))
         self.assertEqual(

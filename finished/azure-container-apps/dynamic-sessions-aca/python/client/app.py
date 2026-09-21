@@ -138,6 +138,7 @@ def execute():
                 "id": execution.get("id", ""),
                 "status": execution.get("status", ""),
                 "duration": result.get("executionTimeInMilliseconds", 0),
+                "stderr": result.get("stderr", ""),
                 "summary": summary,
             }
         )
@@ -174,10 +175,18 @@ def download():
         with workflow.lock:
             if not workflow.files_listed:
                 raise ValueError("List the session files before downloading the chart")
-            workflow.download_content = require_client().download_file("trend.svg")
+            content = require_client().download_file("trend.svg")
+            workflow.download_content = content
             workflow.downloaded = True
         flash("Downloaded trend.svg from the reused session.", "success")
-        return render_index(download_ready=True)
+        return render_index(
+            download_ready=True,
+            download_result={
+                "name": "trend.svg",
+                "content_type": "image/svg+xml",
+                "size": len(content),
+            },
+        )
     except (DynamicSessionError, ValueError) as error:
         flash(f"Error downloading generated chart: {error}", "error")
         return redirect(url_for("index"))
@@ -223,12 +232,19 @@ def delete():
     """Delete the active session and clear local workflow state."""
     try:
         with workflow.lock:
-            require_client().delete_session()
+            identifier = workflow.view()["identifier"]
+            status_code = require_client().delete_session()
             workflow.reset()
         flash("Deleted the dynamic session and released its resources.", "success")
+        return render_index(
+            delete_result={
+                "identifier": identifier,
+                "status_code": status_code,
+            }
+        )
     except (DynamicSessionError, ValueError) as error:
         flash(f"Error deleting the session: {error}", "error")
-    return redirect(url_for("index"))
+        return redirect(url_for("index"))
 
 
 if __name__ == "__main__":

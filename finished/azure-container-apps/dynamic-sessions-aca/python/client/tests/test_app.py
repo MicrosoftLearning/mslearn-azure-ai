@@ -18,7 +18,7 @@ class FakeSessionClient:
     def upload_file(self, file_path: Path) -> dict[str, object]:
         return {"name": file_path.name, "sizeInBytes": 42}
 
-    def execute_code(self, code: str) -> dict[str, object]:
+    def execute_code(self, _code: str) -> dict[str, object]:
         return {
             "id": "execution-1",
             "status": "Succeeded",
@@ -34,11 +34,11 @@ class FakeSessionClient:
             {"name": "trend.svg", "type": "file"},
         ]
 
-    def download_file(self, file_name: str) -> bytes:
+    def download_file(self, _file_name: str) -> bytes:
         return b"<svg/>"
 
-    def delete_session(self) -> None:
-        return None
+    def delete_session(self) -> int:
+        return 204
 
 
 class WorkflowProgressTests(unittest.TestCase):
@@ -113,6 +113,11 @@ class WorkflowProgressTests(unittest.TestCase):
         response = self.client.get("/download-content")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, b"<svg/>")
+
+        response = self.client.post("/delete")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("204 No Content", response.get_data(as_text=True))
+        self.assertIsNone(workflow.client)
 
 
 if __name__ == "__main__":
