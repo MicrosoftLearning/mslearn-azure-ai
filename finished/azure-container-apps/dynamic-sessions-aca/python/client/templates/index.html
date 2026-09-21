@@ -18,23 +18,46 @@
                 <p>Run each step to keep data, code, and generated artifacts in the same isolated session.</p>
                 <div class="workflow-actions">
                     <form action="/upload" method="post">
-                        <button type="submit" class="btn-primary">1. Upload Sample Data</button>
+                        <button type="submit"
+                                class="step-button {{ 'step-completed' if state.uploaded else 'step-current' }}"
+                                {% if not state.uploaded %}aria-current="step"{% endif %}>
+                            <span>1. Upload Sample Data</span>
+                            <span class="step-status">{{ 'Completed' if state.uploaded else 'Next' }}</span>
+                        </button>
                     </form>
                     <form action="/execute" method="post">
-                        <button type="submit" class="btn-success" {% if not state.uploaded %}disabled{% endif %}>
-                            2. Execute Analysis
+                        <button type="submit"
+                                class="step-button {% if state.executed %}step-completed{% elif state.uploaded %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.uploaded and not state.executed %}aria-current="step"{% endif %}
+                                {% if not state.uploaded %}disabled{% endif %}>
+                            <span>2. Execute Analysis</span>
+                            <span class="step-status">
+                                {% if state.executed %}Completed{% elif state.uploaded %}Next{% else %}Pending{% endif %}
+                            </span>
                         </button>
                     </form>
                     <form action="/files" method="post">
-                        <button type="submit" class="btn-primary" {% if not state.active %}disabled{% endif %}>
-                            3. List Session Files
+                        <button type="submit"
+                                class="step-button {% if state.files_listed %}step-completed{% elif state.executed %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.executed and not state.files_listed %}aria-current="step"{% endif %}
+                                {% if not state.executed %}disabled{% endif %}>
+                            <span>3. List Session Files</span>
+                            <span class="step-status">
+                                {% if state.files_listed %}Completed{% elif state.executed %}Next{% else %}Pending{% endif %}
+                            </span>
                         </button>
                     </form>
-                    <a class="button-link btn-success {% if not state.executed %}disabled{% endif %}"
-                       href="{{ url_for('download') }}"
-                       {% if not state.executed %}aria-disabled="true" tabindex="-1"{% endif %}>
-                        4. Download Generated Chart
-                    </a>
+                    <form action="/download" method="post">
+                        <button type="submit"
+                                class="step-button {% if state.downloaded %}step-completed{% elif state.files_listed %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.files_listed and not state.downloaded %}aria-current="step"{% endif %}
+                                {% if not state.files_listed %}disabled{% endif %}>
+                            <span>4. Download Generated Chart</span>
+                            <span class="step-status">
+                                {% if state.downloaded %}Completed{% elif state.files_listed %}Next{% else %}Pending{% endif %}
+                            </span>
+                        </button>
+                    </form>
                 </div>
             </section>
 
@@ -61,6 +84,8 @@
                     <div><dt>Session</dt><dd>{{ state.identifier or 'Not allocated' }}</dd></div>
                     <div><dt>Data uploaded</dt><dd>{{ 'Yes' if state.uploaded else 'No' }}</dd></div>
                     <div><dt>Analysis completed</dt><dd>{{ 'Yes' if state.executed else 'No' }}</dd></div>
+                    <div><dt>Files listed</dt><dd>{{ 'Yes' if state.files_listed else 'No' }}</dd></div>
+                    <div><dt>Chart downloaded</dt><dd>{{ 'Yes' if state.downloaded else 'No' }}</dd></div>
                 </dl>
                 <p class="security-note">Only a shortened identifier is shown. The full value remains server-side.</p>
             </section>
@@ -138,7 +163,7 @@
                     <h3>Expected Failure</h3>
                     <div class="message-card card-dead-lettered">
                         <div class="message-header">
-                            <span class="message-id">failing_payload.py</span>
+                            <span class="message-id">Inline failure test</span>
                             <span class="tag tag-error">failed</span>
                         </div>
                         <div class="message-detail"><strong>Reported error:</strong> {{ expected_error }}</div>
@@ -152,5 +177,14 @@
             </section>
         </div>
     </main>
+
+    {% if download_ready is defined and download_ready %}
+        <a id="prepared-download" class="sr-only"
+           href="{{ url_for('download_content') }}" download
+           aria-hidden="true" tabindex="-1">Download trend.svg</a>
+        <script>
+            document.getElementById("prepared-download").click();
+        </script>
+    {% endif %}
 </body>
 </html>

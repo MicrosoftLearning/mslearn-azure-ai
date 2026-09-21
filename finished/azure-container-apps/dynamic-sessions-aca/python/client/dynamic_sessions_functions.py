@@ -30,12 +30,29 @@ class CodeExecutionError(DynamicSessionError):
     """Raised when code finishes with a failed execution status."""
 
 
+# BEGIN CREATE SESSION CLIENT CODE SECTION
 def get_session_client() -> "DynamicSessionClient":
     """Create a client from the session pool endpoint in the environment."""
     endpoint = os.environ.get("SESSION_POOL_ENDPOINT", "").strip()
     if not endpoint:
         raise ValueError("SESSION_POOL_ENDPOINT environment variable must be set")
-    return DynamicSessionClient(endpoint)
+
+    # The backend creates the identifier instead of accepting one from the
+    # browser. Reusing this unpredictable value keeps related operations in the
+    # same session without letting a user target another session.
+    identifier = str(uuid4())
+
+    # DefaultAzureCredential uses developer credentials locally and can use a
+    # managed identity after the application is hosted in Azure.
+    credential = DefaultAzureCredential()
+    return DynamicSessionClient(
+        endpoint,
+        credential=credential,
+        identifier=identifier,
+    )
+
+
+# END CREATE SESSION CLIENT CODE SECTION
 
 
 class DynamicSessionClient:
@@ -57,15 +74,22 @@ class DynamicSessionClient:
         self.credential = credential or DefaultAzureCredential()
         self.http = http_session or requests.Session()
 
+    # BEGIN AUTHENTICATE SESSION REQUESTS CODE SECTION
     def _headers(self) -> dict[str, str]:
+        # Request a token for the dynamic sessions audience on every operation.
+        # DefaultAzureCredential handles token caching and renewal.
         token = self.credential.get_token(TOKEN_SCOPE).token
         return {"Authorization": f"Bearer {token}"}
 
     def _params(self) -> dict[str, str]:
+        # The identifier routes every request to the same temporary environment.
+        # A request allocates the session automatically if it does not exist.
         return {
             "api-version": API_VERSION,
             "identifier": self.identifier,
         }
+
+    # END AUTHENTICATE SESSION REQUESTS CODE SECTION
 
     @staticmethod
     def _error_detail(response: requests.Response) -> str:
@@ -126,9 +150,11 @@ class DynamicSessionClient:
             )
         return body
 
-    # BEGIN UPLOAD FILE FUNCTION
+    # BEGIN UPLOAD SESSION FILE CODE SECTION
     def upload_file(self, file_path: Path) -> dict[str, Any]:
         """Upload a local file into the session's /mnt/data directory."""
+        # The service stores uploaded files in /mnt/data. Analysis code sent
+        # with the same identifier can access the file without another upload.
         with file_path.open("rb") as source:
             response = self._request(
                 "POST",
@@ -138,11 +164,13 @@ class DynamicSessionClient:
             )
         return self._json_object(response)
 
-    # END UPLOAD FILE FUNCTION
+    # END UPLOAD SESSION FILE CODE SECTION
 
-    # BEGIN EXECUTE CODE FUNCTION
+    # BEGIN EXECUTE CODE AND CHECK RESULT CODE SECTION
     def execute_code(self, code: str) -> dict[str, Any]:
         """Execute Python code synchronously and verify its final status."""
+        # The code runs in the isolated interpreter session, not in the Flask
+        # process. The backend must still authorize and validate the task.
         response = self._request(
             "POST",
             "/executions",
@@ -156,6 +184,9 @@ class DynamicSessionClient:
             timeout=(5, 90),
         )
         execution = self._json_object(response)
+
+        # A successful HTTP request only proves that the service accepted and
+        # ran the operation. Python can still raise an execution-level error.
         if execution.get("status") != "Succeeded":
             result = execution.get("result")
             stderr = result.get("stderr") if isinstance(result, dict) else None
@@ -171,11 +202,13 @@ class DynamicSessionClient:
             )
         return execution
 
-    # END EXECUTE CODE FUNCTION
+    # END EXECUTE CODE AND CHECK RESULT CODE SECTION
 
-    # BEGIN MANAGE SESSION FILES FUNCTIONS
+    # BEGIN MANAGE SESSION FILES CODE SECTION
     def list_files(self) -> list[dict[str, Any]]:
         """List files retained in the current session."""
+        # The same identifier used for upload and execution exposes both the
+        # original input and artifacts created by the generated code.
         response = self._request("GET", "/files", timeout=(5, 15))
         body = self._json_object(response)
         files = body.get("value", [])
@@ -189,6 +222,8 @@ class DynamicSessionClient:
 
     def download_file(self, file_name: str) -> bytes:
         """Download one file from the current session."""
+        # Reject directory components before placing the name in the URL. This
+        # keeps file retrieval within the session's managed data directory.
         if Path(file_name).name != file_name:
             raise ValueError("A file name without a directory is required")
         safe_name = quote(file_name, safe="")
@@ -199,11 +234,13 @@ class DynamicSessionClient:
         )
         return response.content
 
-    # END MANAGE SESSION FILES FUNCTIONS
+    # END MANAGE SESSION FILES CODE SECTION
 
-    # BEGIN DELETE SESSION FUNCTION
+    # BEGIN DELETE SESSION CODE SECTION
     def delete_session(self) -> None:
         """Immediately release the current dynamic session."""
+        # The pool cooldown eventually removes idle sessions, but explicit
+        # deletion releases capacity and temporary data as soon as work ends.
         self._request("DELETE", "/session", timeout=(5, 15))
 
-    # END DELETE SESSION FUNCTION
+    # END DELETE SESSION CODE SECTION

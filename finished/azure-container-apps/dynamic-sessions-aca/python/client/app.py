@@ -25,7 +25,7 @@ app.secret_key = os.urandom(24)
 CLIENT_DIR = Path(__file__).resolve().parent
 DATA_FILE = CLIENT_DIR / "operational-data.csv"
 ANALYSIS_PAYLOAD = CLIENT_DIR / "analysis_payload.py"
-FAILING_PAYLOAD = CLIENT_DIR / "failing_payload.py"
+FAILING_CODE = 'raise RuntimeError("Supplied analysis failed")'
 EXPECTED_SUMMARY = {
     "months": 4,
     "total_requests": 1000,
@@ -42,6 +42,9 @@ class WorkflowState:
         self.client: DynamicSessionClient | None = None
         self.uploaded = False
         self.executed = False
+        self.files_listed = False
+        self.downloaded = False
+        self.download_content: bytes | None = None
         self.lock = threading.Lock()
 
     def view(self) -> dict[str, Any]:
@@ -51,12 +54,17 @@ class WorkflowState:
             "identifier": f"{identifier[:8]}..." if identifier else "",
             "uploaded": self.uploaded,
             "executed": self.executed,
+            "files_listed": self.files_listed,
+            "downloaded": self.downloaded,
         }
 
     def reset(self) -> None:
         self.client = None
         self.uploaded = False
         self.executed = False
+        self.files_listed = False
+        self.downloaded = False
+        self.download_content = None
 
 
 workflow = WorkflowState()
@@ -89,6 +97,10 @@ def upload():
                 workflow.client = get_session_client()
             metadata = workflow.client.upload_file(DATA_FILE)
             workflow.uploaded = True
+            workflow.executed = False
+            workflow.files_listed = False
+            workflow.downloaded = False
+            workflow.download_content = None
         flash("Uploaded operational-data.csv to a new isolated session.", "success")
         return render_index(upload_result=metadata)
     except (DynamicSessionError, OSError, ValueError) as error:
@@ -116,6 +128,9 @@ def execute():
             if summary != EXPECTED_SUMMARY:
                 raise ValueError(f"Unexpected analysis result: {summary}")
             workflow.executed = True
+            workflow.files_listed = False
+            workflow.downloaded = False
+            workflow.download_content = None
 
         flash("The supplied analysis ran and returned the expected result.", "success")
         return render_index(
@@ -141,7 +156,10 @@ def list_session_files():
     """List artifacts retained by the active session."""
     try:
         with workflow.lock:
+            if not workflow.executed:
+                raise ValueError("Run the analysis before listing session files")
             files = require_client().list_files()
+            workflow.files_listed = True
         flash(f"Found {len(files)} file(s) in the reused session.", "success")
         return render_index(file_results=files)
     except (DynamicSessionError, ValueError) as error:
@@ -149,23 +167,36 @@ def list_session_files():
         return redirect(url_for("index"))
 
 
-@app.route("/download")
+@app.route("/download", methods=["POST"])
 def download():
-    """Download the generated chart without rendering untrusted SVG inline."""
+    """Prepare the generated chart and mark the workflow step complete."""
     try:
         with workflow.lock:
-            if not workflow.executed:
-                raise ValueError("Run the analysis before downloading its chart")
-            content = require_client().download_file("trend.svg")
-        return send_file(
-            BytesIO(content),
-            mimetype="image/svg+xml",
-            as_attachment=True,
-            download_name="trend.svg",
-        )
+            if not workflow.files_listed:
+                raise ValueError("List the session files before downloading the chart")
+            workflow.download_content = require_client().download_file("trend.svg")
+            workflow.downloaded = True
+        flash("Downloaded trend.svg from the reused session.", "success")
+        return render_index(download_ready=True)
     except (DynamicSessionError, ValueError) as error:
         flash(f"Error downloading generated chart: {error}", "error")
         return redirect(url_for("index"))
+
+
+@app.route("/download-content")
+def download_content():
+    """Send the prepared chart as an attachment."""
+    with workflow.lock:
+        content = workflow.download_content
+    if content is None:
+        flash("Prepare the generated chart before downloading it.", "error")
+        return redirect(url_for("index"))
+    return send_file(
+        BytesIO(content),
+        mimetype="image/svg+xml",
+        as_attachment=True,
+        download_name="trend.svg",
+    )
 
 
 @app.route("/test-failure", methods=["POST"])
@@ -174,16 +205,15 @@ def test_failure():
     try:
         with workflow.lock:
             client = require_client()
-            code = FAILING_PAYLOAD.read_text(encoding="utf-8")
             try:
-                client.execute_code(code)
+                client.execute_code(FAILING_CODE)
             except CodeExecutionError as error:
                 expected_error = str(error)
             else:
                 raise ValueError("The failing payload appeared successful")
         flash("The expected execution failure was detected.", "success")
         return render_index(expected_error=expected_error)
-    except (DynamicSessionError, OSError, ValueError) as error:
+    except (DynamicSessionError, ValueError) as error:
         flash(f"Error testing the failure path: {error}", "error")
         return redirect(url_for("index"))
 

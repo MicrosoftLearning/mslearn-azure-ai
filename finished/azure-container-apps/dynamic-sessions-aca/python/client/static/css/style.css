@@ -74,6 +74,10 @@ h3 {
     gap: 8px;
 }
 
+.workflow-actions form {
+    margin: 0;
+}
+
 .button-group {
     display: flex;
     flex-wrap: wrap;
@@ -88,6 +92,48 @@ h3 {
 .button-group button,
 .workflow-actions button {
     width: 100%;
+}
+
+.step-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.step-current {
+    background: #0078d4;
+    color: white;
+}
+
+.step-current:hover,
+.step-current:focus {
+    background: #106ebe;
+}
+
+.step-completed {
+    background: #107c10;
+    color: white;
+}
+
+.step-completed:hover,
+.step-completed:focus {
+    background: #0b5c0b;
+}
+
+.step-pending {
+    background: #c8c6c4;
+    color: #323130;
+}
+
+.step-status {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    text-transform: uppercase;
 }
 
 button,
@@ -114,7 +160,7 @@ button:focus,
 button:disabled,
 .button-link.disabled {
     background: #c8c6c4;
-    color: #605e5c;
+    color: #323130;
     cursor: not-allowed;
 }
 
