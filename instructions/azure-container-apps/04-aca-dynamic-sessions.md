@@ -363,11 +363,11 @@ In this section you run the completed Flask app and follow the dynamic session w
 
 1. Open a browser and navigate to `http://localhost:5000`.
 
-1. Select **1. Upload Sample Data**. The app generates a secure identifier and calls **POST /files**, which automatically allocates a session and uploads *operational-data.csv* to */mnt/data*.
+1. Select **1. Upload Sample Data**. The app generates a secure identifier and calls **POST /files**, which automatically allocates a session and uploads *operational-data.csv* to */mnt/data*. This establishes the application-controlled session identity that routes later operations to the same isolated environment.
 
     Confirm that step 1 changes to **Completed**, step 2 changes to **Next**, and the results show the shortened session identifier and uploaded file metadata.
 
-1. Select **2. Execute Analysis**. The app reads *analysis_payload.py*, sends it to **POST /executions**, verifies the execution status, and validates the JSON written to standard output.
+1. Select **2. Execute Analysis**. The app reads *analysis_payload.py*, sends it to **POST /executions**, verifies the execution status, and validates the JSON written to standard output. This demonstrates the main security boundary: AI-generated code runs in the isolated session instead of the Flask application process.
 
     Confirm that the results show a **Succeeded** status, the execution duration, and the following summary:
 
@@ -376,21 +376,21 @@ In this section you run the completed Flask app and follow the dynamic session w
     - An average of 250 requests
     - April as the peak month
 
-1. Select **3. List Session Files**. The app calls **GET /files** using the same session identifier.
+1. Select **3. List Session Files**. The app calls **GET /files** using the same session identifier. This verifies that the identifier preserves session state across separate REST operations.
 
-    Confirm that the results include both *operational-data.csv* and *trend.svg*. Their presence demonstrates that related operations reused the same temporary environment.
+    Confirm that the results include both *operational-data.csv* and *trend.svg*. The generated chart shows that execution output persisted alongside the uploaded input.
 
-1. Select **4. Download Generated Chart**. The app calls **GET /files/trend.svg/content**, reports the content type and byte count, and downloads *trend.svg* to your browser's download location.
+1. Select **4. Download Generated Chart**. The app calls **GET /files/trend.svg/content**, reports the content type and byte count, and downloads *trend.svg* to your browser's download location. This demonstrates how an application can retrieve an artifact produced by executed code without exposing the session file system directly.
 
     Confirm that every workflow step now shows **Completed**. Open *trend.svg* and verify that the chart contains four bars with increasing heights.
 
-1. Select **Test Failure Handling**. The app submits a small payload that raises a Python exception.
+1. Select **Test Failure Handling**. The app submits a small payload that raises a Python exception. This tests the difference between a successful REST exchange and unsuccessful code execution inside the session.
 
-    Confirm that the results distinguish a completed REST request from a failed code execution and display the expected **RuntimeError**. This demonstrates why the client checks both the HTTP response and execution status.
+    Confirm that the REST request completed but the execution status reports failure and displays the expected **RuntimeError**.
 
-1. Select **Delete Session**. The app calls **DELETE /session**, clears the local workflow state, and resets the workflow actions.
+1. Select **Delete Session**. The app calls **DELETE /session**, clears the local workflow state, and resets the workflow actions. This demonstrates explicit session lifecycle management instead of waiting for the idle cooldown.
 
-    Confirm that the result shows **204 No Content** and explains that the temporary data and session capacity were released before the idle cooldown expired.
+    Confirm that the result shows **204 No Content**, the temporary data and session capacity were released, and the workflow actions reset.
 
 # Clean up resources
 
