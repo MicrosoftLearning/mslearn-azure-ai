@@ -111,15 +111,13 @@ In this section you add code to the *service_bus_functions.py* file to complete 
 
 1. Open the *client/service_bus_functions.py* file to begin adding code.
 
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
 ### Add code to send messages to the queue
 
 In this section, you add code to send three messages to the queue. Two messages have valid JSON payloads representing inference requests, and one has intentionally malformed JSON to simulate a processing failure that demonstrates the dead-letter queue.
 
 The function opens a **ServiceBusClient** using **DefaultAzureCredential** and creates a queue sender with **get_queue_sender()**. It constructs three **ServiceBusMessage** objects, each with a **message_id** for deduplication, a **correlation_id** for tracking, and **application_properties** for custom metadata. Two messages contain valid JSON payloads and one contains intentionally malformed JSON. The **send_messages()** method sends each message individually to the queue.
 
-> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Locate the **# BEGIN SEND MESSAGES FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
