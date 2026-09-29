@@ -132,9 +132,13 @@ echo "Installing VS Code extensions..."
 # Install extensions for the current user (run as the non-root user if possible)
 if [[ -n "$SUDO_USER" ]]; then
     sudo -u "$SUDO_USER" code --install-extension ms-python.python
+    sudo -u "$SUDO_USER" code --install-extension charliermarsh.ruff
+    sudo -u "$SUDO_USER" code --install-extension redhat.vscode-yaml
     sudo -u "$SUDO_USER" code --install-extension ms-azuretools.vscode-azurefunctions
 else
     code --install-extension ms-python.python
+    code --install-extension charliermarsh.ruff
+    code --install-extension redhat.vscode-yaml
     code --install-extension ms-azuretools.vscode-azurefunctions
 fi
 
