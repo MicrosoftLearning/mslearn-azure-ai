@@ -26,7 +26,7 @@ Tasks performed in this exercise:
 - Build bounded context from recent and durable memory
 - Run the Flask app and complete the persistent-memory workflow
 
-This exercise takes approximately **45** minutes to complete.
+This exercise takes approximately **30** minutes to complete.
 
 ## Before you start
 
