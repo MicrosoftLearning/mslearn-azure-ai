@@ -4,7 +4,7 @@ lab:
   title: Build persistent memory for an AI assistant on Azure Cosmos DB for NoSQL
   description: Learn how to store conversation history and durable user preferences in Azure Cosmos DB for NoSQL and assemble bounded context for an AI assistant.
   level: 300
-  duration: 45
+  duration: 30
   islab: true
   primarytopics:
     - Azure
