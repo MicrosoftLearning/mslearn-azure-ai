@@ -1,7 +1,12 @@
 """Offline tests for the persistent-memory exercise application."""
 
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
+CLIENT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(CLIENT_DIR))
 
 import app as app_module
 import memory_functions

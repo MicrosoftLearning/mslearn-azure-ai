@@ -97,6 +97,11 @@
       "name": "cosmosdb-optimize-query-python.zip"
     },
     {
+      "source": "starter/cosmosdb/persistant-agent-memory/python",
+      "output": "downloads/python",
+      "name": "cosmosdb-persistant-agent-memory-python.zip"
+    },
+    {
       "source": "starter/integrate-services/service-bus/python",
       "output": "downloads/python",
       "name": "service-bus-python.zip"
