@@ -10,7 +10,6 @@ from azure.core.exceptions import AzureError
 from flask import Flask, flash, redirect, render_template, url_for
 from memory_functions import (
     build_agent_context,
-    create_memory_container,
     retrieve_active_thread,
     retrieve_durable_memory,
     store_conversation_turns,
@@ -23,7 +22,6 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
 WORKFLOW_STEPS = [
-    ("container_ready", "set up the memory container"),
     ("turns_stored", "store the conversation turns"),
     ("preference_stored", "store the durable preference"),
     ("thread_retrieved", "retrieve the active thread"),
@@ -94,17 +92,6 @@ def index() -> str:
     return render_index()
 
 
-@app.route("/setup-container", methods=["POST"])
-def setup_container() -> Any:
-    """Create the memory container with hierarchical partitioning and TTL."""
-    return _run_action(
-        create_memory_container,
-        "container_result",
-        "Memory container is ready.",
-        "container_ready",
-    )
-
-
 @app.route("/store-turns", methods=["POST"])
 def store_turns() -> Any:
     """Store sample turns from two conversation threads."""
@@ -113,7 +100,6 @@ def store_turns() -> Any:
         "turns_result",
         "Conversation turns stored.",
         "turns_stored",
-        "container_ready",
     )
 
 

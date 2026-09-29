@@ -4,10 +4,9 @@ import os
 from copy import deepcopy
 from typing import Any
 
-from azure.cosmos import CosmosClient, PartitionKey
+from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
 
-DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 30
 TENANT_ID = "contoso"
 USER_ID = "user-42"
 ACTIVE_THREAD_ID = "thread-model-endpoint"
@@ -95,30 +94,6 @@ def get_container() -> Any:
     """Return the configured memory container."""
     container_name = _required_env("COSMOS_CONTAINER")
     return get_database().get_container_client(container_name)
-
-
-# BEGIN CREATE MEMORY CONTAINER FUNCTION
-def create_memory_container() -> dict[str, Any]:
-    """Create the hierarchical memory container if it does not exist."""
-    database = get_database()
-    container_name = _required_env("COSMOS_CONTAINER")
-    container = database.create_container_if_not_exists(
-        id=container_name,
-        partition_key=PartitionKey(
-            path=["/tenantId", "/threadId"],
-            kind="MultiHash",
-        ),
-        default_ttl=DEFAULT_TTL_SECONDS,
-    )
-    properties = container.read()
-    return {
-        "id": properties["id"],
-        "partition_key_paths": properties["partitionKey"]["paths"],
-        "default_ttl": properties["defaultTtl"],
-    }
-
-
-# END CREATE MEMORY CONTAINER FUNCTION
 
 
 def _request_charge(response: Any) -> float:

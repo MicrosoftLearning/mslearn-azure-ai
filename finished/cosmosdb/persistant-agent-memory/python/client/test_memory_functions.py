@@ -1,6 +1,5 @@
 """Offline tests for the persistent-memory exercise application."""
 
-import os
 import unittest
 from unittest.mock import patch
 
@@ -51,42 +50,7 @@ class FakeContainer:
         ]
 
 
-class FakeCreatedContainer:
-    def read(self) -> dict:
-        return {
-            "id": "memories",
-            "partitionKey": {"paths": ["/tenantId", "/threadId"]},
-            "defaultTtl": memory_functions.DEFAULT_TTL_SECONDS,
-        }
-
-
-class FakeDatabase:
-    def __init__(self) -> None:
-        self.create_kwargs: dict = {}
-
-    def create_container_if_not_exists(self, **kwargs) -> FakeCreatedContainer:
-        self.create_kwargs = kwargs
-        return FakeCreatedContainer()
-
-
 class MemoryFunctionTests(unittest.TestCase):
-    def test_container_uses_hierarchical_partitioning_and_default_ttl(self) -> None:
-        database = FakeDatabase()
-        with (
-            patch.object(memory_functions, "get_database", return_value=database),
-            patch.dict(os.environ, {"COSMOS_CONTAINER": "memories"}),
-        ):
-            result = memory_functions.create_memory_container()
-
-        self.assertEqual(
-            result["partition_key_paths"],
-            ["/tenantId", "/threadId"],
-        )
-        self.assertEqual(
-            database.create_kwargs["default_ttl"],
-            memory_functions.DEFAULT_TTL_SECONDS,
-        )
-
     def test_sample_writes_are_stable_and_preference_is_durable(self) -> None:
         container = FakeContainer()
         with patch.object(memory_functions, "get_container", return_value=container):
@@ -174,35 +138,34 @@ class FlaskRouteTests(unittest.TestCase):
         response = self.client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"1. Set Up Memory Container", response.data)
+        self.assertIn(b"1. Store Conversation Turns", response.data)
         self.assertIn(b'aria-current="step"', response.data)
         self.assertEqual(response.data.count(b"Next"), 1)
-        self.assertEqual(response.data.count(b"Pending"), 5)
+        self.assertEqual(response.data.count(b"Pending"), 4)
 
     def test_out_of_order_route_is_rejected(self) -> None:
-        with patch.object(app_module, "store_conversation_turns") as store_turns:
-            response = self.client.post("/store-turns", follow_redirects=True)
+        with patch.object(app_module, "store_durable_preference") as store_preference:
+            response = self.client.post("/store-preference", follow_redirects=True)
 
-        store_turns.assert_not_called()
+        store_preference.assert_not_called()
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Complete the previous step", response.data)
 
-    def test_setup_route_renders_container_result(self) -> None:
+    def test_store_turns_route_advances_workflow(self) -> None:
         result = {
-            "id": "memories",
-            "partition_key_paths": ["/tenantId", "/threadId"],
-            "default_ttl": memory_functions.DEFAULT_TTL_SECONDS,
+            "stored_ids": ["turn-request-1001"],
+            "count": 1,
+            "request_charge": 1.0,
         }
-        with patch.object(app_module, "create_memory_container", return_value=result):
-            response = self.client.post("/setup-container")
+        with patch.object(app_module, "store_conversation_turns", return_value=result):
+            response = self.client.post("/store-turns")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"/tenantId, /threadId", response.data)
-        self.assertTrue(app_module.workflow.container_ready)
-        self.assertIn(b"2. Store Conversation Turns", response.data)
+        self.assertIn(b"turn-request-1001", response.data)
+        self.assertTrue(app_module.workflow.turns_stored)
+        self.assertIn(b"2. Store Durable Preference", response.data)
 
     def test_route_surfaces_configuration_errors(self) -> None:
-        app_module.workflow.container_ready = True
         with patch.object(
             app_module,
             "store_conversation_turns",
@@ -227,7 +190,6 @@ class FlaskRouteTests(unittest.TestCase):
             }
         ]
         for step in (
-            "container_ready",
             "turns_stored",
             "preference_stored",
             "thread_retrieved",

@@ -13,6 +13,7 @@ location = "eastus2"  # Azure region for the resources
 # =============================================================================
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -22,6 +23,8 @@ from pathlib import Path
 
 DATABASE_NAME = "agent-memory"
 CONTAINER_NAME = "memories"
+DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 30
+CONTAINER_API_VERSION = "2025-04-15"
 
 os.environ.setdefault("AZURE_CORE_ONLY_SHOW_ERRORS", "true")
 
@@ -259,6 +262,86 @@ def _create_account_resource(account_name: str) -> bool:
         print(f"  Still waiting... {waited} seconds elapsed")
 
 
+def _container_exists(account_name: str) -> bool:
+    return bool(
+        az_query(
+            [
+                "az",
+                "cosmosdb",
+                "sql",
+                "container",
+                "show",
+                "--resource-group",
+                rg,
+                "--account-name",
+                account_name,
+                "--database-name",
+                DATABASE_NAME,
+                "--name",
+                CONTAINER_NAME,
+                "--query",
+                "name",
+                "-o",
+                "tsv",
+            ]
+        )
+    )
+
+
+def _create_memory_container(account_name: str) -> bool:
+    if _container_exists(account_name):
+        print(f"Container already exists: {CONTAINER_NAME}")
+        return True
+
+    account_id = _account_id(account_name)
+    if not account_id:
+        print("Error: Unable to retrieve the Cosmos DB account ID.")
+        return False
+
+    container_url = (
+        f"{account_id}/sqlDatabases/{DATABASE_NAME}/containers/{CONTAINER_NAME}"
+        f"?api-version={CONTAINER_API_VERSION}"
+    )
+    container_body = json.dumps(
+        {
+            "properties": {
+                "resource": {
+                    "id": CONTAINER_NAME,
+                    "partitionKey": {
+                        "kind": "MultiHash",
+                        "paths": ["/tenantId", "/threadId"],
+                        "version": 2,
+                    },
+                    "defaultTtl": DEFAULT_TTL_SECONDS,
+                },
+                "options": {},
+            }
+        },
+        separators=(",", ":"),
+    )
+
+    print(f"Creating hierarchical container '{CONTAINER_NAME}'...")
+    if not run_quiet(
+        "Create hierarchical memory container",
+        [
+            "az",
+            "rest",
+            "--method",
+            "put",
+            "--url",
+            container_url,
+            "--body",
+            container_body,
+        ],
+    ):
+        return False
+
+    print(f"Container created: {CONTAINER_NAME}")
+    print("  Partition key paths: /tenantId, /threadId")
+    print(f"  Default TTL: {DEFAULT_TTL_SECONDS} seconds")
+    return True
+
+
 def create_cosmos_resources(account_name: str) -> bool:
     if not create_resource_group():
         return False
@@ -345,12 +428,11 @@ def create_cosmos_resources(account_name: str) -> bool:
             return False
         print(f"Database created: {DATABASE_NAME}")
 
+    if not _create_memory_container(account_name):
+        return False
+
     print()
     print("Use option 2 to configure Entra ID access.")
-    print(
-        "The client application creates the hierarchical "
-        f"'{CONTAINER_NAME}' container."
-    )
     return True
 
 
@@ -492,7 +574,7 @@ def configure_entra_access(account_name: str, user_object_id: str) -> bool:
     print()
     print(f"Entra ID access configured for: {user_upn}")
     print("  - Azure RBAC Contributor: manage the database")
-    print("  - Cosmos DB Data Contributor: create the container and read/write data")
+    print("  - Cosmos DB Data Contributor: read and write memory items")
     return True
 
 
@@ -527,32 +609,9 @@ def check_deployment_status(account_name: str, user_object_id: str) -> bool:
             "tsv",
         ]
     )
-    container = az_query(
-        [
-            "az",
-            "cosmosdb",
-            "sql",
-            "container",
-            "show",
-            "--resource-group",
-            rg,
-            "--account-name",
-            account_name,
-            "--database-name",
-            DATABASE_NAME,
-            "--name",
-            CONTAINER_NAME,
-            "--query",
-            "name",
-            "-o",
-            "tsv",
-        ]
-    )
+    container = _container_exists(account_name)
     print(f"  Database {DATABASE_NAME}: {'Created' if database else 'Not created'}")
-    print(
-        f"  Container {CONTAINER_NAME}: "
-        f"{'Created' if container else 'Not created (initialize it from the app)'}"
-    )
+    print(f"  Container {CONTAINER_NAME}: {'Created' if container else 'Not created'}")
 
     account_id = _account_id(account_name)
     azure_role = az_query(
@@ -592,6 +651,10 @@ def retrieve_connection_info(account_name: str, user_object_id: str) -> bool:
     if not _cosmos_role_assignment(account_name, user_object_id):
         print("Error: Entra ID data access is not configured for this account.")
         print("Please run option 2 to configure Entra ID access, then try again.")
+        return False
+    if not _container_exists(account_name):
+        print(f"Error: Cosmos DB container '{CONTAINER_NAME}' was not found.")
+        print("Please run option 1 to create the resources, then try again.")
         return False
 
     endpoint = az_query(
@@ -641,7 +704,7 @@ def show_menu(account_name: str) -> None:
     print(f"Account Name: {account_name}")
     print(f"Location: {location}")
     print("=====================================================================")
-    print("1. Create Cosmos DB account and database")
+    print("1. Create Cosmos DB account, database, and container")
     print("2. Configure Entra ID access")
     print("3. Check deployment status")
     print("4. Retrieve connection info")
