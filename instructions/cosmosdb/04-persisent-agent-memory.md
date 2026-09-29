@@ -121,7 +121,7 @@ In this section you add code to *client/memory_functions.py* to store conversati
 
 1. Open the *client/memory_functions.py* file in VS Code.
 
-> **Tip:** Paste each code block at the same indentation level as its matching **BEGIN** and **END** comments. If a block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to adjust the indentation.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 ### Add code to store conversation turns
 
