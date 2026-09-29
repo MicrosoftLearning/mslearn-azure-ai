@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Persistent Agent Memory - Azure Cosmos DB</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <main id="main-content" class="container">
+        <h1>Persistent Agent Memory - Azure Cosmos DB</h1>
+
+        <div class="left-panel">
+            <section class="section section-setup" aria-labelledby="setup-heading">
+                <h2 id="setup-heading">Set Up Memory</h2>
+                <p>Create a hierarchical memory container with a 30-day default time to live.</p>
+                <form action="/setup-container" method="post">
+                    <button type="submit" class="btn-primary">Set Up Memory Container</button>
+                </form>
+            </section>
+
+            <section class="section section-store" aria-labelledby="store-heading">
+                <h2 id="store-heading">Store Memory</h2>
+                <p>Store turns from two support threads, then preserve a durable coding preference.</p>
+                <div class="button-group">
+                    <form action="/store-turns" method="post">
+                        <button type="submit" class="btn-primary">Store Conversation Turns</button>
+                    </form>
+                    <form action="/store-preference" method="post">
+                        <button type="submit" class="btn-success">Store Durable Preference</button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="section section-retrieve" aria-labelledby="retrieve-heading">
+                <h2 id="retrieve-heading">Retrieve Memory</h2>
+                <p>Compare recent active-thread history with durable memory retrieved across threads.</p>
+                <div class="button-group">
+                    <form action="/retrieve-thread" method="post">
+                        <button type="submit" class="btn-primary">Retrieve Active Thread</button>
+                    </form>
+                    <form action="/retrieve-memory" method="post">
+                        <button type="submit" class="btn-success">Retrieve Durable Memory</button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="section section-context" aria-labelledby="context-heading">
+                <h2 id="context-heading">Build Context</h2>
+                <p>Combine bounded recent and durable memory for a new support request.</p>
+                <form action="/build-context" method="post">
+                    <button type="submit" class="btn-warning">Build Agent Context</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="right-panel">
+            <section class="section section-results" aria-live="polite"
+                     aria-atomic="true" aria-labelledby="results-heading">
+                <h2 id="results-heading">Results</h2>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endwith %}
+
+                {% if container_result is defined and container_result %}
+                    <h3>Memory Container</h3>
+                    <dl class="result-list">
+                        <div><dt>Container</dt><dd>{{ container_result.id }}</dd></div>
+                        <div>
+                            <dt>Partition paths</dt>
+                            <dd>{{ container_result.partition_key_paths | join(', ') }}</dd>
+                        </div>
+                        <div>
+                            <dt>Default TTL</dt>
+                            <dd>{{ container_result.default_ttl }} seconds</dd>
+                        </div>
+                    </dl>
+
+                {% elif turns_result is defined and turns_result %}
+                    <h3>Stored Conversation Turns</h3>
+                    <div class="results-container" tabindex="0" role="region"
+                         aria-label="Stored conversation turns">
+                        {% for id in turns_result.stored_ids %}
+                            <div class="message-card card-completed">
+                                <span class="message-id">{{ id }}</span>
+                                <span class="tag tag-success">stored</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <p class="result-summary">
+                        {{ turns_result.count }} turns, {{ "%.2f" | format(turns_result.request_charge) }} RU
+                    </p>
+
+                {% elif preference_result is defined and preference_result %}
+                    <h3>Stored Durable Preference</h3>
+                    <dl class="result-list">
+                        <div><dt>ID</dt><dd>{{ preference_result.id }}</dd></div>
+                        <div><dt>TTL</dt><dd>{{ preference_result.ttl }} (never expires)</dd></div>
+                        <div>
+                            <dt>Source turns</dt>
+                            <dd>{{ preference_result.source_turn_ids | join(', ') }}</dd>
+                        </div>
+                    </dl>
+
+                {% elif recent_turns is defined and recent_turns %}
+                    <h3>Active Thread</h3>
+                    <div class="results-container" tabindex="0" role="region"
+                         aria-label="Recent active-thread turns">
+                        {% for turn in recent_turns %}
+                            <article class="message-card card-completed">
+                                <div class="message-header">
+                                    <span class="message-id">{{ turn.id }}</span>
+                                    <time datetime="{{ turn.timestamp }}">{{ turn.timestamp }}</time>
+                                </div>
+                                <div class="message-detail">
+                                    <strong>User:</strong> {{ turn.content.userMessage }}
+                                </div>
+                                <div class="message-detail">
+                                    <strong>Assistant:</strong> {{ turn.content.assistantMessage }}
+                                </div>
+                            </article>
+                        {% endfor %}
+                    </div>
+
+                {% elif recent_turns is defined and not recent_turns %}
+                    <div class="empty-state">No turns found for the active thread.</div>
+
+                {% elif durable_memory is defined and durable_memory %}
+                    <h3>Durable Memory</h3>
+                    <div class="results-container" tabindex="0" role="region"
+                         aria-label="Durable cross-thread memory">
+                        {% for memory in durable_memory %}
+                            <article class="message-card card-completed">
+                                <div class="message-header">
+                                    <span class="message-id">{{ memory.id }}</span>
+                                    <span class="tag tag-success">durable</span>
+                                </div>
+                                <div class="message-detail">
+                                    <strong>{{ memory.content.name }}:</strong>
+                                    {{ memory.content.value }}
+                                </div>
+                                <div class="message-detail">
+                                    <strong>Source:</strong> {{ memory.sourceTurnIds | join(', ') }}
+                                </div>
+                            </article>
+                        {% endfor %}
+                    </div>
+
+                {% elif durable_memory is defined and not durable_memory %}
+                    <div class="empty-state">No durable memory found for the user.</div>
+
+                {% elif context_result is defined and context_result %}
+                    <h3>Bounded Agent Context</h3>
+                    <div class="query-info">
+                        <strong>Safety instruction:</strong> {{ context_result.instruction }}
+                    </div>
+                    <pre class="context-output" tabindex="0"
+                         aria-label="Constructed agent context">{{ context_result | tojson(indent=2) }}</pre>
+
+                {% else %}
+                    <div class="empty-state">
+                        Complete an action to inspect its memory result.
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>
