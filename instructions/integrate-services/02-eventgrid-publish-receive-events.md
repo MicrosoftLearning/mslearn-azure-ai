@@ -120,15 +120,13 @@ In this section you add code to the *event_grid_functions.py* file to complete t
 
 1. Open the *client/event_grid_functions.py* file to begin adding code.
 
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
 ### Add code to publish moderation events
 
 In this section, you add code to publish five content moderation events to the Event Grid namespace topic. The events use the CloudEvents v1.0 schema and represent different moderation outcomes — flagged content, approved content, and an escalated review — so you can observe how each subscription's event type filter determines which events it delivers.
 
 The function loads event definitions from the *moderation_events.json* file, which contains the CloudEvent envelope fields (**type**, **source**, **subject**) and **data** payload for each event. At publish time, the function adds a unique **id** and a current UTC **timestamp** to each event, then creates **CloudEvent** objects and publishes them with the **send()** method in a single request. The **EventGridPublisherClient** is constructed with a **namespace_topic** parameter that targets the namespace topic endpoint, and uses **DefaultAzureCredential** for Microsoft Entra authentication.
 
-> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Locate the **# BEGIN PUBLISH EVENTS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 

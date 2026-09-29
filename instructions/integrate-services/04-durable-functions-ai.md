@@ -68,7 +68,7 @@ In this section you add the Durable Functions code that coordinates document pro
 
 1. Open *function_app.py* in the Visual Studio Code Explorer sidebar.
 
->**Note:** Add each code block between its matching BEGIN and END comments. Some blocks are inside existing functions and must remain indented by four spaces.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 ### Add idempotent result persistence
 

@@ -123,7 +123,7 @@ In this section you add the Dynamic Sessions REST client code to *dynamic_sessio
 
 1. Open the *client/dynamic_sessions_functions.py* file to begin adding code.
 
-> **Tip:** Several code sections contain methods inside the **DynamicSessionClient** class. Make sure those methods remain indented so they align with the corresponding **BEGIN** and **END** markers.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 ### Add code to create the session client
 

@@ -103,6 +103,14 @@ Do not tag these fences with **bash** or **powershell** just because the student
 
 Both blocks belong to the same numbered step. Do not use prose like "If you use PowerShell, run the following command instead:" between the two blocks — the bold shell labels are the only separator needed.
 
+### Student Code Indentation Tip
+
+Before the first step where students paste code between **BEGIN** and **END** markers, include the following exact tip:
+
+```markdown
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
+```
+
 ### Section Introductions
 
 Each section (## heading) should begin with an introductory sentence that follows the pattern "In this section you..." followed by a clear explanation of what the student will accomplish and why.

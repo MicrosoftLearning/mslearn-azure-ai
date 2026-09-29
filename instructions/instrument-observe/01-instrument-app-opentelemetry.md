@@ -113,15 +113,13 @@ In this section you add code to the *telemetry_functions.py* file to complete th
 
 1. Open the *client/telemetry_functions.py* file to begin adding code.
 
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
 ### Add code to configure telemetry
 
 In this section you add code to configure the Azure Monitor OpenTelemetry Distro so the application exports traces to Application Insights. The function reads the connection string from an environment variable, creates a **DefaultAzureCredential** for Microsoft Entra authentication, and configures the Azure Monitor exporter. The credential excludes the managed identity provider because the app runs locally — without this setting, the credential chain would attempt to reach the Azure Instance Metadata Service on every telemetry export, and those failed HTTP calls would appear as noise in the Application Map.
 
 The function calls **configure_azure_monitor()** from the Azure Monitor OpenTelemetry Distro package. This single call configures the OpenTelemetry SDK with the Azure Monitor trace exporter and sets up automatic instrumentation for Flask requests. The **credential** parameter enables Entra-based authentication so the app publishes telemetry using the Monitoring Metrics Publisher role instead of the instrumentation key. The **OTEL_SERVICE_NAME** environment variable, set in the *.env* file by the deployment script, controls the **cloud.role.name** that appears on the Application Map.
 
-> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Locate the **# BEGIN CONFIGURE TELEMETRY FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 

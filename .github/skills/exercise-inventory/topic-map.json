@@ -106,6 +106,10 @@
         "optimize-query": {
           "starter_slug": "optimize-query",
           "instructions_file": "03-optimize-query-performance.md"
+        },
+        "persistant-agent-memory": {
+          "starter_slug": "persistant-agent-memory",
+          "instructions_file": "04-persisent-agent-memory.md"
         }
       }
     },

@@ -94,7 +94,7 @@ In this section you complete the *index_functions.py* file by adding the functio
 
 1. Open the *client/index_functions.py* file in VS Code.
 
-> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Search for the **BEGIN VECTOR SIMILARITY SEARCH FUNCTION** comment and add the following code directly after the comment. This function finds documents similar to the query and tracks performance metrics.
 

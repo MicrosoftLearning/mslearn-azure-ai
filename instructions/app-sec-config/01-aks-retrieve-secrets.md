@@ -111,15 +111,13 @@ In this section you add code to the *keyvault_functions.py* file to complete the
 
 1. Open the *client/keyvault_functions.py* file to begin adding code.
 
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
 ### Add code to retrieve secrets
 
 In this section, you add code to retrieve two secrets from the vault and return their metadata. The function demonstrates how to access secret values, version identifiers, content types, creation dates, and custom tags.
 
 The function calls **get_secret()** for each secret name, which returns both the secret value and a properties object containing metadata. It handles **ResourceNotFoundError** for missing secrets and **HttpResponseError** for authorization or network issues. The truncated value prevents full credentials from appearing in the UI while still confirming the secret was retrieved.
 
-> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Locate the **# BEGIN RETRIEVE SECRETS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 

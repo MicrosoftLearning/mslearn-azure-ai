@@ -95,13 +95,11 @@ In this section you add code to the *main.py* script to complete the console app
 
 1. Open the *main.py* file to begin adding code.
 
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
 ### Add the client connection
 
 In this section, you add code to establish a connection to Azure Managed Redis using the redis-py library. The code reads the Redis endpoint from an environment variable and uses **DefaultAzureCredential** through the **redis-entraid** credential provider so the client authenticates with Microsoft Entra ID and refreshes its token automatically.
 
-> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Locate the **# BEGIN CONNECTION CODE SECTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 

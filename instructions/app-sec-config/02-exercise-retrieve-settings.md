@@ -114,15 +114,13 @@ In this section you add code to the *appconfig_functions.py* file to complete th
 
 1. Open the *client/appconfig_functions.py* file to begin adding code.
 
->**Note:** The code blocks you add to the application should align with the comment for that section of the code.
-
 ### Add code to load settings
 
 In this section, you add code to load all configuration settings from the App Configuration store with label stacking and automatic Key Vault reference resolution. The function creates a provider that merges unlabeled default values with Production-labeled overrides and resolves Key Vault references transparently.
 
 The function calls **load()** with two **SettingSelector** entries: the first selects all unlabeled settings (using the null label filter **\0**), and the second selects all Production-labeled settings. Because the Production selector appears second, its values override the defaults for any matching keys. The **AzureAppConfigurationKeyVaultOptions** parameter tells the provider to resolve Key Vault references automatically using the same credential, so the application receives the actual secret value rather than a reference URI.
 
-> **Tip:** Paste the code at the same indentation level as its matching **BEGIN** and **END** comments. If the block is misaligned, select the pasted lines and use **Tab** or **Shift+Tab** to move the entire block right or left.
+> **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
 
 1. Locate the **# BEGIN LOAD SETTINGS FUNCTION** comment and add the following code under the comment. Be sure to check for proper code alignment.
 
