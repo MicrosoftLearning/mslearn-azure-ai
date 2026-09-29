@@ -26,5 +26,6 @@ $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";
 code --install-extension ms-python.python
 code --install-extension charliermarsh.ruff
 code --install-extension redhat.vscode-yaml
+code --install-extension Azurite.azurite
 code --install-extension ms-azuretools.vscode-azurefunctions
 python -m pip install --upgrade pip

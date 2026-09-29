@@ -64,26 +64,62 @@ h3 {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.section-setup h2 { border-bottom-color: #0078d4; }
-.section-store h2 { border-bottom-color: #107c10; }
-.section-retrieve h2 { border-bottom-color: #5c2d91; }
-.section-context h2 { border-bottom-color: #d83b01; }
-.section-results h2 { border-bottom-color: #0078d4; }
+.section-workflow h2 { border-bottom-color: #0078d4; }
+.section-results h2 { border-bottom-color: #107c10; }
 
-.button-group {
-    display: flex;
-    flex-wrap: wrap;
+.workflow-actions {
+    display: grid;
     gap: 8px;
 }
 
-.button-group form {
-    flex: 1;
-    min-width: 180px;
+.workflow-actions form {
+    margin: 0;
 }
 
-.button-group button,
-.section > form button {
+.workflow-actions button {
     width: 100%;
+}
+
+.step-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.step-current {
+    background: #0078d4;
+    color: white;
+}
+
+.step-current:hover,
+.step-current:focus {
+    background: #106ebe;
+}
+
+.step-completed {
+    background: #107c10;
+    color: white;
+}
+
+.step-completed:hover,
+.step-completed:focus {
+    background: #0b5c0b;
+}
+
+.step-pending {
+    background: #c8c6c4;
+    color: #323130;
+}
+
+.step-status {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    text-transform: uppercase;
 }
 
 button {
@@ -99,6 +135,12 @@ button {
 button:focus {
     outline: 2px solid #005a9e;
     outline-offset: 2px;
+}
+
+button:disabled {
+    background: #c8c6c4;
+    color: #323130;
+    cursor: not-allowed;
 }
 
 .btn-primary {

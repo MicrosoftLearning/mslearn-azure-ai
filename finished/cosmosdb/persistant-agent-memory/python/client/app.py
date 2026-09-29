@@ -2,6 +2,7 @@
 
 import logging
 import os
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -21,16 +22,67 @@ CURRENT_USER_MESSAGE = "Show me how to correct the configuration."
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
+WORKFLOW_STEPS = [
+    ("container_ready", "set up the memory container"),
+    ("turns_stored", "store the conversation turns"),
+    ("preference_stored", "store the durable preference"),
+    ("thread_retrieved", "retrieve the active thread"),
+    ("memory_retrieved", "retrieve durable memory"),
+    ("context_built", "build the agent context"),
+]
+
+
+class WorkflowState:
+    """Track progress through the local learning workflow."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.reset()
+
+    def view(self) -> dict[str, bool]:
+        return {name: getattr(self, name) for name, _ in WORKFLOW_STEPS}
+
+    def complete(self, step: str) -> None:
+        step_index = next(
+            index for index, (name, _) in enumerate(WORKFLOW_STEPS) if name == step
+        )
+        for index, (name, _) in enumerate(WORKFLOW_STEPS):
+            if index >= step_index:
+                setattr(self, name, index == step_index)
+
+    def reset(self) -> None:
+        for name, _ in WORKFLOW_STEPS:
+            setattr(self, name, False)
+
+
+workflow = WorkflowState()
+
+
+def render_index(**context: Any) -> str:
+    """Render the page with the latest workflow state."""
+    return render_template("index.html", state=workflow.view(), **context)
+
+
+def _require_step(step: str | None) -> None:
+    if step and not getattr(workflow, step):
+        label = next(label for name, label in WORKFLOW_STEPS if name == step)
+        raise ValueError(f"Complete the previous step to {label} first")
+
 
 def _run_action(
     action: Callable[[], Any],
     result_name: str,
     success_message: str,
+    completed_step: str,
+    required_step: str | None = None,
 ) -> Any:
     try:
-        result = action()
+        with workflow.lock:
+            _require_step(required_step)
+            result = action()
+            workflow.complete(completed_step)
         flash(success_message, "success")
-        return render_template("index.html", **{result_name: result})
+        return render_index(**{result_name: result})
     except (AzureError, ValueError) as error:
         flash(f"Error: {error}", "error")
         return redirect(url_for("index"))
@@ -39,7 +91,7 @@ def _run_action(
 @app.route("/")
 def index() -> str:
     """Display the persistent-memory workflow."""
-    return render_template("index.html")
+    return render_index()
 
 
 @app.route("/setup-container", methods=["POST"])
@@ -49,6 +101,7 @@ def setup_container() -> Any:
         create_memory_container,
         "container_result",
         "Memory container is ready.",
+        "container_ready",
     )
 
 
@@ -59,6 +112,8 @@ def store_turns() -> Any:
         store_conversation_turns,
         "turns_result",
         "Conversation turns stored.",
+        "turns_stored",
+        "container_ready",
     )
 
 
@@ -69,6 +124,8 @@ def store_preference() -> Any:
         store_durable_preference,
         "preference_result",
         "Durable preference stored.",
+        "preference_stored",
+        "turns_stored",
     )
 
 
@@ -79,6 +136,8 @@ def retrieve_thread() -> Any:
         retrieve_active_thread,
         "recent_turns",
         "Active thread retrieved.",
+        "thread_retrieved",
+        "preference_stored",
     )
 
 
@@ -89,6 +148,8 @@ def retrieve_memory() -> Any:
         retrieve_durable_memory,
         "durable_memory",
         "Durable memory retrieved.",
+        "memory_retrieved",
+        "thread_retrieved",
     )
 
 
@@ -107,6 +168,8 @@ def build_context() -> Any:
         create_context,
         "context_result",
         "Agent context built.",
+        "context_built",
+        "memory_retrieved",
     )
 
 

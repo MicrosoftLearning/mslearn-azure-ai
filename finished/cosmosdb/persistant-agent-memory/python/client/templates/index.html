@@ -13,46 +13,76 @@
         <h1>Persistent Agent Memory - Azure Cosmos DB</h1>
 
         <div class="left-panel">
-            <section class="section section-setup" aria-labelledby="setup-heading">
-                <h2 id="setup-heading">Set Up Memory</h2>
-                <p>Create a hierarchical memory container with a 30-day default time to live.</p>
-                <form action="/setup-container" method="post">
-                    <button type="submit" class="btn-primary">Set Up Memory Container</button>
-                </form>
-            </section>
-
-            <section class="section section-store" aria-labelledby="store-heading">
-                <h2 id="store-heading">Store Memory</h2>
-                <p>Store turns from two support threads, then preserve a durable coding preference.</p>
-                <div class="button-group">
+            <section class="section section-workflow" aria-labelledby="workflow-heading">
+                <h2 id="workflow-heading">Persistent Memory Workflow</h2>
+                <p>Run each step in order to store, retrieve, and assemble persistent agent memory.</p>
+                <div class="workflow-actions">
+                    <form action="/setup-container" method="post">
+                        <button type="submit"
+                                class="step-button {{ 'step-completed' if state.container_ready else 'step-current' }}"
+                                {% if not state.container_ready %}aria-current="step"{% endif %}>
+                            <span>1. Set Up Memory Container</span>
+                            <span class="step-status">
+                                {{ 'Completed' if state.container_ready else 'Next' }}
+                            </span>
+                        </button>
+                    </form>
                     <form action="/store-turns" method="post">
-                        <button type="submit" class="btn-primary">Store Conversation Turns</button>
+                        <button type="submit"
+                                class="step-button {% if state.turns_stored %}step-completed{% elif state.container_ready %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.container_ready and not state.turns_stored %}aria-current="step"{% endif %}
+                                {% if not state.container_ready %}disabled{% endif %}>
+                            <span>2. Store Conversation Turns</span>
+                            <span class="step-status">
+                                {% if state.turns_stored %}Completed{% elif state.container_ready %}Next{% else %}Pending{% endif %}
+                            </span>
+                        </button>
                     </form>
                     <form action="/store-preference" method="post">
-                        <button type="submit" class="btn-success">Store Durable Preference</button>
+                        <button type="submit"
+                                class="step-button {% if state.preference_stored %}step-completed{% elif state.turns_stored %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.turns_stored and not state.preference_stored %}aria-current="step"{% endif %}
+                                {% if not state.turns_stored %}disabled{% endif %}>
+                            <span>3. Store Durable Preference</span>
+                            <span class="step-status">
+                                {% if state.preference_stored %}Completed{% elif state.turns_stored %}Next{% else %}Pending{% endif %}
+                            </span>
+                        </button>
                     </form>
-                </div>
-            </section>
-
-            <section class="section section-retrieve" aria-labelledby="retrieve-heading">
-                <h2 id="retrieve-heading">Retrieve Memory</h2>
-                <p>Compare recent active-thread history with durable memory retrieved across threads.</p>
-                <div class="button-group">
                     <form action="/retrieve-thread" method="post">
-                        <button type="submit" class="btn-primary">Retrieve Active Thread</button>
+                        <button type="submit"
+                                class="step-button {% if state.thread_retrieved %}step-completed{% elif state.preference_stored %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.preference_stored and not state.thread_retrieved %}aria-current="step"{% endif %}
+                                {% if not state.preference_stored %}disabled{% endif %}>
+                            <span>4. Retrieve Active Thread</span>
+                            <span class="step-status">
+                                {% if state.thread_retrieved %}Completed{% elif state.preference_stored %}Next{% else %}Pending{% endif %}
+                            </span>
+                        </button>
                     </form>
                     <form action="/retrieve-memory" method="post">
-                        <button type="submit" class="btn-success">Retrieve Durable Memory</button>
+                        <button type="submit"
+                                class="step-button {% if state.memory_retrieved %}step-completed{% elif state.thread_retrieved %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.thread_retrieved and not state.memory_retrieved %}aria-current="step"{% endif %}
+                                {% if not state.thread_retrieved %}disabled{% endif %}>
+                            <span>5. Retrieve Durable Memory</span>
+                            <span class="step-status">
+                                {% if state.memory_retrieved %}Completed{% elif state.thread_retrieved %}Next{% else %}Pending{% endif %}
+                            </span>
+                        </button>
+                    </form>
+                    <form action="/build-context" method="post">
+                        <button type="submit"
+                                class="step-button {% if state.context_built %}step-completed{% elif state.memory_retrieved %}step-current{% else %}step-pending{% endif %}"
+                                {% if state.memory_retrieved and not state.context_built %}aria-current="step"{% endif %}
+                                {% if not state.memory_retrieved %}disabled{% endif %}>
+                            <span>6. Build Agent Context</span>
+                            <span class="step-status">
+                                {% if state.context_built %}Completed{% elif state.memory_retrieved %}Next{% else %}Pending{% endif %}
+                            </span>
+                        </button>
                     </form>
                 </div>
-            </section>
-
-            <section class="section section-context" aria-labelledby="context-heading">
-                <h2 id="context-heading">Build Context</h2>
-                <p>Combine bounded recent and durable memory for a new support request.</p>
-                <form action="/build-context" method="post">
-                    <button type="submit" class="btn-warning">Build Agent Context</button>
-                </form>
             </section>
         </div>
 

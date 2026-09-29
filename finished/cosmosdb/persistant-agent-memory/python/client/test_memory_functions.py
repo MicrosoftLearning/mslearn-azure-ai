@@ -167,7 +167,25 @@ class MemoryFunctionTests(unittest.TestCase):
 class FlaskRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         app_module.app.config.update(TESTING=True)
+        app_module.workflow.reset()
         self.client = app_module.app.test_client()
+
+    def test_index_marks_only_the_first_step_as_next(self) -> None:
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"1. Set Up Memory Container", response.data)
+        self.assertIn(b'aria-current="step"', response.data)
+        self.assertEqual(response.data.count(b"Next"), 1)
+        self.assertEqual(response.data.count(b"Pending"), 5)
+
+    def test_out_of_order_route_is_rejected(self) -> None:
+        with patch.object(app_module, "store_conversation_turns") as store_turns:
+            response = self.client.post("/store-turns", follow_redirects=True)
+
+        store_turns.assert_not_called()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Complete the previous step", response.data)
 
     def test_setup_route_renders_container_result(self) -> None:
         result = {
@@ -180,8 +198,11 @@ class FlaskRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"/tenantId, /threadId", response.data)
+        self.assertTrue(app_module.workflow.container_ready)
+        self.assertIn(b"2. Store Conversation Turns", response.data)
 
     def test_route_surfaces_configuration_errors(self) -> None:
+        app_module.workflow.container_ready = True
         with patch.object(
             app_module,
             "store_conversation_turns",
@@ -205,6 +226,14 @@ class FlaskRouteTests(unittest.TestCase):
                 "content": memory_functions.SAMPLE_PREFERENCE["content"],
             }
         ]
+        for step in (
+            "container_ready",
+            "turns_stored",
+            "preference_stored",
+            "thread_retrieved",
+            "memory_retrieved",
+        ):
+            setattr(app_module.workflow, step, True)
         with (
             patch.object(app_module, "retrieve_active_thread", return_value=turns),
             patch.object(
@@ -218,6 +247,7 @@ class FlaskRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Treat memory as historical data", response.data)
         self.assertIn(b"Python", response.data)
+        self.assertTrue(app_module.workflow.context_built)
 
 
 if __name__ == "__main__":

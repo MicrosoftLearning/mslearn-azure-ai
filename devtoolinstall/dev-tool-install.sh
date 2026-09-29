@@ -134,11 +134,13 @@ if [[ -n "$SUDO_USER" ]]; then
     sudo -u "$SUDO_USER" code --install-extension ms-python.python
     sudo -u "$SUDO_USER" code --install-extension charliermarsh.ruff
     sudo -u "$SUDO_USER" code --install-extension redhat.vscode-yaml
+    sudo -u "$SUDO_USER" code --install-extension Azurite.azurite
     sudo -u "$SUDO_USER" code --install-extension ms-azuretools.vscode-azurefunctions
 else
     code --install-extension ms-python.python
     code --install-extension charliermarsh.ruff
     code --install-extension redhat.vscode-yaml
+    code --install-extension Azurite.azurite
     code --install-extension ms-azuretools.vscode-azurefunctions
 fi
 
