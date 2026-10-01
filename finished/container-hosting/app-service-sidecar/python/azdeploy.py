@@ -5,7 +5,7 @@
 # rg = "<your-resource-group-name>"  # Resource Group name
 # location = "<your-azure-region>"   # Azure region for the resources
 
-rg = "rg-newexercises"          # Resource Group name
+rg = "rg-exercises"          # Resource Group name
 location = "canadacentral"         # Azure region for the resources
 
 # =============================================================================
