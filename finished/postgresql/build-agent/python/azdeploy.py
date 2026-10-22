@@ -36,11 +36,13 @@ def _throwaway_admin_password() -> str:
     # authenticate. It exists only to satisfy the CLI's create-time validation
     # across versions. It meets Azure's complexity rules: length 32 with at
     # least one uppercase, lowercase, digit, and non-alphanumeric character.
+    # Avoid shell metacharacters because Windows invokes az.cmd through cmd.exe.
+    safe_symbols = "_.@#"
     upper = secrets.choice(string.ascii_uppercase)
     lower = secrets.choice(string.ascii_lowercase)
     digit = secrets.choice(string.digits)
-    symbol = secrets.choice("!@#$%^&*()-_=+")
-    pool = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    symbol = secrets.choice(safe_symbols)
+    pool = string.ascii_letters + string.digits + safe_symbols
     remaining = [secrets.choice(pool) for _ in range(28)]
     chars = [upper, lower, digit, symbol, *remaining]
     secrets.SystemRandom().shuffle(chars)
