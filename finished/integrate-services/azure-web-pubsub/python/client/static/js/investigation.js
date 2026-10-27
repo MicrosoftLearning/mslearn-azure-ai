@@ -62,6 +62,7 @@ class InvestigationState {
             throw new Error("Invalid investigation snapshot.");
         }
         if (snapshot.sequence >= this.value.sequence) this.value = { ...snapshot };
+        this.value.worker_starts = Math.max(this.value.worker_starts || 0, snapshot.worker_starts || 0);
         for (const sequence of this.pending.keys()) {
             if (sequence <= this.value.sequence) this.pending.delete(sequence);
         }
@@ -71,243 +72,340 @@ class InvestigationState {
 
 globalThis.InvestigationState = InvestigationState;
 
+class InvestigationView {
+    constructor(root, request, loadSdk, changed) {
+        this.root = root;
+        this.request = (path, method, data) => request(path, method, data, root.dataset.token);
+        this.loadSdk = loadSdk;
+        this.changed = changed;
+        this.state = null;
+        this.client = null;
+        this.generation = 0;
+        this.joined = false;
+        this.intentionalDisconnect = false;
+        this.reconciling = null;
+        this.snapshotInFlight = false;
+        this.queuedEvents = [];
+        this.busy = false;
+        this.workspaceBusy = false;
+        for (const button of root.querySelectorAll("[data-action]")) {
+            button.addEventListener("click", () => this.action(button.dataset.action));
+        }
+    }
+
+    field(name) { return this.root.querySelector(`[data-field="${name}"]`); }
+
+    showError(error) {
+        this.field("error").textContent = error.message || String(error);
+        this.field("error").hidden = false;
+    }
+
+    render() {
+        const value = this.state?.value;
+        if (value) {
+            this.field("processing").textContent = value.status;
+            this.field("stage").textContent = value.stage;
+            this.field("progress").value = value.progress;
+            this.field("findings").textContent = value.text;
+            this.field("delivery").textContent = value.delivery_error || "";
+            this.field("diagnostics").textContent = `Sequence: ${value.sequence}` +
+                ` | Live events: ${this.state.liveEvents} | Worker starts: ${value.worker_starts}` +
+                ` | Duplicates ignored: ${this.state.duplicates}`;
+            if (value.error) this.showError(new Error(value.error));
+        }
+        for (const button of this.root.querySelectorAll("[data-action]")) {
+            button.disabled = !value || this.busy || this.workspaceBusy ||
+                (button.dataset.action === "result" && value.status !== "completed") ||
+                (button.dataset.action === "disconnect" && !this.client);
+        }
+        this.changed();
+    }
+
+    acceptSnapshot(snapshot) {
+        this.state.snapshot(snapshot);
+        this.render();
+    }
+
+    async select(operationId) {
+        await this.stop();
+        this.state = new InvestigationState(operationId);
+        this.intentionalDisconnect = false;
+        this.field("connection").textContent = "Not connected";
+        this.field("error").hidden = true;
+        this.field("result").textContent = "";
+        this.render();
+    }
+
+    receive(event, epoch) {
+        if (epoch !== this.generation || !this.state) return;
+        if (this.snapshotInFlight) {
+            this.queuedEvents.push(event);
+            return;
+        }
+        if (this.state.receive(event) === "gap") this.refresh().catch((error) => this.showError(error));
+        this.render();
+    }
+
+    async refresh() {
+        if (!this.state) return;
+        if (this.reconciling) return this.reconciling;
+        const epoch = this.generation;
+        const selected = this.state;
+        this.snapshotInFlight = true;
+        const work = (async () => {
+            try {
+                const snapshot = await this.request(`/api/operations/${selected.operationId}`);
+                if (epoch !== this.generation || selected !== this.state) return;
+                selected.snapshot(snapshot);
+                for (const event of this.queuedEvents.splice(0)) selected.receive(event);
+                this.render();
+            } catch (error) {
+                if (epoch === this.generation) throw error;
+            } finally {
+                if (epoch === this.generation) this.snapshotInFlight = false;
+            }
+        })();
+        this.reconciling = work;
+        try { await work; }
+        finally { if (this.reconciling === work) this.reconciling = null; }
+    }
+
+    async stop() {
+        const epoch = ++this.generation;
+        this.reconciling = null;
+        this.snapshotInFlight = false;
+        this.queuedEvents.length = 0;
+        this.joined = false;
+        const old = this.client;
+        this.client = null;
+        if (old) await old.stop();
+        return epoch;
+    }
+
+    async connect() {
+        if (!this.state) throw new Error("Create or resume an investigation first.");
+        const epoch = await this.stop();
+        if (epoch !== this.generation) return;
+        this.intentionalDisconnect = false;
+        this.field("error").hidden = true;
+        this.field("connection").textContent = "Connecting";
+        this.render();
+        try {
+            const { WebPubSubClient } = await this.loadSdk();
+            if (epoch !== this.generation) return;
+            const operationId = this.state.operationId;
+            const negotiate = () => this.request(`/api/operations/${operationId}/negotiate`, "POST");
+            const details = await negotiate();
+            if (epoch !== this.generation) return;
+            let firstUrl = details.url;
+            const next = new WebPubSubClient({
+                getClientAccessUrl: async () => {
+                    if (firstUrl) {
+                        const url = firstUrl;
+                        firstUrl = null;
+                        return url;
+                    }
+                    return (await negotiate()).url;
+                },
+            });
+            this.client = next;
+            let initialConnection = true;
+            const restore = async () => {
+                await next.joinGroup(details.group);
+                if (epoch !== this.generation) return;
+                this.joined = true;
+                this.field("connection").textContent = "Connected";
+                this.render();
+                await this.refresh();
+            };
+            const report = (error) => { if (epoch === this.generation) this.showError(error); };
+            // REST group publishing arrives through the SDK's server-message event.
+            next.on("server-message", (message) => {
+                if (epoch !== this.generation) return;
+                try {
+                    this.receive(typeof message.message.data === "string" ?
+                        JSON.parse(message.message.data) : message.message.data, epoch);
+                } catch (error) { report(error); }
+            });
+            next.on("connected", () => {
+                if (epoch !== this.generation) return;
+                this.field("connection").textContent = "Joining investigation";
+                if (!initialConnection) restore().catch(report);
+            });
+            next.on("disconnected", () => {
+                if (epoch !== this.generation) return;
+                this.joined = false;
+                this.field("connection").textContent = "Disconnected; recovering";
+                this.render();
+            });
+            next.on("rejoin-group-failed", () => {
+                if (epoch !== this.generation) return;
+                this.joined = false;
+                this.field("connection").textContent = "Group recovery failed";
+                this.showError(new Error("Select Reconnect for this view to restore live delivery."));
+                this.render();
+            });
+            next.on("stopped", () => {
+                if (epoch !== this.generation || this.intentionalDisconnect) return;
+                this.joined = false;
+                this.field("connection").textContent = "Stopped";
+                this.showError(new Error("Live delivery stopped. Select Reconnect for this view."));
+                this.render();
+            });
+            await next.start();
+            if (epoch !== this.generation) return;
+            await restore();
+            initialConnection = false;
+        } catch (error) {
+            if (epoch === this.generation) {
+                this.joined = false;
+                this.field("connection").textContent = "Connection failed";
+                this.render();
+                throw error;
+            }
+        }
+    }
+
+    async action(name) {
+        if (this.busy || this.workspaceBusy) return;
+        this.busy = true;
+        this.field("error").hidden = true;
+        this.render();
+        try {
+            if (name === "disconnect") {
+                this.intentionalDisconnect = true;
+                await this.stop();
+                this.field("connection").textContent = "Disconnected by you";
+            } else if (name === "reconnect") await this.connect();
+            else if (name === "refresh") await this.refresh();
+            else if (name === "result") {
+                const selected = this.state;
+                const result = await this.request(`/api/operations/${selected.operationId}/result`);
+                if (selected === this.state) this.field("result").textContent = result.text;
+            }
+        } catch (error) { this.showError(error); }
+        finally { this.busy = false; this.render(); }
+    }
+}
+
+globalThis.InvestigationView = InvestigationView;
+
 if (typeof document !== "undefined") {
     (async function () {
         const el = (id) => document.getElementById(id);
         const csrf = document.querySelector('meta[name="csrf-token"]').content;
         const terminal = new Set(["completed", "failed", "interrupted"]);
-        let state = null;
-        let client = null;
-        let generation = 0;
-        let reconciling = null;
-        let intentionalDisconnect = false;
+        let operationId = null;
+        let workspaceBusy = false;
         let sdkPromise = null;
-        let snapshotInFlight = false;
-        let actionInFlight = false;
-        const queuedEvents = [];
-
-        function showError(error) {
+        const views = [];
+        const activity = (text) => { el("activity").textContent = text; };
+        const showError = (error) => {
             el("error").textContent = error.message || String(error);
             el("error").hidden = false;
-        }
-
-        async function api(path, method = "GET", data) {
+        };
+        async function api(path, method = "GET", data, token = views[0].root.dataset.token) {
             const response = await fetch(path, {
                 method, credentials: "same-origin", cache: "no-store",
-                headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+                headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf, "X-Demo-Viewer": token },
                 body: data === undefined ? undefined : JSON.stringify(data),
             });
             const body = await response.json();
             if (!response.ok) throw new Error(body.error || `Request failed (${response.status}).`);
             return body;
         }
-
-        function render() {
-            if (!state) {
-                el("start").disabled = true;
-                el("load-result").disabled = true;
-                return;
-            }
-            const value = state.value;
-            el("processing").textContent = value.status;
-            el("stage").textContent = value.stage;
-            el("progress").value = value.progress;
-            el("findings").textContent = value.text;
-            el("diagnostics").textContent =
-                `Snapshot sequence: ${value.sequence} | Live events: ${state.liveEvents}` +
-                ` | Worker starts: ${value.worker_starts} | Duplicate events ignored: ${state.duplicates}`;
-            el("delivery").textContent = value.delivery_error || "";
-            el("load-result").disabled = actionInFlight || value.status !== "completed";
-            el("start").disabled = actionInFlight || value.status !== "pending" || el("persona").value !== "oncall";
-            if (value.error) showError(new Error(value.error));
+        function loadSdk() {
+            if (!sdkPromise) sdkPromise = import(
+                "https://esm.sh/@azure/web-pubsub-client@1.1.0?bundle&target=es2022&conditions=browser"
+            ).catch((error) => { sdkPromise = null; throw error; });
+            return sdkPromise;
         }
-
-        function receive(event, epoch) {
-            if (epoch !== generation || !state) return;
-            if (snapshotInFlight) {
-                queuedEvents.push(event);
-                return;
-            }
-            if (state.receive(event) === "gap") refresh().catch(showError);
-            render();
+        function renderControls() {
+            const busy = workspaceBusy || views.some((view) => view.busy);
+            const value = views
+                .filter((view) => view.state?.operationId === operationId)
+                .map((view) => view.state.value)
+                .reduce((latest, current) => !latest || current.sequence > latest.sequence ? current : latest, null);
+            el("create-form").querySelector("button").disabled = busy;
+            el("open-form").querySelector("button").disabled = busy;
+            el("start").disabled = busy || !value || value.status !== "pending" || !views[0].joined;
+            if (busy || !value) return;
+            if (value.status === "pending") activity(views[0].joined ?
+                "Workspace ready. Select Start investigation to begin the analysis." :
+                "Workspace created. Reconnect the on-call view before starting.");
+            else if (value.status === "running") activity(value.sequence ?
+                "Investigation running. Each connected view receives live updates independently." :
+                "Investigation started. Waiting for the first live update.");
+            else if (value.status === "completed") activity("Investigation complete. Load the stored result in either view.");
+            else activity(value.error || "This investigation stopped. Create a new investigation to run again.");
         }
-
-        async function refresh() {
-            if (!state) return;
-            if (reconciling) return reconciling;
-            const epoch = generation;
-            const selected = state;
-            snapshotInFlight = true;
-            const work = (async () => {
-                try {
-                    const snapshot = await api(`/api/operations/${selected.operationId}`);
-                    if (epoch !== generation || selected !== state) return;
-                    selected.snapshot(snapshot);
-                    for (const event of queuedEvents.splice(0)) selected.receive(event);
-                    render();
-                } catch (error) {
-                    if (epoch === generation) throw error;
-                } finally {
-                    if (epoch === generation) snapshotInFlight = false;
-                }
-            })();
-            reconciling = work;
-            try {
-                await work;
-            } finally {
-                if (reconciling === work) reconciling = null;
-            }
+        for (const root of document.querySelectorAll("[data-observer]")) {
+            views.push(new InvestigationView(root, api, loadSdk, renderControls));
         }
-
-        async function stop() {
-            const epoch = ++generation;
-            reconciling = null;
-            snapshotInFlight = false;
-            queuedEvents.length = 0;
-            const old = client;
-            client = null;
-            if (old) await old.stop();
-            return epoch;
-        }
-
-        async function connect() {
-            if (!state) throw new Error("Create or open an investigation first.");
-            const epoch = await stop();
-            if (epoch !== generation) return;
-            intentionalDisconnect = false;
-            el("connection").textContent = "Connecting";
-            try {
-                if (!sdkPromise) {
-                    sdkPromise = import(
-                        "https://esm.sh/@azure/web-pubsub-client@1.1.0?bundle&target=es2022&conditions=browser"
-                    ).catch((error) => { sdkPromise = null; throw error; });
-                }
-                const { WebPubSubClient } = await sdkPromise;
-                if (epoch !== generation) return;
-                const operationId = state.operationId;
-                const negotiation = () => api(`/api/operations/${operationId}/negotiate`, "POST");
-                const details = await negotiation();
-                if (epoch !== generation) return;
-                const next = new WebPubSubClient({
-                    getClientAccessUrl: async () => (await negotiation()).url,
-                });
-                client = next;
-                // REST group publishing arrives as a server message, not a client group message.
-                next.on("server-message", (message) => {
-                    if (epoch !== generation) return;
-                    try {
-                        receive(typeof message.message.data === "string" ?
-                            JSON.parse(message.message.data) : message.message.data, epoch);
-                    } catch (error) { showError(error); }
-                });
-                next.on("connected", () => {
-                    if (epoch === generation) {
-                        el("connection").textContent = "Connected";
-                        refresh().catch(showError);
-                    }
-                });
-                next.on("disconnected", () => {
-                    if (epoch === generation) el("connection").textContent = "Disconnected; recovering";
-                });
-                next.on("rejoin-group-failed", () => {
-                    if (epoch === generation) {
-                        el("connection").textContent = "Group recovery failed";
-                        showError(new Error("Group recovery failed. Select Reconnect to retry."));
-                    }
-                });
-                next.on("stopped", () => {
-                    if (epoch === generation && !intentionalDisconnect) {
-                        el("connection").textContent = "Stopped";
-                        showError(new Error("Live delivery stopped. Select Reconnect to retry."));
-                    }
-                });
-                await next.start();
-                if (epoch !== generation) return;
-                await next.joinGroup(details.group);
-                if (epoch !== generation) return;
-                await refresh();
-            } catch (error) {
-                if (epoch === generation) {
-                    el("connection").textContent = "Connection failed";
-                    throw error;
-                }
-            }
-        }
-
-        async function open(operationId) {
-            if (!/^[a-f0-9]{32}$/.test(operationId)) throw new Error("Enter a valid investigation ID.");
-            const epoch = await stop();
-            if (epoch !== generation) return;
-            state = new InvestigationState(operationId);
-            el("operation-id").value = operationId;
-            el("result").textContent = "";
-            el("error").hidden = true;
-            el("start").disabled = true;
+        async function selectOperation(id) {
+            if (!/^[a-f0-9]{32}$/.test(id)) throw new Error("Enter a valid saved investigation ID.");
+            operationId = id;
+            el("selection").hidden = false;
+            el("current-id").textContent = id;
+            el("operation-id").value = id;
             const url = new URL(location.href);
-            url.searchParams.set("operation", operationId);
+            url.searchParams.set("operation", id);
             history.replaceState(null, "", url);
-            el("share-link").href = url.href;
-            el("share-link").hidden = false;
-            await refresh();
-            if (epoch !== generation) return;
-            await connect();
+            await Promise.all(views.map((view) => view.select(id)));
+            activity("Connecting both responder views to the investigation...");
+            await Promise.all(views.map((view) => view.connect().catch((error) => view.showError(error))));
         }
-
-        function action(id, handler) {
-            el(id).addEventListener(id.endsWith("-form") ? "submit" : "click", async (event) => {
-                event.preventDefault();
-                if (actionInFlight) return;
-                actionInFlight = true;
-                el("error").hidden = true;
-                const buttons = document.querySelectorAll("button");
-                buttons.forEach((button) => { button.disabled = true; });
-                try { await handler(); } catch (error) { showError(error); }
-                finally {
-                    actionInFlight = false;
-                    buttons.forEach((button) => { button.disabled = false; });
-                    render();
+        async function workspaceAction(handler) {
+            if (workspaceBusy || views.some((view) => view.busy)) return;
+            workspaceBusy = true;
+            el("error").hidden = true;
+            for (const view of views) { view.workspaceBusy = true; view.render(); }
+            try { await handler(); }
+            catch (error) { showError(error); }
+            finally {
+                workspaceBusy = false;
+                el("start").textContent = "Start investigation";
+                for (const view of views) { view.workspaceBusy = false; view.render(); }
+                renderControls();
+            }
+        }
+        const actions = {
+            "create-form": async () => {
+                activity("Creating the investigation in Azure Blob Storage...");
+                const operation = await api("/api/operations", "POST");
+                await selectOperation(operation.operation_id);
+            },
+            "open-form": async () => {
+                activity("Resuming the saved investigation; no new work will be started...");
+                await selectOperation(el("operation-id").value.trim());
+            },
+            "start-form": async () => {
+                if (!operationId) throw new Error("Create or resume an investigation first.");
+                el("start").textContent = "Starting...";
+                activity("Starting investigation... waiting for the backend to accept the request.");
+                const result = await api(`/api/operations/${operationId}/start`, "POST");
+                for (const view of views) {
+                    if (view === views[0] || view.joined) view.acceptSnapshot(result.operation);
                 }
+            },
+        };
+        for (const [id, handler] of Object.entries(actions)) {
+            el(id).addEventListener("submit", (event) => {
+                event.preventDefault();
+                workspaceAction(handler);
             });
         }
-
-        action("persona-form", async () => {
-            await stop();
-            el("connection").textContent = "Disconnected";
-            const selection = await api("/api/persona", "POST", { persona: el("persona").value });
-            el("persona-label").textContent = el("persona").selectedOptions[0].textContent;
-            if (state) await open(state.operationId);
-            return selection;
-        });
-        action("create-form", async () => {
-            const operation = await api("/api/operations", "POST");
-            await open(operation.operation_id);
-        });
-        action("open-form", () => open(el("operation-id").value.trim()));
-        action("start-form", async () => {
-            if (!state) throw new Error("Open an investigation first.");
-            await api(`/api/operations/${state.operationId}/start`, "POST");
-            await refresh();
-        });
-        action("disconnect", async () => {
-            intentionalDisconnect = true;
-            await stop();
-            el("connection").textContent = "Disconnected by you";
-        });
-        action("reconnect", connect);
-        action("refresh", refresh);
-        action("load-result", async () => {
-            if (!state) return;
-            const selected = state;
-            const result = await api(`/api/operations/${selected.operationId}/result`);
-            if (selected === state) el("result").textContent = result.text;
-        });
         setInterval(() => {
-            if (state && !terminal.has(state.value.status) && !intentionalDisconnect) {
-                refresh().catch(showError);
+            if (workspaceBusy) return;
+            for (const view of views) {
+                if (view.state && !terminal.has(view.state.value.status) && !view.intentionalDisconnect && !view.busy) {
+                    view.refresh().catch((error) => view.showError(error));
+                }
             }
         }, 5000);
+        renderControls();
         const initial = new URL(location.href).searchParams.get("operation");
-        if (initial) await open(initial);
+        if (initial) await workspaceAction(() => selectOperation(initial));
     })().catch((error) => {
         document.getElementById("error").textContent = error.message;
         document.getElementById("error").hidden = false;

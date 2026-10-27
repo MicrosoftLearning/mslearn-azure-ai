@@ -7,6 +7,7 @@ const source = fs.readFileSync(new URL("../client/static/js/investigation.js", i
 const context = vm.createContext({});
 vm.runInContext(source, context);
 const State = context.InvestigationState;
+const View = context.InvestigationView;
 const id = "a".repeat(32);
 const event = (sequence, type, payload, operationId = id) => ({
     schema_version: 1, operation_id: operationId, sequence,
@@ -77,4 +78,107 @@ test("completion and validation preserve the exact result reference", () => {
     state.receive(event(2, "completed", { result_ref: `/api/operations/${id}/result` }));
     assert.equal(state.value.status, "completed");
     assert.equal(state.value.text, "result");
+});
+
+test("start acknowledgement updates worker count without overwriting newer live progress", () => {
+    const state = new State(id);
+    state.receive(event(1, "progress", { progress: 8, stage: "Inspecting application logs" }));
+    state.snapshot({ ...snapshot(), stage: "Starting investigation" });
+    assert.equal(state.value.sequence, 1);
+    assert.equal(state.value.stage, "Inspecting application logs");
+    assert.equal(state.value.worker_starts, 1);
+});
+
+function root(token) {
+    const fields = new Map();
+    const buttons = ["disconnect", "reconnect", "refresh", "result"].map((action) => ({
+        dataset: { action }, disabled: true, addEventListener() {},
+    }));
+    return {
+        dataset: { token },
+        querySelector(selector) {
+            if (!fields.has(selector)) fields.set(selector, { textContent: "", hidden: false, value: 0 });
+            return fields.get(selector);
+        },
+        querySelectorAll() { return buttons; },
+    };
+}
+
+function workspace() {
+    const clients = [];
+    const requests = [];
+    let current = { ...snapshot(), status: "pending", stage: "Ready to start", worker_starts: 0 };
+    class Client {
+        constructor(credentials) {
+            this.credentials = credentials;
+            this.handlers = {};
+            this.stopped = false;
+            clients.push(this);
+        }
+        on(name, handler) { this.handlers[name] = handler; }
+        async start() {
+            await this.credentials.getClientAccessUrl();
+            this.handlers.connected();
+        }
+        async joinGroup(group) { this.group = group; }
+        async stop() { this.stopped = true; this.handlers.stopped(); }
+    }
+    const request = async (path, method, data, token) => {
+        requests.push({ path, method, token });
+        if (path.endsWith("/negotiate")) return { url: "wss://test.invalid", group: `investigation-${id}` };
+        return { ...current };
+    };
+    const make = (token) => new View(root(token), request, async () => ({ WebPubSubClient: Client }), () => {});
+    return { clients, requests, make, setSnapshot(value) { current = value; } };
+}
+
+test("two same-page views use distinct contexts and negotiate once per connection", async () => {
+    const app = workspace();
+    const oncall = app.make("oncall-context");
+    const database = app.make("database-context");
+    await Promise.all([oncall.select(id), database.select(id)]);
+    await Promise.all([oncall.connect(), database.connect()]);
+    assert.equal(oncall.joined, true);
+    assert.equal(database.joined, true);
+    assert.equal(app.clients.length, 2);
+    const negotiations = app.requests.filter((request) => request.path.endsWith("/negotiate"));
+    assert.equal(negotiations.length, 2);
+    assert.deepEqual(negotiations.map((request) => request.token).sort(), ["database-context", "oncall-context"]);
+    assert.equal(oncall.state.value.worker_starts, 0);
+    assert.equal(database.state.value.worker_starts, 0);
+});
+
+test("disconnecting one view leaves the other live and reconnect restores its snapshot", async () => {
+    const app = workspace();
+    const oncall = app.make("oncall-context");
+    const database = app.make("database-context");
+    await Promise.all([oncall.select(id), database.select(id)]);
+    await Promise.all([oncall.connect(), database.connect()]);
+    await database.action("disconnect");
+    assert.equal(app.clients[1].stopped, true);
+    assert.equal(app.clients[0].stopped, false);
+    const message = { message: { data: event(1, "findings", { text: "live findings" }) } };
+    app.clients[0].handlers["server-message"](message);
+    app.clients[1].handlers["server-message"](message);
+    assert.equal(oncall.state.value.text, "live findings");
+    assert.equal(database.state.value.text, "");
+    app.setSnapshot({ ...snapshot(1, "live findings"), worker_starts: 1 });
+    await database.action("reconnect");
+    assert.equal(database.state.value.text, oncall.state.value.text);
+    assert.equal(database.state.value.worker_starts, 1);
+    assert.equal(database.joined, true);
+    assert.equal(app.requests.filter((request) => request.path.endsWith("/start")).length, 0);
+});
+
+test("a failed observer connection does not stop the other observer", async () => {
+    const app = workspace();
+    const oncall = app.make("oncall-context");
+    const database = app.make("database-context");
+    await Promise.all([oncall.select(id), database.select(id)]);
+    await oncall.connect();
+    database.request = async () => { throw new Error("Observer access denied"); };
+    await assert.rejects(database.connect(), /Observer access denied/);
+    assert.equal(oncall.joined, true);
+    assert.equal(app.clients[0].stopped, false);
+    assert.equal(database.joined, false);
 });

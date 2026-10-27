@@ -252,11 +252,28 @@ def assign_role(
     return True
 
 
+def check_provider_registration(subscription_id: str, namespace: str) -> bool:
+    print(f"Checking resource provider registration: {namespace}...", flush=True)
+    state = az_query([
+        "az", "provider", "show", "--namespace", namespace,
+        "--subscription", subscription_id, "--query", "registrationState", "-o", "tsv",
+    ])
+    if state == "Registered":
+        print(f"Resource provider registered: {namespace}", flush=True)
+        return True
+    if not state:
+        print(f"Error: Could not determine the registration state for '{namespace}'.")
+    else:
+        print(f"Error: Resource provider '{namespace}' must be Registered (current state: {state}).")
+        if state == "Registering":
+            print("Registration is in progress. Wait for it to finish, then retry this option.")
+        else:
+            print("Register this provider in your subscription, then retry this option.")
+    return False
+
+
 def create_webpubsub(subscription_id: str, pubsub_name: str, user_object_id: str) -> bool:
-    if not run_quiet("Register Microsoft.SignalRService", [
-        "az", "provider", "register", "--namespace", "Microsoft.SignalRService", "--wait",
-        "--subscription", subscription_id,
-    ]):
+    if not check_provider_registration(subscription_id, "Microsoft.SignalRService"):
         return False
     if not create_resource_group(subscription_id):
         return False
@@ -288,10 +305,7 @@ def create_webpubsub(subscription_id: str, pubsub_name: str, user_object_id: str
 
 
 def create_storage(subscription_id: str, storage_name: str, user_object_id: str) -> bool:
-    if not run_quiet("Register Microsoft.Storage", [
-        "az", "provider", "register", "--namespace", "Microsoft.Storage", "--wait",
-        "--subscription", subscription_id,
-    ]):
+    if not check_provider_registration(subscription_id, "Microsoft.Storage"):
         return False
     if not create_resource_group(subscription_id):
         return False
@@ -486,13 +500,8 @@ def verify_deployment(
         "STORAGE_ACCOUNT_NAME": storage_name,
         "BLOB_ACCOUNT_URL": storage["properties"]["primaryEndpoints"]["blob"].rstrip("/"),
         "BLOB_CONTAINER": CONTAINER,
-    }, "client")
-    print("Deployment verified. Generated client/.env and client/.env.ps1.")
-    print("In your app terminal, change to client and load the generated environment:")
-    print("  Bash:       source .env")
-    print("  PowerShell: . .\\.env.ps1")
-    print("Install client requirements, then run: python app.py")
-    print("Publishing and real browser delivery are verified by the opt-in live tests.")
+    }, str(Path(__file__).resolve().parent))
+    print("Deployment verified. Generated .env and .env.ps1 alongside azdeploy.py.")
     return True
 
 

@@ -46,9 +46,21 @@ class InvestigationTests(InvestigationFixture):
             self.store._save(self.operation, "1")
 
     def test_repeated_claim_does_not_restart(self):
-        self.assertTrue(self.store.claim(self.oid)[1])
+        operation, claimed = self.store.claim(self.oid)
+        self.assertTrue(claimed)
+        self.assertEqual(operation.stage, "Starting investigation")
         self.assertFalse(self.store.claim(self.oid)[1])
         self.assertEqual(self.store.load(self.oid)[0].worker_starts, 1)
+
+    def test_simulator_emits_the_first_fragment_without_sleeping(self):
+        with patch("simulator.time.sleep") as sleep:
+            fragments = simulate()
+            first = next(fragments)
+            sleep.assert_not_called()
+            remaining = list(fragments)
+        self.assertEqual(first[0], "Inspecting application logs")
+        self.assertEqual(first[1] + "".join(fragment for _, fragment, _ in remaining), EXPECTED_TEXT)
+        self.assertEqual(sleep.call_count, FRAGMENT_COUNT - 1)
 
     def test_concurrent_claim_has_one_winner(self):
         original = self.store.load
@@ -201,29 +213,48 @@ class FlaskTests(InvestigationFixture):
         self.assertEqual(response.status_code, 200)
         return re.search(r'name="csrf-token" content="([^"]+)"', response.text).group(1)
 
-    def post(self, url, data=None, *, client=None, csrf=None):
+    def headers(self, observer="oncall", *, client=None, csrf=None):
+        with (client or self.client).session_transaction() as browser_session:
+            token = browser_session["viewer_tokens"][observer]
+        return {"X-CSRF-Token": csrf or self.csrf, "X-Demo-Viewer": token}
+
+    def get(self, url, *, observer="oncall", client=None):
+        return (client or self.client).get(url, headers=self.headers(observer, client=client))
+
+    def post(self, url, data=None, *, observer="oncall", client=None, csrf=None):
         return (client or self.client).post(
-            url, json=data, headers={"X-CSRF-Token": csrf or self.csrf},
+            url, json=data, headers=self.headers(observer, client=client, csrf=csrf),
         )
 
-    def test_persona_session_is_server_selected_and_access_is_consistent(self):
-        self.assertEqual(self.post("/api/persona", {"persona": "outsider"}).status_code, 200)
-        for suffix, method in (("", "GET"), ("/result", "GET"), ("/negotiate", "POST"), ("/start", "POST")):
-            url = f"/api/operations/{self.oid}{suffix}"
-            response = self.client.get(url) if method == "GET" else self.post(url, {"persona": "oncall"})
-            self.assertEqual(response.status_code, 403, suffix)
-        self.assertEqual(self.post("/api/operations").status_code, 403)
+    def test_page_contains_both_observers_and_no_persona_switcher(self):
+        response = self.client.get("/")
+        self.assertIn('data-observer="oncall"', response.text)
+        self.assertIn('data-observer="database"', response.text)
+        self.assertNotIn("Unauthorized observer", response.text)
+        self.assertNotIn('id="persona"', response.text)
+        self.assertNotIn("private window", response.text)
+        self.assertIn("Resume an existing investigation", response.text)
+
+    def test_unknown_observer_context_cannot_access_an_operation(self):
+        for token in ("", "outsider", "forged-token", "\u00e9"):
+            for suffix, method in (("", "GET"), ("/result", "GET"), ("/negotiate", "POST"), ("/start", "POST")):
+                url = f"/api/operations/{self.oid}{suffix}"
+                with patch.object(self.store, "load") as load:
+                    response = self.client.open(
+                        url, method=method,
+                        headers={"X-CSRF-Token": self.csrf, "X-Demo-Viewer": token},
+                    )
+                self.assertEqual(response.status_code, 403, (token, suffix))
+                load.assert_not_called()
         self.assertEqual(self.pubsub.token_requests, [])
 
-    def test_two_browser_sessions_share_one_operation(self):
-        specialist = self.app.test_client()
-        csrf = self.initialize(specialist)
-        self.post("/api/persona", {"persona": "database"}, client=specialist, csrf=csrf)
-        for client, token in ((self.client, self.csrf), (specialist, csrf)):
-            self.assertEqual(client.get(f"/api/operations/{self.oid}").status_code, 200)
+    def test_both_observers_share_one_browser_session_and_one_operation(self):
+        for observer in ("oncall", "database"):
+            self.assertEqual(self.get(f"/api/operations/{self.oid}", observer=observer).status_code, 200)
             self.assertEqual(self.post(
-                f"/api/operations/{self.oid}/negotiate", client=client, csrf=token,
+                f"/api/operations/{self.oid}/negotiate", observer=observer,
             ).status_code, 200)
+        self.assertEqual([request["user_id"] for request in self.pubsub.token_requests], ["oncall", "database"])
         self.assertEqual(self.store.load(self.oid)[0].worker_starts, 0)
         with patch("app.threading.Thread") as thread:
             first = self.post(f"/api/operations/{self.oid}/start")
@@ -231,40 +262,52 @@ class FlaskTests(InvestigationFixture):
         self.assertTrue(first.json["started"])
         self.assertFalse(second.json["started"])
         self.assertEqual(thread.return_value.start.call_count, 1)
+        self.assertEqual(first.json["operation"]["stage"], "Starting investigation")
         self.assertEqual(
-            self.post(f"/api/operations/{self.oid}/start", client=specialist, csrf=csrf).status_code, 403,
+            self.post(f"/api/operations/{self.oid}/start", observer="database").status_code, 403,
         )
+
+    def test_specialist_cannot_create_or_elevate_via_request_body(self):
+        self.assertEqual(
+            self.post("/api/operations", {"persona": "oncall"}, observer="database").status_code, 403,
+        )
+        self.assertEqual(self.post("/api/persona", {"persona": "oncall"}).status_code, 404)
+        self.assertEqual(self.post("/api/operations").status_code, 201)
+
+    def test_observer_context_still_obeys_operation_access(self):
+        restricted = self.store.create("oncall", ["oncall"])
+        self.assertEqual(
+            self.post(f"/api/operations/{restricted.operation_id}/negotiate", observer="database").status_code, 403,
+        )
+        self.assertEqual(
+            self.get(f"/api/operations/{restricted.operation_id}", observer="database").status_code, 403,
+        )
+        self.assertEqual(self.pubsub.token_requests, [])
 
     def test_completed_snapshot_and_result_survive_reload(self):
         self.run_worker()
         reader = self.app.test_client()
         self.initialize(reader)
-        self.assertEqual(reader.get(f"/api/operations/{self.oid}").json["text"], EXPECTED_TEXT)
-        self.assertEqual(reader.get(f"/api/operations/{self.oid}/result").json["text"], EXPECTED_TEXT)
+        for observer in ("oncall", "database"):
+            self.assertEqual(self.get(f"/api/operations/{self.oid}", client=reader, observer=observer).json["text"], EXPECTED_TEXT)
+            self.assertEqual(self.get(f"/api/operations/{self.oid}/result", client=reader, observer=observer).json["text"], EXPECTED_TEXT)
         self.assertEqual(self.store.load(self.oid)[0].worker_starts, 1)
 
     def test_csrf_and_cross_origin_rejected(self):
         self.assertEqual(self.client.post("/api/operations").status_code, 403)
-        response = self.client.post("/api/operations", headers={
-            "X-CSRF-Token": self.csrf, "Origin": "https://unrelated.invalid",
-        })
+        response = self.client.post(
+            "/api/operations", headers={**self.headers(), "Origin": "https://unrelated.invalid"},
+        )
         self.assertEqual(response.status_code, 403)
 
-    def test_malformed_personas_and_json_are_not_accepted(self):
-        for value in (None, [], {}, "unknown"):
-            self.assertEqual(self.post("/api/persona", {"persona": value}).status_code, 400)
-        response = self.client.post("/api/persona", data="{", content_type="application/json",
-                                    headers={"X-CSRF-Token": self.csrf})
-        self.assertEqual(response.status_code, 400)
-
     def test_pending_result_and_unknown_operation(self):
-        self.assertEqual(self.client.get(f"/api/operations/{self.oid}/result").status_code, 409)
-        self.assertEqual(self.client.get("/api/operations/" + "f" * 32).status_code, 404)
+        self.assertEqual(self.get(f"/api/operations/{self.oid}/result").status_code, 409)
+        self.assertEqual(self.get("/api/operations/" + "f" * 32).status_code, 404)
 
     def test_azure_failure_has_explicit_error_status(self):
         with patch.object(self.store, "load", side_effect=AzureError("Injected failure")):
             with self.assertLogs(self.app.logger, "ERROR"):
-                response = self.client.get(f"/api/operations/{self.oid}")
+                response = self.get(f"/api/operations/{self.oid}")
         self.assertEqual(response.status_code, 503)
         self.assertIn("error", response.json)
         self.assertNotIn("text", response.json)

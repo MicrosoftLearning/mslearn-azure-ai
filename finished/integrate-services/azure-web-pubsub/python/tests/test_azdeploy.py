@@ -180,7 +180,10 @@ class DeploymentTests(unittest.TestCase):
     def test_provisioning_is_blocking_and_disables_key_auth(self):
         with patch.object(deploy, "ready_for_create", return_value=True):
             with patch.object(deploy, "create_resource_group", return_value=True):
-                with patch.object(deploy, "az_query", return_value="1"):
+                with patch.object(
+                    deploy, "az_query",
+                    side_effect=lambda argv: "Registered" if argv[1:3] == ["provider", "show"] else "1",
+                ):
                     with patch.object(deploy, "run_quiet", return_value=True) as action:
                         self.assertTrue(deploy.create_webpubsub(
                             self.subscription_id, self.pubsub_name, self.user_object_id,
@@ -195,6 +198,7 @@ class DeploymentTests(unittest.TestCase):
                         self.assertFalse(any("webpubsub" in command for command in storage_commands))
         commands = pubsub_commands + storage_commands
         self.assertFalse(any("--no-wait" in command for command in commands))
+        self.assertFalse(any(command[:3] == ["az", "provider", "register"] for command in commands))
         pubsub = next(command for command in commands if command[:3] == ["az", "webpubsub", "create"])
         self.assertIn("Standard_S1", pubsub)
         storage = next(command for command in commands if command[:4] == ["az", "storage", "account", "create"])
@@ -208,13 +212,15 @@ class DeploymentTests(unittest.TestCase):
         )
         for function, name, option in steps:
             with self.subTest(option=option):
-                with patch.object(deploy, "create_resource_group", return_value=True):
+                with patch.object(deploy, "create_resource_group", return_value=True), patch.object(
+                    deploy, "check_provider_registration", return_value=True,
+                ):
                     with patch.object(deploy, "ready_for_create", return_value=True):
-                        with patch.object(deploy, "run_quiet", side_effect=[True, False]) as action:
+                        with patch.object(deploy, "run_quiet", return_value=False) as action:
                             with patch.object(deploy, "assign_role") as role:
                                 with contextlib.redirect_stdout(io.StringIO()) as output:
                                     self.assertFalse(function(self.subscription_id, name, self.user_object_id))
-                self.assertEqual(action.call_count, 2)
+                self.assertEqual(action.call_count, 1)
                 self.assertIn(f"Retry option {option}", output.getvalue())
                 role.assert_not_called()
 
@@ -225,7 +231,9 @@ class DeploymentTests(unittest.TestCase):
         )
         for function, name, resource_type, role_name in steps:
             with self.subTest(resource=name):
-                with patch.object(deploy, "create_resource_group", return_value=True):
+                with patch.object(deploy, "create_resource_group", return_value=True), patch.object(
+                    deploy, "check_provider_registration", return_value=True,
+                ):
                     with patch.object(deploy, "ready_for_create", return_value=False):
                         with patch.object(deploy, "run_quiet", return_value=True) as action:
                             with patch.object(deploy, "assign_role", side_effect=[False, True]) as role:
@@ -235,6 +243,55 @@ class DeploymentTests(unittest.TestCase):
                     self.subscription_id, resource_type, name, self.user_object_id, role_name,
                 )
                 self.assertFalse(any("create" in call.args[1] for call in action.call_args_list))
+
+    def test_provider_check_reports_progress_before_query_and_never_registers(self):
+        for namespace in ("Microsoft.SignalRService", "Microsoft.Storage"):
+            with self.subTest(namespace=namespace):
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    def registered(argv):
+                        self.assertIn(f"Checking resource provider registration: {namespace}", output.getvalue())
+                        return "Registered"
+
+                    with patch.object(deploy, "az_query", side_effect=registered) as query:
+                        with patch.object(deploy, "run_quiet") as action:
+                            self.assertTrue(deploy.check_provider_registration(self.subscription_id, namespace))
+                query.assert_called_once_with([
+                    "az", "provider", "show", "--namespace", namespace,
+                    "--subscription", self.subscription_id, "--query", "registrationState", "-o", "tsv",
+                ])
+                action.assert_not_called()
+                self.assertIn(f"Resource provider registered: {namespace}", output.getvalue())
+
+    def test_unregistered_or_pending_provider_stops_each_resource_step(self):
+        for function, name, namespace in (
+            (deploy.create_webpubsub, self.pubsub_name, "Microsoft.SignalRService"),
+            (deploy.create_storage, self.storage_name, "Microsoft.Storage"),
+        ):
+            for state in ("NotRegistered", "Registering", "Unregistering", ""):
+                with self.subTest(namespace=namespace, state=state):
+                    with patch.object(deploy, "az_query", return_value=state) as query:
+                        with patch.object(deploy, "run_quiet") as action:
+                            with patch.object(deploy, "create_resource_group") as group, patch("time.sleep") as sleep:
+                                with contextlib.redirect_stdout(io.StringIO()) as output:
+                                    self.assertFalse(function(self.subscription_id, name, self.user_object_id))
+                    query.assert_called_once()
+                    self.assertEqual(query.call_args.args[0][:3], ["az", "provider", "show"])
+                    action.assert_not_called()
+                    group.assert_not_called()
+                    sleep.assert_not_called()
+                    self.assertIn(namespace, output.getvalue())
+                    self.assertIn("Error:", output.getvalue())
+                    if state:
+                        self.assertIn(f"current state: {state}", output.getvalue())
+                    if state == "Registering":
+                        self.assertIn("Registration is in progress", output.getvalue())
+
+    def test_provider_query_error_is_not_treated_as_missing_registration(self):
+        with patch.object(deploy, "az_query", side_effect=RuntimeError("Provider query permission denied")):
+            with patch.object(deploy, "run_quiet") as action:
+                with self.assertRaisesRegex(RuntimeError, "Provider query permission denied"):
+                    deploy.check_provider_registration(self.subscription_id, "Microsoft.Storage")
+        action.assert_not_called()
 
     def test_extension_is_required_not_silently_installed(self):
         with patch.object(deploy, "az_query", return_value="other-extension") as query:
@@ -289,9 +346,11 @@ class DeploymentTests(unittest.TestCase):
             (deploy.create_storage, self.storage_name),
         ):
             with self.subTest(resource=name):
-                with patch.object(deploy, "create_resource_group", return_value=True):
+                with patch.object(deploy, "create_resource_group", return_value=True), patch.object(
+                    deploy, "check_provider_registration", return_value=True,
+                ):
                     with patch.object(deploy, "ready_for_create", return_value=False):
-                        with patch.object(deploy, "run_quiet", side_effect=[True, False]):
+                        with patch.object(deploy, "run_quiet", return_value=False):
                             with patch.object(deploy, "assign_role") as role:
                                 self.assertFalse(function(self.subscription_id, name, self.user_object_id))
                 role.assert_not_called()
@@ -412,7 +471,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(query.call_count, 5)
         self.assertEqual(checks_at_write, [5])
         values, directory = writer.call_args.args
-        self.assertEqual(directory, "client")
+        self.assertEqual(directory, str(ROOT))
         self.assertEqual(values, {
             "RESOURCE_GROUP": deploy.rg, "WEBPUBSUB_NAME": self.pubsub_name,
             "WEBPUBSUB_ENDPOINT": "https://example.webpubsub.azure.com",
@@ -503,8 +562,8 @@ class DeploymentTests(unittest.TestCase):
         self.addCleanup(os.chdir, previous)
         with tempfile.TemporaryDirectory() as directory:
             os.chdir(directory)
-            deploy.write_env_files({"PREVIOUS_SETTING": "preserve this"}, "client")
-            files = [Path("client/.env"), Path("client/.env.ps1")]
+            deploy.write_env_files({"PREVIOUS_SETTING": "preserve this"})
+            files = [Path(".env"), Path(".env.ps1")]
             before = [path.read_bytes() for path in files]
             for key, result in (
                 ("webpubsub_role", "0"), ("storage_role", "0"),
@@ -517,7 +576,8 @@ class DeploymentTests(unittest.TestCase):
                     try:
                         with patch.object(deploy, "show_resource", side_effect=[self.pubsub, self.storage]):
                             with patch.object(deploy, "az_query", side_effect=self.ready_query):
-                                self.assertFalse(deploy.verify_deployment(*self.verification_args))
+                                with patch.object(deploy, "__file__", str(Path(directory, "azdeploy.py"))):
+                                    self.assertFalse(deploy.verify_deployment(*self.verification_args))
                         self.assertEqual([path.read_bytes() for path in files], before)
                     finally:
                         self.responses[key] = original
@@ -527,23 +587,32 @@ class DeploymentTests(unittest.TestCase):
         previous = Path.cwd()
         self.addCleanup(os.chdir, previous)
         with tempfile.TemporaryDirectory() as directory:
-            os.chdir(directory)
-            self.responses["container"] = "false"
-            with patch.object(deploy, "show_resource", side_effect=[self.pubsub, self.storage]):
-                with patch.object(deploy, "az_query", side_effect=self.ready_query):
-                    self.assertFalse(deploy.verify_deployment(*self.verification_args))
-            self.assertFalse(Path("client").exists())
-            self.responses["container"] = "true"
+            script_dir = Path(directory)
+            elsewhere = script_dir / "elsewhere"
+            elsewhere.mkdir()
+            os.chdir(elsewhere)
+            with patch.object(deploy, "__file__", str(script_dir / "azdeploy.py")):
+                self.responses["container"] = "false"
+                with patch.object(deploy, "show_resource", side_effect=[self.pubsub, self.storage]):
+                    with patch.object(deploy, "az_query", side_effect=self.ready_query):
+                        self.assertFalse(deploy.verify_deployment(*self.verification_args))
+                self.assertFalse((script_dir / ".env").exists())
+                self.assertFalse((script_dir / ".env.ps1").exists())
+                self.responses["container"] = "true"
 
-            def ready_before_files(argv, **kwargs):
-                self.assertFalse(Path("client").exists())
-                return self.ready_query(argv, **kwargs)
+                def ready_before_files(argv, **kwargs):
+                    self.assertFalse((script_dir / ".env").exists())
+                    self.assertFalse((script_dir / ".env.ps1").exists())
+                    return self.ready_query(argv, **kwargs)
 
-            with patch.object(deploy, "show_resource", side_effect=[self.pubsub, self.storage]):
-                with patch.object(deploy, "az_query", side_effect=ready_before_files):
-                    self.assertTrue(deploy.verify_deployment(*self.verification_args))
-            bash = Path("client/.env").read_text(encoding="utf-8")
-            powershell = Path("client/.env.ps1").read_text(encoding="utf-8")
+                with patch.object(deploy, "show_resource", side_effect=[self.pubsub, self.storage]):
+                    with patch.object(deploy, "az_query", side_effect=ready_before_files):
+                        self.assertTrue(deploy.verify_deployment(*self.verification_args))
+            self.assertFalse((script_dir / "client").exists())
+            self.assertFalse((elsewhere / ".env").exists())
+            self.assertFalse((elsewhere / ".env.ps1").exists())
+            bash = (script_dir / ".env").read_text(encoding="utf-8")
+            powershell = (script_dir / ".env.ps1").read_text(encoding="utf-8")
             self.assertIn('export WEBPUBSUB_ENDPOINT="https://example.webpubsub.azure.com"', bash)
             self.assertIn('$env:BLOB_CONTAINER = "investigations"', powershell)
             self.assertNotIn("test-only", bash + powershell)

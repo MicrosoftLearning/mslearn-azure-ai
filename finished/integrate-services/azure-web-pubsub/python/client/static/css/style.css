@@ -109,6 +109,11 @@ button:focus {
     outline-offset: 2px;
 }
 
+button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .btn-primary {
     background: #0078d4;
     color: white;

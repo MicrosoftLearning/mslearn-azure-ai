@@ -29,6 +29,7 @@ def simulate(delay: float = 1.0) -> Iterator[tuple[str, str, int]]:
     emitted = 0
     for stage, fragments in STAGES:
         for fragment in fragments:
-            time.sleep(delay)
+            if emitted:
+                time.sleep(delay)
             emitted += 1
             yield stage, fragment, emitted * 95 // FRAGMENT_COUNT

@@ -8,10 +8,10 @@ from urllib.parse import urlsplit
 from azure.core.exceptions import AzureError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import ContainerClient
-from flask import Flask, flash, jsonify, render_template, request, session
+from flask import Flask, jsonify, render_template, request, session
 from werkzeug.exceptions import HTTPException
 
-from operation_access import PERSONAS, authorize, connection_details, get_client
+from operation_access import OBSERVERS, authorize, connection_details, get_client
 from operation_store import OperationStore
 from worker_logic import run_investigation
 
@@ -28,7 +28,8 @@ def create_app(store=None, pubsub=None, *, recover: bool = True) -> Flask:
         if missing:
             raise ValueError(
                 f"Missing configuration: {', '.join(missing)}. "
-                "Run deployment option 4 and load its generated client environment file."
+                "Run deployment option 4 and load its generated environment file "
+                "from the folder containing azdeploy.py."
             )
         credential = DefaultAzureCredential()
         store = OperationStore(ContainerClient(
@@ -52,39 +53,33 @@ def create_app(store=None, pubsub=None, *, recover: bool = True) -> Flask:
             ):
                 return jsonify(error="Reload the page before submitting this action."), 403
 
-    def persona():
-        return session.get("persona", "oncall")
+    def observer() -> str:
+        supplied = request.headers.get("X-Demo-Viewer", "")
+        for name, token in session.get("viewer_tokens", {}).items():
+            if name in OBSERVERS and secrets.compare_digest(supplied.encode(), token.encode()):
+                return name
+        raise PermissionError("Unknown observer context. Reload the page and try again.")
 
     def operation(operation_id, *, start=False):
+        viewer = observer()
         value, _ = store.load(operation_id)
-        authorize(value, persona(), start=start)
+        authorize(value, viewer, start=start)
         return value
 
     @app.get("/")
     def index():
         if "csrf_token" not in session:
             session["csrf_token"] = secrets.token_hex(24)
+        if "viewer_tokens" not in session:
+            session["viewer_tokens"] = {name: secrets.token_hex(24) for name in OBSERVERS}
         return render_template(
-            "index.html", personas=PERSONAS, persona=persona(), csrf_token=session["csrf_token"],
+            "index.html", observers=OBSERVERS, viewer_tokens=session["viewer_tokens"],
+            csrf_token=session["csrf_token"],
         )
-
-    @app.get("/api/session")
-    def current_session():
-        return jsonify(persona=persona())
-
-    @app.post("/api/persona")
-    def set_persona():
-        data = request.get_json()
-        value = data.get("persona") if isinstance(data, dict) else None
-        if not isinstance(value, str) or value not in PERSONAS:
-            raise ValueError("Choose a known demo persona.")
-        session["persona"] = value
-        flash(f"Demo persona changed to {PERSONAS[value]}.", "success")
-        return jsonify(persona=value)
 
     @app.post("/api/operations")
     def create_operation():
-        if persona() != "oncall":
+        if observer() != "oncall":
             raise PermissionError("Only the on-call developer can create investigations.")
         value = store.create("oncall", ["oncall", "database"])
         return jsonify(asdict(value)), 201
@@ -96,7 +91,7 @@ def create_app(store=None, pubsub=None, *, recover: bool = True) -> Flask:
     @app.post("/api/operations/<operation_id>/negotiate")
     def negotiate(operation_id):
         value = operation(operation_id)
-        return jsonify(connection_details(pubsub, value, persona()))
+        return jsonify(connection_details(pubsub, value, observer()))
 
     @app.post("/api/operations/<operation_id>/start")
     def start_operation(operation_id):
@@ -163,5 +158,5 @@ if __name__ == "__main__":
         application = create_app()
     except (AzureError, ValueError) as error:
         raise SystemExit(f"Error: Cannot start the app: {error}") from error
-    print("Local demo only. Open http://localhost:5000 in separate browser profiles for different personas.")
+    print("Open http://localhost:5000 to watch both responders on one page.")
     application.run(debug=False, host="0.0.0.0", port=5000, use_reloader=False)

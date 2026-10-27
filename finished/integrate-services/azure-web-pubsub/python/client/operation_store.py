@@ -83,7 +83,7 @@ class OperationStore:
         if operation.status != "pending":
             return operation, False
         claimed = replace(
-            operation, status="running", worker_id=self.worker_id,
+            operation, status="running", stage="Starting investigation", worker_id=self.worker_id,
             worker_starts=operation.worker_starts + 1,
         )
         try:
