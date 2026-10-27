@@ -240,6 +240,10 @@ class FlaskTests(InvestigationFixture):
         self.assertNotIn('data-field="result"', response.text)
         self.assertNotIn('data-action="refresh"', response.text)
         self.assertEqual(response.text.count('class="connection-controls"'), 2)
+        self.assertEqual(
+            re.findall(r'data-action="reconnect"\s+class="([^"]+)"', response.text),
+            ["btn-success", "btn-success"],
+        )
         self.assertEqual(response.text.count('class="findings-placeholder"'), 2)
         self.assertNotIn("Create an investigation to connect both responder views", response.text)
         self.assertNotIn("Creating prepares the workspace", response.text)

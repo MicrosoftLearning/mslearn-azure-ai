@@ -40,7 +40,7 @@ def publish_event(
                 continue
             store.delivery_problem(
                 event["operation_id"],
-                "Live delivery failed. Findings remain stored; reconnect or refresh the snapshot.",
+                "Live delivery failed. Findings remain stored; reconnect this view to recover them.",
             )
             return
         store.delivery_problem(event["operation_id"], None)

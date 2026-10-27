@@ -117,6 +117,7 @@ class InvestigationView {
         }
         for (const button of this.root.querySelectorAll("[data-action]")) {
             button.disabled = !value || this.busy || this.workspaceBusy ||
+                (button.dataset.action === "reconnect" && this.joined) ||
                 (button.dataset.action === "disconnect" && !this.client);
         }
         this.changed();

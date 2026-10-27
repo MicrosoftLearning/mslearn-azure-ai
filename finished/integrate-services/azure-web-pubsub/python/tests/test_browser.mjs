@@ -25,6 +25,21 @@ test("duplicate events never duplicate findings", () => {
     assert.equal(state.receive(first), "duplicate");
     assert.equal(state.value.text, "one ");
     assert.equal(state.liveEvents, 1);
+    assert.equal(state.duplicates, 1);
+});
+
+test("snapshots do not count as live events and already-covered events count as ignored", () => {
+    const state = new State(id);
+    state.snapshot(snapshot(6, "Stored findings. "));
+    assert.equal(state.liveEvents, 0);
+    assert.equal(state.duplicates, 0);
+    assert.equal(state.receive(event(6, "findings", { text: "already stored" })), "duplicate");
+    assert.equal(state.liveEvents, 0);
+    assert.equal(state.duplicates, 1);
+    state.receive(event(7, "findings", { text: "New live findings." }));
+    assert.equal(state.liveEvents, 1);
+    assert.equal(state.duplicates, 1);
+    assert.equal(state.value.text, "Stored findings. New live findings.");
 });
 
 test("a gap waits for reconciliation without appending incomplete text", () => {
@@ -166,6 +181,28 @@ test("two same-page views use distinct contexts and negotiate once per connectio
     assert.deepEqual(negotiations.map((request) => request.token).sort(), ["database-context", "oncall-context"]);
     assert.equal(oncall.state.value.worker_starts, 0);
     assert.equal(database.state.value.worker_starts, 0);
+});
+
+test("reconnect is disabled while connected and enabled after disconnection", async () => {
+    const app = workspace();
+    const view = app.make("oncall-context");
+    const button = name => view.root.querySelectorAll("[data-action]")
+        .find(control => control.dataset.action === name);
+    await view.select(id);
+    await view.connect();
+    assert.equal(button("disconnect").disabled, false);
+    assert.equal(button("reconnect").disabled, true);
+
+    app.clients[0].handlers.disconnected();
+    assert.equal(button("reconnect").disabled, false);
+
+    await view.action("disconnect");
+    assert.equal(button("disconnect").disabled, true);
+    assert.equal(button("reconnect").disabled, false);
+
+    await view.action("reconnect");
+    assert.equal(button("disconnect").disabled, false);
+    assert.equal(button("reconnect").disabled, true);
 });
 
 test("disconnecting one view leaves the other live and reconnect restores its snapshot", async () => {
