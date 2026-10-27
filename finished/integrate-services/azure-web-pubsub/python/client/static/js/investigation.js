@@ -107,6 +107,8 @@ class InvestigationView {
             this.field("stage").textContent = value.stage;
             this.field("progress").value = value.progress;
             this.field("findings").textContent = value.text;
+            this.field("findings").hidden = !value.text;
+            this.field("empty-findings").hidden = Boolean(value.text);
             this.field("delivery").textContent = value.delivery_error || "";
             this.field("diagnostics").textContent = `Sequence: ${value.sequence}` +
                 ` | Live events: ${this.state.liveEvents} | Worker starts: ${value.worker_starts}` +
@@ -115,7 +117,6 @@ class InvestigationView {
         }
         for (const button of this.root.querySelectorAll("[data-action]")) {
             button.disabled = !value || this.busy || this.workspaceBusy ||
-                (button.dataset.action === "result" && value.status !== "completed") ||
                 (button.dataset.action === "disconnect" && !this.client);
         }
         this.changed();
@@ -132,7 +133,6 @@ class InvestigationView {
         this.intentionalDisconnect = false;
         this.field("connection").textContent = "Not connected";
         this.field("error").hidden = true;
-        this.field("result").textContent = "";
         this.render();
     }
 
@@ -183,7 +183,7 @@ class InvestigationView {
     }
 
     async connect() {
-        if (!this.state) throw new Error("Create or resume an investigation first.");
+        if (!this.state) throw new Error("Create an investigation first.");
         const epoch = await this.stop();
         if (epoch !== this.generation) return;
         this.intentionalDisconnect = false;
@@ -277,12 +277,7 @@ class InvestigationView {
                 await this.stop();
                 this.field("connection").textContent = "Disconnected by you";
             } else if (name === "reconnect") await this.connect();
-            else if (name === "refresh") await this.refresh();
-            else if (name === "result") {
-                const selected = this.state;
-                const result = await this.request(`/api/operations/${selected.operationId}/result`);
-                if (selected === this.state) this.field("result").textContent = result.text;
-            }
+            else throw new Error("Unknown observer action.");
         } catch (error) { this.showError(error); }
         finally { this.busy = false; this.render(); }
     }
@@ -299,7 +294,10 @@ if (typeof document !== "undefined") {
         let workspaceBusy = false;
         let sdkPromise = null;
         const views = [];
-        const activity = (text) => { el("activity").textContent = text; };
+        const activity = (text) => {
+            el("activity").textContent = text;
+            el("activity").hidden = false;
+        };
         const showError = (error) => {
             el("error").textContent = error.message || String(error);
             el("error").hidden = false;
@@ -327,7 +325,6 @@ if (typeof document !== "undefined") {
                 .map((view) => view.state.value)
                 .reduce((latest, current) => !latest || current.sequence > latest.sequence ? current : latest, null);
             el("create-form").querySelector("button").disabled = busy;
-            el("open-form").querySelector("button").disabled = busy;
             el("start").disabled = busy || !value || value.status !== "pending" || !views[0].joined;
             if (busy || !value) return;
             if (value.status === "pending") activity(views[0].joined ?
@@ -336,18 +333,17 @@ if (typeof document !== "undefined") {
             else if (value.status === "running") activity(value.sequence ?
                 "Investigation running. Each connected view receives live updates independently." :
                 "Investigation started. Waiting for the first live update.");
-            else if (value.status === "completed") activity("Investigation complete. Load the stored result in either view.");
+            else if (value.status === "completed") activity("Investigation complete. The findings have been saved.");
             else activity(value.error || "This investigation stopped. Create a new investigation to run again.");
         }
         for (const root of document.querySelectorAll("[data-observer]")) {
             views.push(new InvestigationView(root, api, loadSdk, renderControls));
         }
         async function selectOperation(id) {
-            if (!/^[a-f0-9]{32}$/.test(id)) throw new Error("Enter a valid saved investigation ID.");
+            if (!/^[a-f0-9]{32}$/.test(id)) throw new Error("Invalid investigation ID.");
             operationId = id;
             el("selection").hidden = false;
             el("current-id").textContent = id;
-            el("operation-id").value = id;
             const url = new URL(location.href);
             url.searchParams.set("operation", id);
             history.replaceState(null, "", url);
@@ -375,12 +371,8 @@ if (typeof document !== "undefined") {
                 const operation = await api("/api/operations", "POST");
                 await selectOperation(operation.operation_id);
             },
-            "open-form": async () => {
-                activity("Resuming the saved investigation; no new work will be started...");
-                await selectOperation(el("operation-id").value.trim());
-            },
             "start-form": async () => {
-                if (!operationId) throw new Error("Create or resume an investigation first.");
+                if (!operationId) throw new Error("Create an investigation first.");
                 el("start").textContent = "Starting...";
                 activity("Starting investigation... waiting for the backend to accept the request.");
                 const result = await api(`/api/operations/${operationId}/start`, "POST");

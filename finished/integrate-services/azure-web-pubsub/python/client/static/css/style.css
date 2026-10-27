@@ -58,12 +58,6 @@ h3 .subtitle {
     margin: 0 auto;
 }
 
-.left-panel, .right-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
 /* Cards and sections */
 .section {
     background: white;
@@ -76,6 +70,27 @@ h3 .subtitle {
 .section-secrets h2 { border-bottom-color: #0078d4; }
 .section-cache h2 { border-bottom-color: #008272; }
 .section-results h2 { border-bottom-color: #5c2d91; }
+
+.observer-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.connection-status {
+    flex: 1 1 200px;
+}
+
+.connection-status p {
+    margin: 0 0 8px;
+}
+
+.connection-controls {
+    display: flex;
+    gap: 8px;
+}
 
 /* Button group */
 .button-group {
@@ -180,6 +195,29 @@ button:disabled {
     overflow-y: auto;
     border: 1px solid #e1dfdd;
     border-radius: 4px;
+}
+
+.findings-container {
+    min-height: 160px;
+    margin: 16px 0;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.findings-container h3 {
+    margin-top: 0;
+}
+
+.findings-placeholder {
+    color: #605e5c;
+    font-style: italic;
+    margin: 0;
+}
+
+.findings-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 0;
 }
 
 /* Message cards */

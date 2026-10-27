@@ -12,7 +12,6 @@
 <a href="#main-content" class="skip-link">Skip to main content</a>
 <main id="main-content" class="container">
     <h1>AI Investigation Updates - Azure Web PubSub</h1>
-    <div class="left-panel">
         <section class="section section-secrets" aria-labelledby="workspace-heading">
             <h2 id="workspace-heading">One investigation, two responders</h2>
             <p>A deterministic simulator investigates a fictional database connection incident.
@@ -22,69 +21,49 @@
                 <li><strong>Start</strong> the investigation as the on-call developer. Both views receive the same updates.</li>
                 <li>Disconnect either view, let the other continue, then reconnect to recover the stored findings.</li>
             </ol>
-            <p>The responders are local demo roles, not separate sign-ins.
-                Microsoft Entra ID authenticates the backend to Azure.</p>
         </section>
         <section class="section section-cache" aria-labelledby="actions-heading">
             <h2 id="actions-heading">Investigation actions</h2>
             <form id="create-form" method="post">
                 <button class="btn-primary" type="submit">Create investigation</button>
             </form>
-            <p>Creating prepares the workspace; it does not start the analysis.</p>
             <p id="selection" hidden>Investigation:
                 <strong id="current-id" style="overflow-wrap: anywhere"></strong></p>
             <form id="start-form" method="post">
                 <button id="start" class="btn-success" type="submit" disabled>Start investigation</button>
             </form>
-            <p>Start runs the background worker once. Reconnecting either view never starts new work.</p>
-            <p id="activity" class="query-info" role="status" aria-live="polite">
-                Create an investigation to connect both responder views.</p>
+            <p id="activity" class="query-info" role="status" aria-live="polite" hidden></p>
             <div id="error" class="flash error" role="alert" hidden></div>
-            <details>
-                <summary>Resume an existing investigation</summary>
-                <p>Use a saved ID to load its status and connect both views.
-                    This does not start or restart the analysis.</p>
-                <form id="open-form" method="post">
-                    <label for="operation-id">Saved investigation ID</label>
-                    <input id="operation-id" name="operation_id" maxlength="32" size="30"
-                           pattern="[a-f0-9]{32}" required autocomplete="off">
-                    <button class="btn-secondary" type="submit">Resume investigation</button>
-                </form>
-            </details>
         </section>
-    </div>
-    <div class="right-panel">
         {% for name, label in observers.items() %}
         <section class="section section-results" aria-labelledby="{{ name }}-heading"
                  data-observer="{{ name }}" data-token="{{ viewer_tokens[name] }}">
             <h2 id="{{ name }}-heading">{{ label }}</h2>
-            <p>Connection: <span id="{{ name }}-connection" data-field="connection" class="tag">Not connected</span></p>
-            <p>Processing: <span id="{{ name }}-processing" data-field="processing" class="tag">No investigation</span></p>
-            <p id="{{ name }}-stage" data-field="stage" aria-live="polite">Create or resume an investigation.</p>
+            <div class="observer-header">
+                <div class="connection-status">
+                    <p>Connection: <span id="{{ name }}-connection" data-field="connection" class="tag">Not connected</span></p>
+                    <p>Processing: <span id="{{ name }}-processing" data-field="processing" class="tag">No investigation</span></p>
+                </div>
+                <div class="connection-controls">
+                    <button data-action="disconnect" class="btn-warning" type="button" disabled
+                            aria-label="Disconnect {{ label }}">Disconnect</button>
+                    <button data-action="reconnect" class="btn-secondary" type="button" disabled
+                            aria-label="Reconnect {{ label }}">Reconnect</button>
+                </div>
+            </div>
+            <p id="{{ name }}-stage" data-field="stage" aria-live="polite">Waiting for an investigation.</p>
             <progress data-field="progress" max="100" value="0" aria-label="{{ label }} progress"></progress>
             <p data-field="diagnostics">Sequence: 0 | Live events: 0 | Worker starts: 0</p>
             <p data-field="delivery" role="status"></p>
             <div data-field="error" class="flash error" role="alert" hidden></div>
-            <div class="button-group">
-                <button data-action="disconnect" class="btn-warning" type="button" disabled
-                        aria-label="Disconnect {{ label }}">Disconnect</button>
-                <button data-action="reconnect" class="btn-secondary" type="button" disabled
-                        aria-label="Reconnect {{ label }}">Reconnect</button>
-                <button data-action="refresh" class="btn-secondary" type="button" disabled
-                        aria-label="Refresh {{ label }} snapshot">Refresh snapshot</button>
-            </div>
-            <div class="results-container" role="region" aria-labelledby="{{ name }}-findings-heading" aria-live="polite">
+            <div class="results-container findings-container" role="region"
+                 aria-labelledby="{{ name }}-findings-heading" aria-live="polite">
                 <h3 id="{{ name }}-findings-heading">Accumulated findings</h3>
-                <pre id="{{ name }}-findings" data-field="findings"
-                     style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
+                <p data-field="empty-findings" class="findings-placeholder">Findings will appear here as the investigation runs.</p>
+                <pre id="{{ name }}-findings" data-field="findings" class="findings-text" hidden></pre>
             </div>
-            <h3>Stored result</h3>
-            <button data-action="result" class="btn-secondary" type="button" disabled
-                    aria-label="Load {{ label }} result">Load completed result</button>
-            <pre data-field="result" style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
         </section>
         {% endfor %}
-    </div>
 </main>
 </body>
 </html>

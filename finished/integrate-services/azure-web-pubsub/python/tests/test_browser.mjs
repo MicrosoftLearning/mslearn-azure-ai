@@ -91,12 +91,15 @@ test("start acknowledgement updates worker count without overwriting newer live 
 
 function root(token) {
     const fields = new Map();
-    const buttons = ["disconnect", "reconnect", "refresh", "result"].map((action) => ({
+    const availableFields = new Set(["connection", "processing", "stage", "progress",
+        "findings", "empty-findings", "delivery", "diagnostics", "error"].map((name) => `[data-field="${name}"]`));
+    const buttons = ["disconnect", "reconnect"].map((action) => ({
         dataset: { action }, disabled: true, addEventListener() {},
     }));
     return {
         dataset: { token },
         querySelector(selector) {
+            if (!availableFields.has(selector)) return null;
             if (!fields.has(selector)) fields.set(selector, { textContent: "", hidden: false, value: 0 });
             return fields.get(selector);
         },
@@ -131,6 +134,23 @@ function workspace() {
     const make = (token) => new View(root(token), request, async () => ({ WebPubSubClient: Client }), () => {});
     return { clients, requests, make, setSnapshot(value) { current = value; } };
 }
+
+test("the findings placeholder is replaced by real text and restored for a new investigation", async () => {
+    const app = workspace();
+    const view = app.make("oncall-context");
+    await view.select(id);
+    assert.equal(view.field("empty-findings").hidden, false);
+    assert.equal(view.field("findings").hidden, true);
+    assert.equal(view.field("findings").textContent, "");
+    view.receive(event(1, "findings", { text: "Actual findings." }), view.generation);
+    assert.equal(view.field("empty-findings").hidden, true);
+    assert.equal(view.field("findings").hidden, false);
+    assert.equal(view.field("findings").textContent, "Actual findings.");
+    await view.select("b".repeat(32));
+    assert.equal(view.field("empty-findings").hidden, false);
+    assert.equal(view.field("findings").hidden, true);
+    assert.equal(view.field("findings").textContent, "");
+});
 
 test("two same-page views use distinct contexts and negotiate once per connection", async () => {
     const app = workspace();
