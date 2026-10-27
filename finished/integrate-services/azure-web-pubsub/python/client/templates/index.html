@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>AI Investigation Updates - Azure Web PubSub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script defer src="{{ url_for('static', filename='js/investigation.js') }}"></script>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<main id="main-content" class="container">
+    <h1>AI Investigation Updates - Azure Web PubSub</h1>
+    <div class="left-panel">
+        <section class="section section-secrets" aria-labelledby="workspace-heading">
+            <h2 id="workspace-heading">Incident workspace</h2>
+            <p>A deterministic simulator investigates a fictional database connection incident.
+                Azure Web PubSub delivers the updates; Azure Blob Storage retains the findings.</p>
+            <p><strong>Local demo only:</strong> Personas demonstrate authorization, not authentication.
+                Use separate browser profiles or a private window for different personas.</p>
+            <form id="persona-form" method="post">
+                <label for="persona">Demo persona</label>
+                <select id="persona" name="persona">
+                    {% for key, label in personas.items() %}
+                    <option value="{{ key }}" {% if key == persona %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn-secondary" type="submit">Use persona</button>
+            </form>
+            <p id="persona-label" aria-live="polite">{{ personas[persona] }}</p>
+        </section>
+        <section class="section section-cache" aria-labelledby="actions-heading">
+            <h2 id="actions-heading">Investigation actions</h2>
+            <form id="create-form" method="post">
+                <button class="btn-primary" type="submit">Create investigation</button>
+            </form>
+            <form id="open-form" method="post">
+                <p><label for="operation-id">Existing investigation ID</label></p>
+                <input id="operation-id" name="operation_id" maxlength="32" size="34"
+                       pattern="[a-f0-9]{32}" required autocomplete="off">
+                <button class="btn-secondary" type="submit">Open investigation</button>
+            </form>
+            <p><a id="share-link" hidden>Open this investigation in another browser</a></p>
+            <form id="start-form" method="post">
+                <button id="start" class="btn-success" type="submit" disabled>Start investigation</button>
+            </form>
+            <p>Opening or reconnecting never starts another investigation. Only the on-call developer can start it.</p>
+            <button id="disconnect" class="btn-warning" type="button">Disconnect this browser</button>
+            <button id="reconnect" class="btn-secondary" type="button">Reconnect</button>
+            <button id="refresh" class="btn-secondary" type="button">Refresh stored snapshot</button>
+        </section>
+    </div>
+    <div class="right-panel">
+        <section class="section section-results" aria-labelledby="results-heading">
+            <h2 id="results-heading">Investigation findings</h2>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                <div class="flash {{ category }}" role="status">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+            <div id="error" class="flash error" role="alert" hidden></div>
+            <p>Connection: <span id="connection" class="tag">Not connected</span></p>
+            <p>Processing: <span id="processing" class="tag">No investigation</span></p>
+            <p id="stage" aria-live="polite">Create or open an investigation to begin.</p>
+            <progress id="progress" max="100" value="0" aria-label="Investigation progress"></progress>
+            <p id="diagnostics">Snapshot sequence: 0 | Live events: 0 | Worker starts: 0</p>
+            <p id="delivery" role="status"></p>
+            <div class="results-container" role="region" aria-labelledby="findings-heading" aria-live="polite">
+                <h3 id="findings-heading">Accumulated findings</h3>
+                <pre id="findings" style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
+            </div>
+            <h3>Stored result</h3>
+            <button id="load-result" class="btn-secondary" type="button" disabled>Load completed result</button>
+            <pre id="result" style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
+        </section>
+    </div>
+</main>
+</body>
+</html>
