@@ -71,6 +71,10 @@ h3 .subtitle {
 .section-cache h2 { border-bottom-color: #008272; }
 .section-results h2 { border-bottom-color: #5c2d91; }
 
+.investigation-actions form {
+    margin: 16px 0;
+}
+
 .observer-header {
     display: flex;
     flex-wrap: wrap;

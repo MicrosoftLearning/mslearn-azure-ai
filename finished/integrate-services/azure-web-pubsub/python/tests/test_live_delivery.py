@@ -7,10 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "client"))
 
-from operation_access import connection_details, get_client, group_name
 from operation_store import OperationStore
 from simulator import EXPECTED_TEXT, simulate
-from worker_logic import run_investigation
+from webpubsub_functions import connection_details, get_client, group_name, run_investigation
 
 
 @unittest.skipUnless(os.environ.get("RUN_AZURE_LIVE_TESTS") == "1", "Opt-in Azure test; no resource provisioning")

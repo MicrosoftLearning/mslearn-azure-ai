@@ -11,9 +11,8 @@ from azure.storage.blob import ContainerClient
 from flask import Flask, jsonify, render_template, request, session
 from werkzeug.exceptions import HTTPException
 
-from operation_access import OBSERVERS, authorize, connection_details, get_client
 from operation_store import OperationStore
-from worker_logic import run_investigation
+from webpubsub_functions import OBSERVERS, authorize, connection_details, get_client, run_investigation
 
 
 def create_app(store=None, pubsub=None, *, recover: bool = True) -> Flask:

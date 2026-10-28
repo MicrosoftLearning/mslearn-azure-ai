@@ -12,11 +12,11 @@ from azure.core.exceptions import AzureError, ResourceModifiedError
 
 from app import create_app
 from fakes import FakePubSub, MemoryContainer
-from notifications import publish_event
-from operation_access import authorize, connection_details, group_name
 from operation_store import OperationStore
 from simulator import EXPECTED_TEXT, FRAGMENT_COUNT, simulate
-from worker_logic import BATCH_FRAGMENTS, run_investigation
+from webpubsub_functions import (
+    BATCH_FRAGMENTS, authorize, connection_details, group_name, publish_event, run_investigation,
+)
 
 
 class InvestigationFixture(unittest.TestCase):
@@ -118,7 +118,7 @@ class InvestigationTests(InvestigationFixture):
 
     def test_publish_failure_retains_complete_recoverable_snapshot(self):
         self.pubsub.fail_publish = True
-        with patch("notifications.time.sleep"), self.assertLogs("notifications", "WARNING"):
+        with patch("webpubsub_functions.time.sleep"), self.assertLogs("webpubsub_functions", "WARNING"):
             self.run_worker()
         stored, _ = self.store.load(self.oid)
         self.assertEqual(stored.text, EXPECTED_TEXT)
@@ -137,7 +137,7 @@ class InvestigationTests(InvestigationFixture):
                 raise AzureError("temporary")
 
         with patch.object(self.pubsub, "send_to_group", side_effect=send):
-            with patch("notifications.time.sleep"), self.assertLogs("notifications", "WARNING"):
+            with patch("webpubsub_functions.time.sleep"), self.assertLogs("webpubsub_functions", "WARNING"):
                 publish_event(self.pubsub, self.store, event)
         self.assertEqual(attempts, [event, event, event])
         self.assertIsNone(self.store.load(self.oid)[0].delivery_error)
@@ -145,7 +145,7 @@ class InvestigationTests(InvestigationFixture):
     def test_storage_failure_does_not_publish_success(self):
         self.store.claim(self.oid)
         self.container.fail_writes = True
-        with self.assertLogs("worker_logic", "ERROR"), self.assertRaises(AzureError):
+        with self.assertLogs("webpubsub_functions", "ERROR"), self.assertRaises(AzureError):
             run_investigation(self.store, self.pubsub, self.oid, lambda: simulate(0))
         self.assertEqual(self.pubsub.events, [])
         self.assertEqual(self.store.load(self.oid)[0].sequence, 0)
@@ -155,7 +155,7 @@ class InvestigationTests(InvestigationFixture):
             raise RuntimeError("Injected simulator failure")
 
         self.store.claim(self.oid)
-        with self.assertLogs("worker_logic", "ERROR"):
+        with self.assertLogs("webpubsub_functions", "ERROR"):
             run_investigation(self.store, self.pubsub, self.oid, broken)
         stored, _ = self.store.load(self.oid)
         self.assertEqual(stored.status, "failed")
