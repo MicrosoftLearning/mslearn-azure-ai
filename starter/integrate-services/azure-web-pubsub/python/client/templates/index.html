@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>AI Investigation Updates - Azure Web PubSub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script defer src="{{ url_for('static', filename='js/investigation.js') }}"></script>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<main id="main-content" class="container">
+    <h1>AI Investigation Updates - Azure Web PubSub</h1>
+        <section class="section section-secrets" aria-labelledby="workspace-heading">
+            <h2 id="workspace-heading">One investigation, two responders</h2>
+            <p>A deterministic simulator investigates a fictional database connection incident.
+                Azure Web PubSub delivers the updates; Azure Blob Storage retains the findings.</p>
+            <ol>
+                <li><strong>Create</strong> a saved investigation. Both responder views connect automatically.</li>
+                <li><strong>Start</strong> the investigation as the on-call developer. Both views receive the same updates.</li>
+                <li>Disconnect either view, let the other continue, then reconnect to recover the stored findings.</li>
+            </ol>
+        </section>
+        <section class="section section-cache investigation-actions" aria-labelledby="actions-heading">
+            <h2 id="actions-heading">Investigation actions</h2>
+            <form id="create-form" method="post">
+                <button class="btn-primary" type="submit">Create investigation</button>
+            </form>
+            <p id="selection" hidden>Investigation:
+                <strong id="current-id" style="overflow-wrap: anywhere"></strong></p>
+            <form id="start-form" method="post">
+                <button id="start" class="btn-success" type="submit" disabled>Start investigation</button>
+            </form>
+            <p id="activity" class="query-info" role="status" aria-live="polite" hidden></p>
+            <div id="error" class="flash error" role="alert" hidden></div>
+        </section>
+        {% for name, label in observers.items() %}
+        <section class="section section-results" aria-labelledby="{{ name }}-heading"
+                 data-observer="{{ name }}" data-token="{{ viewer_tokens[name] }}">
+            <h2 id="{{ name }}-heading">{{ label }}</h2>
+            <div class="observer-header">
+                <div class="connection-status">
+                    <p>Connection: <span id="{{ name }}-connection" data-field="connection" class="tag">Not connected</span></p>
+                    <p>Processing: <span id="{{ name }}-processing" data-field="processing" class="tag">No investigation</span></p>
+                </div>
+                <div class="connection-controls">
+                    <button data-action="disconnect" class="btn-warning" type="button" disabled
+                            aria-label="Disconnect {{ label }}">Disconnect</button>
+                    <button data-action="reconnect" class="btn-success" type="button" disabled
+                            aria-label="Reconnect {{ label }}">Reconnect</button>
+                </div>
+            </div>
+            <p id="{{ name }}-stage" data-field="stage" aria-live="polite">Waiting for an investigation.</p>
+            <progress data-field="progress" max="100" value="0" aria-label="{{ label }} progress"></progress>
+            <p data-field="diagnostics">Sequence: 0 | Live events: 0 | Worker starts: 0</p>
+            <p data-field="delivery" role="status"></p>
+            <div data-field="error" class="flash error" role="alert" hidden></div>
+            <div class="results-container findings-container" role="region"
+                 aria-labelledby="{{ name }}-findings-heading" aria-live="polite">
+                <h3 id="{{ name }}-findings-heading">Accumulated findings</h3>
+                <p data-field="empty-findings" class="findings-placeholder">Findings will appear here as the investigation runs.</p>
+                <pre id="{{ name }}-findings" data-field="findings" class="findings-text" hidden></pre>
+            </div>
+        </section>
+        {% endfor %}
+</main>
+</body>
+</html>

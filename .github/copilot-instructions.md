@@ -53,6 +53,15 @@ Avoid using inline code for:
 
 Use italics for file names in prose - e.g., *azdeploy.sh*, *agent_tools.py*, *.env*
 
+### Optional Development Tools
+
+When creating or updating exercise instructions, include relevant optional VS Code extensions at the end of the **Before you start** prerequisite list. Use the following bullets when students edit the corresponding file types:
+
+- Python: **Optional:** The [Ruff extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) for formatting and linting Python code.
+- YAML: **Optional:** The [YAML extension by Red Hat for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) for formatting and validating YAML files.
+
+Recommend only tools relevant to student tasks, not merely file types present in the project. Keep these tools optional; don't make installing them a condition for completing the exercise.
+
 ### Command Steps
 
 Steps that direct a student to run a command should:
@@ -105,7 +114,7 @@ Both blocks belong to the same numbered step. Do not use prose like "If you use 
 
 ### Student Code Indentation Tip
 
-Before the first step where students paste code between **BEGIN** and **END** markers, include the following exact tip:
+After the numbered step that opens the student code file, and before the first code subsection, include the following exact tip. Keep it in this location even if the first subsection has its own explanatory text:
 
 ```markdown
 > **Tip:** To maintain proper code indentation, paste the code flush with the left margin (column 1), select all of the pasted lines, and press **Tab** to align the block with the **BEGIN / END** markers. Press **Shift+Tab** to outdent if needed.
@@ -166,7 +175,7 @@ Before answering questions about Azure CLI commands, generating CLI commands, or
 
 ### Exercise Markdown Structure
 
-Every exercise markdown file must follow this exact structure. The gold-standard reference is *instructions/azure-managed-redis/02-amr-pub-sub.md* (best deployment/error-handling walkthrough and Flask app integration); *finished/app-sec-config/key-vault/python/01-aks-retrieve-secrets.md* is also a valid reference.
+Every exercise markdown file must follow this exact structure. The primary gold-standard reference is *instructions/cosmosdb/04-persisent-agent-memory.md*, especially for deployment wording, the editable Python variable block, numbered menu walkthrough, role explanations, and environment loading. Match its presentation while preserving the exercise's actual menu options and deployment behavior. Use *instructions/azure-managed-redis/02-amr-pub-sub.md* as a supplementary reference for deployment/error handling and Flask app integration; *finished/app-sec-config/key-vault/python/01-aks-retrieve-secrets.md* is also a valid reference.
 
 1. **YAML frontmatter** — Required at the top of the file:
    ```yaml

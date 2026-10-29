@@ -117,6 +117,11 @@
       "name": "durable-functions-python.zip"
     },
     {
+      "source": "starter/integrate-services/azure-web-pubsub/python",
+      "output": "downloads/python",
+      "name": "azure-web-pubsub-python.zip"
+    },
+    {
       "source": "starter/app-sec-config/key-vault/python",
       "output": "downloads/python",
       "name": "key-vault-python.zip"

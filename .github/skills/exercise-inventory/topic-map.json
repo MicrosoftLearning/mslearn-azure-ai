@@ -146,6 +146,10 @@
         "durable-functions": {
           "starter_slug": "durable-functions",
           "instructions_file": "04-durable-functions-ai.md"
+        },
+        "azure-web-pubsub": {
+          "starter_slug": "azure-web-pubsub",
+          "instructions_file": "05-azure-web-pubsub.md"
         }
       }
     },
