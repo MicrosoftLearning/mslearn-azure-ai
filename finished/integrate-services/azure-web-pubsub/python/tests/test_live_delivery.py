@@ -46,7 +46,7 @@ class LiveDeliveryTests(unittest.TestCase):
                     deadline = time.monotonic() + 30
                     while time.monotonic() < deadline:
                         message = json.loads(socket.recv(timeout=max(0.1, deadline - time.monotonic())))
-                        if message.get("type") == "message" and message.get("from") == "server":
+                        if message.get("type") == "message" and message.get("from") == "group":
                             data = message["data"]
                             received.append(json.loads(data) if isinstance(data, str) else data)
                             if received[-1]["type"] == "completed":

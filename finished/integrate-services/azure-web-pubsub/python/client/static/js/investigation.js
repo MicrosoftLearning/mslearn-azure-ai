@@ -220,8 +220,7 @@ class InvestigationView {
                 await this.refresh();
             };
             const report = (error) => { if (epoch === this.generation) this.showError(error); };
-            // REST group publishing arrives through the SDK's server-message event.
-            next.on("server-message", (message) => {
+            next.on("group-message", (message) => {
                 if (epoch !== this.generation) return;
                 try {
                     this.receive(typeof message.message.data === "string" ?

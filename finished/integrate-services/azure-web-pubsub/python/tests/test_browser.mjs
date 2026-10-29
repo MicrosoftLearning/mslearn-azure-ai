@@ -183,6 +183,24 @@ test("two same-page views use distinct contexts and negotiate once per connectio
     assert.equal(database.state.value.worker_starts, 0);
 });
 
+test("group notifications update findings and live diagnostics without polling", async () => {
+    const app = workspace();
+    const view = app.make("oncall-context");
+    await view.select(id);
+    await view.connect();
+    const receive = app.clients[0].handlers["group-message"];
+    assert.equal(typeof receive, "function");
+    const message = { message: { data: event(1, "findings", { text: "Live findings." }) } };
+    receive(message);
+    assert.equal(view.state.value.text, "Live findings.");
+    assert.equal(view.state.liveEvents, 1);
+    assert.match(view.field("diagnostics").textContent, /Live events: 1/);
+    receive(message);
+    assert.equal(view.state.value.text, "Live findings.");
+    assert.equal(view.state.duplicates, 1);
+    assert.match(view.field("diagnostics").textContent, /Duplicates ignored: 1/);
+});
+
 test("reconnect is disabled while connected and enabled after disconnection", async () => {
     const app = workspace();
     const view = app.make("oncall-context");
@@ -215,8 +233,8 @@ test("disconnecting one view leaves the other live and reconnect restores its sn
     assert.equal(app.clients[1].stopped, true);
     assert.equal(app.clients[0].stopped, false);
     const message = { message: { data: event(1, "findings", { text: "live findings" }) } };
-    app.clients[0].handlers["server-message"](message);
-    app.clients[1].handlers["server-message"](message);
+    app.clients[0].handlers["group-message"](message);
+    app.clients[1].handlers["group-message"](message);
     assert.equal(oncall.state.value.text, "live findings");
     assert.equal(database.state.value.text, "");
     app.setSnapshot({ ...snapshot(1, "live findings"), worker_starts: 1 });
