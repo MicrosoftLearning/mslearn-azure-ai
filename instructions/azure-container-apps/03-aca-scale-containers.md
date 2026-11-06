@@ -227,6 +227,8 @@ In this section you run a local Flask dashboard that can both generate concurren
 
 1. In the **Load Generator** section, select **Start** to being sending data to the container app.
 
+    The **Load Run** table beneath **Revisions** shows whether the load generator is running, the number of sent, succeeded, and failed requests, and the most recent error. These values update automatically while the dashboard is open.
+
 1. Select **Refresh Revisions & Replicas** every 5-10 seconds and you should see the number of replicas increase. You can run the **Load Generator** again after it stops to increase the traffic and increase replica count.
 
 When you're finished close the browser window and enter **Ctrl+c** in the terminal to end the client app.

@@ -48,7 +48,7 @@ h2 { margin: 0 0 12px; font-size: 16px; }
 
 .grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -161,8 +161,23 @@ tbody td {
   font-size: 12px;
 }
 
-.twoCol {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.load-run-table {
+  width: auto;
+  max-width: 100%;
+}
+
+.load-run-table th {
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--muted);
+}
+
+.load-run-table td {
+  vertical-align: top;
+  font-size: 12px;
 }

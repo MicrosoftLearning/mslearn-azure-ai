@@ -2,6 +2,10 @@
 
 ## General Rules
 
+### Desktop-Only Exercises
+
+All exercises are performed in Visual Studio Code on a desktop and require access to a CLI. Design and validate client apps and dashboards for desktop browsers only. Ignore mobile layouts, mobile-specific responsive breakpoints, and mobile viewport testing unless explicitly requested.
+
 ### Azure Authentication
 
 Never sign Azure CLI, sandbox terminals, or other command-line tools into the user's accounts. For Azure queries, use authenticated ARM-backed Azure tools instead.
