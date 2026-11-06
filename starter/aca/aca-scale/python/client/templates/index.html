@@ -87,18 +87,20 @@
             </div>
             <ul id="replicaList" class="list"></ul>
           </section>
-        </div>
 
-        <section class="panel">
-          <h2>Load Run</h2>
-          <div class="twoCol">
-            <div class="kv"><span class="k">running</span><span class="v" id="st_running">-</span></div>
-            <div class="kv"><span class="k">sent</span><span class="v" id="st_sent">-</span></div>
-            <div class="kv"><span class="k">succeeded</span><span class="v" id="st_succeeded">-</span></div>
-            <div class="kv"><span class="k">failed</span><span class="v" id="st_failed">-</span></div>
-            <div class="kv"><span class="k">lastError</span><span class="v" id="st_lastError">-</span></div>
-          </div>
-        </section>
+          <section class="panel" aria-labelledby="loadRunHeading">
+            <h2 id="loadRunHeading">Load Run</h2>
+            <table class="load-run-table" aria-labelledby="loadRunHeading">
+              <tbody>
+                <tr><th scope="row">running</th><td class="v" id="st_running">-</td></tr>
+                <tr><th scope="row">sent</th><td class="v" id="st_sent">-</td></tr>
+                <tr><th scope="row">succeeded</th><td class="v" id="st_succeeded">-</td></tr>
+                <tr><th scope="row">failed</th><td class="v" id="st_failed">-</td></tr>
+                <tr><th scope="row">lastError</th><td class="v" id="st_lastError">-</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
       </main>
     </div>
 
