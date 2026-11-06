@@ -46,7 +46,7 @@ In this section you download the project starter files and run the deployment sc
 
 1. Open the extracted folder in Visual Studio Code.
 
-1. 1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
+1. Open the *azdeploy.py* deployment script and change the two values at the top of the script to meet your needs, then save your changes. **Note:** Do not change anything else in the script.
 
 1. Open a new terminal in Visual Studio Code.
 
